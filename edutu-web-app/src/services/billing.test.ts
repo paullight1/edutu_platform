@@ -27,7 +27,6 @@ function checkoutResponse(
 
 describe("createCheckout", () => {
   beforeEach(() => {
-    vi.stubEnv("VITE_BACHS_CHECKOUT_ENABLED", "true");
     vi.stubEnv("VITE_BACKEND_URL", "https://api.edutu.test");
     vi.stubEnv("VITE_API_URL", "https://api.edutu.test");
   });
@@ -37,7 +36,8 @@ describe("createCheckout", () => {
     vi.unstubAllGlobals();
   });
 
-  it("uses the server-gated learner endpoint even when the browser checkout flag is enabled", async () => {
+  it("uses the server gate even when an old frontend build flag is false", async () => {
+    vi.stubEnv("VITE_BACHS_CHECKOUT_ENABLED", "false");
     const fetchMock = vi
       .fn()
       .mockResolvedValue(
@@ -147,9 +147,10 @@ describe("createCheckout", () => {
     ).rejects.toThrow("trusted Bachs checkout URL");
   });
 
-  it("does not request checkout while Bachs is disabled by default", async () => {
-    vi.stubEnv("VITE_BACHS_CHECKOUT_ENABLED", "false");
-    const fetchMock = vi.fn();
+  it("lets the API decide whether checkout is available", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ message: "Bachs checkout is temporarily unavailable." }), { status: 503 }),
+    );
     vi.stubGlobal("fetch", fetchMock);
 
     await expect(
@@ -158,9 +159,9 @@ describe("createCheckout", () => {
         returnSurface: "web",
         idempotencyKey: "d2719a52-ef21-4d8b-a53a-82ba4ea7542b",
       }),
-    ).rejects.toThrow("not ready");
+    ).rejects.toMatchObject({ status: 503, code: "billing_unavailable" });
 
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("coalesces duplicate checkout requests for the same action idempotency key", async () => {
@@ -244,22 +245,14 @@ describe("checkoutUnavailableMessage", () => {
   afterEach(() => vi.unstubAllEnvs());
 
   it("explains when Bachs has not enabled signed checkout confirmation", () => {
-    vi.stubEnv("VITE_BACHS_CHECKOUT_ENABLED", "true");
     expect(checkoutUnavailableMessage({
       checkoutEnabled: false,
       checkoutUnavailableReason: "Bachs checkout and signed payment confirmation are not ready yet",
     })).toMatch(/signed payment confirmation are not ready yet/i);
   });
 
-  it("distinguishes an app rollout gate from a server checkout gate", () => {
+  it("returns no warning when the server reports checkout ready", () => {
     vi.stubEnv("VITE_BACHS_CHECKOUT_ENABLED", "false");
-    expect(checkoutUnavailableMessage({ checkoutEnabled: true })).toBe(
-      "Billing is ready, but checkout is not enabled in this app yet.",
-    );
-  });
-
-  it("returns no warning when both server and app gates are ready", () => {
-    vi.stubEnv("VITE_BACHS_CHECKOUT_ENABLED", "true");
     expect(checkoutUnavailableMessage({ checkoutEnabled: true })).toBeNull();
   });
 });

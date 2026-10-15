@@ -5,7 +5,6 @@ import { ArrowRight, Check, Loader2 } from "lucide-react";
 import {
   checkoutUnavailableMessage,
   createCheckout,
-  isBachsCheckoutEnabled,
   type CheckoutResponse,
 } from "../../services/billing";
 import { productApiRequest } from "../../services/productApi";
@@ -129,8 +128,7 @@ export default function PlanPicker({
     if (
       busy ||
       checkout ||
-      !catalog?.checkoutEnabled ||
-      !isBachsCheckoutEnabled()
+      !catalog?.checkoutEnabled
     )
       return;
     const account = userId;
@@ -236,7 +234,7 @@ export default function PlanPicker({
         (tier === "pro" && p.productKey === "season_pass"),
     ) || [];
   const selectedProduct = products.find((p) => p.productKey === selectedProductKey) || products.find((p) => p.cadence === "monthly") || products[0];
-  const enabled = !!catalog?.checkoutEnabled && isBachsCheckoutEnabled();
+  const enabled = !!catalog?.checkoutEnabled;
   // Prices and renewal terms must come only from /billing/user-catalog.
   // The general admin pricing feed may reflect different providers/currencies.
   const allowance = priceState.pricing?.[tier === "lite" ? "liteFairUse" : tier === "pro" ? "proFairUse" : "scholarFairUse"];

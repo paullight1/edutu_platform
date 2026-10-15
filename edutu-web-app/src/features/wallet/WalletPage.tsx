@@ -23,7 +23,6 @@ import {
 import {
   createCheckout,
   validateBachsPortalUrl,
-  isBachsCheckoutEnabled,
   checkoutUnavailableMessage,
   type BillingStatus,
 } from "../../services/billing";
@@ -472,7 +471,7 @@ export default function WalletPage() {
                     <button
                       className="feature-button mt-auto !mt-5 w-full"
                       type="button"
-                      disabled={busy || !enabled || !isBachsCheckoutEnabled()}
+                      disabled={busy || !enabled}
                       onClick={() => void buy(p)}
                     >
                       {pending?.productKey === p.productKey

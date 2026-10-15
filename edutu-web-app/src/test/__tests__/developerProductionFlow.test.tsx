@@ -51,7 +51,6 @@ vi.mock('../../services/billing', async () => {
     ...actual,
     createCheckout: mocks.createCheckout,
     getCheckoutIntent: mocks.getCheckoutIntent,
-    isBachsCheckoutEnabled: () => true,
   };
 });
 vi.mock('../../hooks/useBillingStatus', () => ({

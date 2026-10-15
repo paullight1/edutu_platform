@@ -17,9 +17,6 @@ export function checkoutUnavailableMessage(
     }
     return "Online purchases are not ready yet. Please try again later.";
   }
-  if (!isBachsCheckoutEnabled()) {
-    return "Billing is ready, but checkout is not enabled in this app yet.";
-  }
   return null;
 }
 
@@ -254,11 +251,6 @@ export async function getCreditProducts(
     : [];
 }
 
-/** Bachs is opt-in until the server-side launch gate has passed. */
-export function isBachsCheckoutEnabled(): boolean {
-  return import.meta.env.VITE_BACHS_CHECKOUT_ENABLED === "true";
-}
-
 export function validateBachsCheckoutUrl(value: unknown): string {
   if (typeof value !== "string") {
     throw new Error("Billing returned an invalid checkout URL.");
@@ -329,12 +321,6 @@ export function createCheckout(
   input: CreateCheckoutInput,
   audience: "legacy" | "consumer" = "legacy",
 ): Promise<CheckoutResponse> {
-  if (!isBachsCheckoutEnabled()) {
-    return Promise.reject(
-      new Error("Payments are not ready yet. Please try again later."),
-    );
-  }
-
   const activeRequest = activeCheckoutRequests.get(input.idempotencyKey);
   if (activeRequest) return activeRequest;
 

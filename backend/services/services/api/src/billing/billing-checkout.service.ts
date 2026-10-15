@@ -233,6 +233,9 @@ export class BillingCheckoutService {
       catalogVersion: number;
     }>
   > {
+    if (!this.config.checkoutEnabled || !this.config.hostedCompletionEnabled) {
+      return [];
+    }
     if (!(await this.repository.hasActiveApiConsumer(userId))) return [];
     const products =
       (await this.repository.listEnabledApiCreditProducts?.(

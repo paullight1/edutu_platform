@@ -704,3 +704,34 @@ describe("learner wallet contracts", () => {
     ).rejects.toMatchObject({ status: 404 });
   });
 });
+
+describe("developer credit catalog readiness", () => {
+  it.each([
+    [
+      "checkout disabled",
+      { checkoutEnabled: false, hostedCompletionEnabled: true },
+    ],
+    [
+      "signed completion disabled",
+      { checkoutEnabled: true, hostedCompletionEnabled: false },
+    ],
+  ])("hides API credit packs when %s", async (_, readiness) => {
+    const fixture = createFixture();
+    fixture.repository.developer = true;
+    Object.assign(fixture.repository, {
+      listEnabledApiCreditProducts: async () => [apiCreditProduct],
+    });
+    const service = new BillingCheckoutService(
+      fixture.repository,
+      fixture.provider,
+      fixture.identity,
+      fixture.clock,
+      fixture.rateLimiter,
+      { ...config, ...readiness },
+    );
+
+    await expect(
+      service.getPublicApiCreditCatalog("user_123"),
+    ).resolves.toEqual([]);
+  });
+});

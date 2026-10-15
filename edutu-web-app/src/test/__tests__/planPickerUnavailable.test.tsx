@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import PlanPicker from "../../features/feature-access/PlanPicker";
 import { ProductApiUnavailableError } from "../../services/productApi";
 
@@ -35,7 +35,6 @@ vi.mock("../../services/productApi", async () => {
 
 vi.mock("../../services/billing", async importOriginal => ({
   ...await importOriginal<typeof import("../../services/billing")>(),
-  isBachsCheckoutEnabled: () => true,
   createCheckout: mocks.checkout,
 }));
 
@@ -52,6 +51,8 @@ describe("PlanPicker unavailable catalog recovery", () => {
     localStorage.clear();
     mocks.pricing = null;
   });
+
+  afterEach(() => vi.unstubAllEnvs());
 
   it("never relabels legacy admin pricing as a checkout offer when the catalog is empty", async () => {
     mocks.pricing = {
@@ -118,6 +119,7 @@ describe("PlanPicker unavailable catalog recovery", () => {
     ).not.toBeInTheDocument();
   });
   it("starts the selected product from the docked checkout action", async () => {
+    vi.stubEnv("VITE_BACHS_CHECKOUT_ENABLED", "false");
     mocks.request.mockResolvedValueOnce({ checkoutEnabled: true, products: [
       { productKey: "pro_monthly_pass", amountMinor: 1500, currency: "USD", cadence: "monthly", renewalMode: "one_time", validityDays: 30 },
       { productKey: "pro_yearly_pass", amountMinor: 15000, currency: "USD", cadence: "yearly", renewalMode: "one_time", validityDays: 365 },

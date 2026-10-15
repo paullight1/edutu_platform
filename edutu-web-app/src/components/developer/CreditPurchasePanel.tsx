@@ -216,7 +216,7 @@ export default function CreditPurchasePanel({
           </div>
         ) : (
           <div className="rounded-2xl border border-dashed border-subtle bg-white px-4 py-5 text-sm text-text-muted">
-            No credit packs are currently configured.
+            No credit packs are available for this account right now.
           </div>
         )}
       </div>

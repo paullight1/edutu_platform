@@ -21,7 +21,6 @@ import { v4 as uuidv4 } from "uuid";
 import {
   createCheckout,
   getCheckoutIntent,
-  isBachsCheckoutEnabled,
   type BillingTransaction,
   type CheckoutResponse,
 } from "../services/billing";
@@ -208,7 +207,7 @@ export default function DeveloperDashboardPage() {
   const [checkoutError, setCheckoutError] = useState<{ code: string | null; message: string } | null>(null);
   const [checkoutHandoff, setCheckoutHandoff] = useState<CreditCheckoutHandoff | null>(null);
   const checkoutActionKeys = useRef<Record<string, string>>({});
-  const checkoutEnabled = isBachsCheckoutEnabled();
+  const checkoutEnabled = billing.products.length > 0;
   const refreshBilling = billing.refresh;
 
   const loadDashboard = useCallback(async () => {

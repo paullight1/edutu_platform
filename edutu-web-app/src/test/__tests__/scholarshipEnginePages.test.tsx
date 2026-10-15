@@ -94,7 +94,6 @@ vi.mock("../../services/developer", () => ({
 
 vi.mock("../../services/billing", () => ({
   createCheckout: serviceMocks.createCheckout,
-  isBachsCheckoutEnabled: () => false,
 }));
 
 function renderScholarshipApiPage() {
