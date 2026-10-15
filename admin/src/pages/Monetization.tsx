@@ -1160,7 +1160,7 @@ export default function Monetization() {
                   </button>
                 </div>
                 <p className="mz-hint" style={{ marginTop: 12 }}>
-                  Saving changes only the active environment’s catalog. Purchase remains disabled until the API, webhook, payment shell and database readiness gates all pass.
+                  Saving changes only the active environment’s catalog. Purchases remain disabled until the Bachs API, signed webhook, and enabled product mappings are ready.
                 </p>
               </>
             )}
