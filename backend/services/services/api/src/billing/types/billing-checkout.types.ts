@@ -60,10 +60,14 @@ export function bachsCheckoutReturnUrl(
   if (
     base.username ||
     base.password ||
-    !(localDevelopment ||
-      (base.protocol === "https:" && /(^|\.)edutu\.org$/i.test(base.hostname)))
+    !(
+      localDevelopment ||
+      (base.protocol === "https:" && /(^|\.)edutu\.org$/i.test(base.hostname))
+    )
   ) {
-    throw new Error("The public Edutu app URL is not trusted for billing returns.");
+    throw new Error(
+      "The public Edutu app URL is not trusted for billing returns.",
+    );
   }
   const url = new URL("/app/wallet", base.origin);
   url.searchParams.set("checkout", state);
