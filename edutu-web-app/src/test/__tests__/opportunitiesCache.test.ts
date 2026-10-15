@@ -53,6 +53,35 @@ describe("opportunities snapshot cache", () => {
     vi.stubEnv("VITE_BACKEND_URL", "https://api.example.test");
   });
 
+  it("shares one cold catalog request across concurrent consumers", async () => {
+    let resolveResponse!: (response: Response) => void;
+    const response = new Promise<Response>((resolve) => {
+      resolveResponse = resolve;
+    });
+    const fetchMock = vi.fn().mockReturnValue(response);
+    vi.stubGlobal("fetch", fetchMock);
+
+    const service = await importOpportunities();
+    const first = service.fetchOpportunities();
+    const second = service.fetchOpportunities();
+    expect(first).toBe(second);
+
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    resolveResponse({
+      ok: true,
+      status: 200,
+      json: async () => ({ data: [backendRow] }),
+    } as Response);
+
+    const [firstRows, secondRows] = await Promise.all([first, second]);
+    expect(firstRows).toHaveLength(1);
+    expect(secondRows).toEqual(firstRows);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await service.fetchOpportunities({ force: true });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it("persists fetched opportunities and serves them synchronously in a new session", async () => {
     mockFetchSuccess();
     const first = await importOpportunities();
