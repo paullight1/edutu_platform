@@ -75,4 +75,33 @@ describe("CommunityChatsPage", () => {
       expect(screen.queryByText("David Okafor")).not.toBeInTheDocument();
     });
   });
+  it("lets mobile users filter unread chats and return to the full inbox", async () => {
+    render(<MemoryRouter initialEntries={["/app/community/chats"]}><CommunityChatsPage /></MemoryRouter>);
+    await screen.findByText("Amina Yusuf");
+
+    fireEvent.click(screen.getByRole("button", { name: /Unread 1/i }));
+    expect(screen.getByText("Amina Yusuf")).toBeVisible();
+    expect(screen.queryByText("David Okafor")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Unread 1/i })).toHaveAttribute("aria-pressed", "true");
+
+    fireEvent.click(screen.getByRole("button", { name: /All 2/i }));
+    expect(screen.getByText("David Okafor")).toBeVisible();
+  });
+
+  it("makes the remove action accessible without desktop hover", async () => {
+    render(<MemoryRouter initialEntries={["/app/community/chats"]}><CommunityChatsPage /></MemoryRouter>);
+    await screen.findByText("Amina Yusuf");
+    expect(screen.getByRole("button", { name: "Remove conversation with Amina Yusuf" }))
+      .toHaveClass("opacity-100", "sm:opacity-0");
+  });
+
+  it("clears search filters without navigating away from conversations", async () => {
+    render(<MemoryRouter initialEntries={["/app/community/chats"]}><CommunityChatsPage /></MemoryRouter>);
+    await screen.findByText("Amina Yusuf");
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search chats" }), { target: { value: "not a real chat" } });
+    expect(screen.getByText("No conversations found")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Clear filters/i }));
+    expect(screen.getByText("David Okafor")).toBeVisible();
+  });
+
 });
