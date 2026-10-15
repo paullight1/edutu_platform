@@ -84,7 +84,7 @@ export function ResultStatus() {
   const active = result?.status === 'active';
   const needsAttention = !!result && !active && result.status !== 'processing';
   return (
-    <div className="card center">
+    <div className="card center payment-result">
       <div className={`badge ${active ? 'success' : needsAttention ? 'danger' : ''}`} role="status" aria-live="polite">
         {processing ? 'Confirmation pending' : copy.title}
       </div>
