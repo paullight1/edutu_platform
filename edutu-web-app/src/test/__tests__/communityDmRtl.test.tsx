@@ -114,3 +114,26 @@ describe("Community DM RTL layout", () => {
     ).not.toBeInTheDocument();
   });
 });
+
+
+describe("Community DM mobile usability", () => {
+  it("offers a useful first-message state and accessible composer", async () => {
+    mocks.listMessages.mockResolvedValueOnce([]);
+    renderDm();
+    expect(await screen.findByText("Start the conversation")).toBeVisible();
+    expect(screen.getByRole("textbox", { name: "Message Amina" })).toBeEnabled();
+    expect(screen.getByRole("log", { name: "Conversation messages" })).toBeInTheDocument();
+  });
+
+  it("keeps a reader in control when viewing earlier messages", async () => {
+    renderDm();
+    await screen.findByText("Incoming message");
+    const viewport = screen.getByRole("log", { name: "Conversation messages" });
+    Object.defineProperty(viewport, "scrollHeight", { configurable: true, value: 1200 });
+    Object.defineProperty(viewport, "clientHeight", { configurable: true, value: 500 });
+    viewport.scrollTop = 100;
+    fireEvent.scroll(viewport);
+    fireEvent.click(screen.getByRole("button", { name: /Latest messages/i }));
+    expect(viewport.scrollTop).toBe(1200);
+  });
+});
