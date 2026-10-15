@@ -54,7 +54,7 @@ export default defineConfig(({ mode, command }) => {
       },
       VitePWA({
         registerType: 'prompt',
-        includeAssets: ['favicon-16x16.png', 'favicon-32x32.png', 'apple-touch-icon.png', 'icons/*.png', 'data/opportunities.json'],
+        includeAssets: ['favicon-16x16.png', 'favicon-32x32.png', 'apple-touch-icon.png', 'edutu-logo.webp', 'icons/*.png', 'data/opportunities.json'],
         manifest: {
           name: 'Edutu | AI Opportunity Coach',
           short_name: 'Edutu',
@@ -82,6 +82,7 @@ export default defineConfig(({ mode, command }) => {
         workbox: {
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
           globIgnores: [
+            'edutu-logo.png',
             'og/*',
             '**/og/*',
             // Editorial and campaign media is large and optional for the app

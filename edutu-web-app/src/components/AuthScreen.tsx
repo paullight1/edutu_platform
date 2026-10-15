@@ -284,6 +284,8 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
 
   const emailRef = useRef<HTMLInputElement>(null);
   const nameRef = useRef<HTMLInputElement>(null);
+  const passwordRef = useRef<HTMLInputElement>(null);
+  const confirmPasswordRef = useRef<HTMLInputElement>(null);
   const verifyFormRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
@@ -820,12 +822,14 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
   };
 
   useEffect(() => {
-    const target =
-      mode === "sign-up" && signUpStep === 0
-        ? nameRef.current
-        : mode === "sign-up" && signUpStep !== 1
-          ? null
-          : emailRef.current;
+    const target = mode === "sign-up"
+      ? [
+          nameRef.current,
+          emailRef.current,
+          passwordRef.current,
+          confirmPasswordRef.current,
+        ][signUpStep]
+      : emailRef.current;
     target?.focus();
   }, [mode, signUpStep]);
 
@@ -1277,6 +1281,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
                             <LockKeyhole size={15} strokeWidth={1.9} />
                           </span>
                           <input
+                            ref={passwordRef}
                             type={showPassword ? "text" : "password"}
                             required
                             minLength={mode === "sign-up" ? 8 : undefined}
@@ -1345,6 +1350,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
                               <LockKeyhole size={15} strokeWidth={1.9} />
                             </span>
                             <input
+                              ref={confirmPasswordRef}
                               type={showConfirmPassword ? "text" : "password"}
                               required
                               value={confirmPassword}
