@@ -20,6 +20,9 @@ Edutu_Folder/
 ### Backend Path Quirk
 The NestJS API lives at `backend/services/services/api/` - **not** `backend/`. This nested `services/services/` path is unusual and easy to miss.
 
+### Production Deployments
+Production is managed through Docploy, not Vercel. Vercel project metadata or deployment events may exist, but they are not the production source of truth. Use Docploy for production deployment and verification.
+
 ### Architecture
 - **Client → Backend API → Supabase**: All client apps (admin, mobile) talk to the NestJS backend, **not** directly to Supabase (except mobile uses Supabase for auth)
 - **Auth**: Clerk for authentication across all apps
