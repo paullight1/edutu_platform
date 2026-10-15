@@ -8,7 +8,7 @@ vi.mock('../lib/releaseSafety', async importOriginal => ({
   ...await importOriginal<typeof import('../lib/releaseSafety')>(),
   refreshBlocked: () => true,
 }));
-afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
+afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 it('an old session sees a new deployment without reloading or interrupting work', async () => {
   vi.stubEnv('PROD', true);
   vi.stubGlobal('__APP_RELEASE__', 'release-a');
@@ -45,16 +45,27 @@ it('lifts the sign-in invitation above the release notice on narrow screens', as
   }));
   const gate = document.createElement('aside');
   gate.dataset.googleSignInGate = '';
-  vi.spyOn(gate, 'getBoundingClientRect').mockReturnValue(new DOMRect(20, 560, 390, 352));
+  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+    return this.matches('[data-release-refresh]')
+      ? new DOMRect(16, 0, 398, 140)
+      : new DOMRect(20, 560, 390, 352);
+  });
   document.body.append(gate);
 
   try {
-    render(<ReleaseUpdateNotice />);
+    const view = render(<ReleaseUpdateNotice />);
     const notice = await screen.findByText('Top100 has been updated');
-    await waitFor(() => expect(gate.style.bottom).toBe('calc(28px + env(safe-area-inset-bottom))'));
-    expect(notice.closest('[data-release-refresh]')).toHaveClass('bottom-4');
-    expect(notice.closest('[data-release-refresh]')).toHaveStyle({ bottom: 'calc(16px + env(safe-area-inset-bottom))' });
+    const noticeCard = notice.closest<HTMLElement>('[data-release-refresh]')!;
+    await waitFor(() => expect(gate.style.bottom).toBe('calc(168px + env(safe-area-inset-bottom))'));
+    expect(noticeCard).toHaveClass('bottom-4');
+    expect(noticeCard).toHaveStyle({ bottom: 'calc(16px + env(safe-area-inset-bottom))' });
     expect(notice).toHaveStyle({ color: '#fff' });
+    const viewportHeight = 932;
+    const noticeTop = viewportHeight - (140 + 16);
+    const gateBottom = viewportHeight - 168;
+    expect(noticeTop - gateBottom).toBe(12);
+    view.unmount();
+    expect(gate.style.bottom).toBe('');
   } finally {
     gate.remove();
   }
