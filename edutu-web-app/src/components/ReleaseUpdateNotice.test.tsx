@@ -56,20 +56,21 @@ it('keeps the release notice above the sign-in invitation on narrow screens', as
     const view = render(<ReleaseUpdateNotice />);
     const notice = await screen.findByText('Top100 has been updated');
     const noticeCard = notice.closest<HTMLElement>('[data-release-refresh]')!;
-    const viewportHeight = window.innerHeight;
-    const expectedBottom = viewportHeight - 560 + 12;
-    await waitFor(() => expect(noticeCard.style.bottom).toBe(`calc(${expectedBottom}px + env(safe-area-inset-bottom))`));
+    const expectedTop = 560 - 140 - 12;
+    await waitFor(() => expect(noticeCard.style.top).toBe(`${expectedTop}px`));
+    expect(noticeCard.style.bottom).toBe('auto');
     expect(gate.style.bottom).toBe('');
     expect(noticeCard).toHaveClass('bottom-4');
     expect(noticeCard).toHaveClass('sm:left-4', 'sm:right-auto');
-    expect(noticeCard).toHaveStyle({ bottom: `calc(${expectedBottom}px + env(safe-area-inset-bottom))` });
+    expect(noticeCard).toHaveStyle({ top: `${expectedTop}px`, bottom: 'auto' });
     expect(notice).toHaveClass('!text-white');
     expect(screen.getByRole('button', { name: 'Refresh now' })).toHaveClass('!text-white');
-    const noticeTop = viewportHeight - expectedBottom - 140;
+    const noticeTop = expectedTop;
     const gateTop = 560;
     expect(gateTop - noticeTop - 140).toBe(12);
     view.unmount();
     expect(noticeCard.style.bottom).toBe('calc(16px + env(safe-area-inset-bottom))');
+    expect(noticeCard.style.top).toBe('');
   } finally {
     gate.remove();
   }

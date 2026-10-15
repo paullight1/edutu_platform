@@ -41,6 +41,7 @@ export default function ReleaseUpdateNotice() {
     const compact = window.matchMedia('(max-width: 767px)');
     const notice = noticeRef.current;
     const defaultBottom = notice?.style.bottom ?? '';
+    const defaultTop = notice?.style.top ?? '';
     const sync = () => {
       const gate = compact.matches ? document.querySelector<HTMLElement>('[data-google-sign-in-gate]') : null;
       const currentNotice = noticeRef.current;
@@ -48,6 +49,7 @@ export default function ReleaseUpdateNotice() {
       if (!currentNotice) return;
       if (!gate || !available) {
         currentNotice.style.bottom = defaultBottom;
+        currentNotice.style.top = defaultTop;
         return;
       }
       resizeObserver?.observe(gate);
@@ -56,8 +58,14 @@ export default function ReleaseUpdateNotice() {
       // release notice above its top edge. This avoids covering the sheet's
       // actions on short mobile screens and keeps the sheet fully usable.
       const gap = 12;
-      const offset = Math.max(16, Math.ceil(window.innerHeight - gate.getBoundingClientRect().top + gap));
-      currentNotice.style.bottom = `calc(${offset}px + env(safe-area-inset-bottom))`;
+      // Use top coordinates from both elements directly. `innerHeight` can
+      // describe the layout viewport while fixed-element rectangles follow
+      // the mobile visual viewport, which can put a bottom-offset notice over
+      // the sign-in sheet on browsers with collapsing browser chrome.
+      const gateTop = gate.getBoundingClientRect().top;
+      const noticeHeight = currentNotice.getBoundingClientRect().height;
+      currentNotice.style.bottom = 'auto';
+      currentNotice.style.top = `${Math.max(16, Math.floor(gateTop - noticeHeight - gap))}px`;
     };
     const resizeObserver = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(sync);
     const mutationObserver = new MutationObserver(sync);
@@ -68,7 +76,10 @@ export default function ReleaseUpdateNotice() {
     return () => {
       mutationObserver.disconnect();
       resizeObserver?.disconnect();
-      if (notice) notice.style.bottom = defaultBottom;
+      if (notice) {
+        notice.style.bottom = defaultBottom;
+        notice.style.top = defaultTop;
+      }
       compact.removeEventListener('change', sync);
       window.removeEventListener('resize', sync);
     };
@@ -83,7 +94,7 @@ export default function ReleaseUpdateNotice() {
     finally { setBusy(false); }
   };
   if (!available) return null;
-  return <aside ref={noticeRef} data-release-refresh role="status" aria-live="polite" style={{ bottom: 'calc(16px + env(safe-area-inset-bottom))' }} className="fixed bottom-4 left-4 right-4 z-[100] mx-auto max-w-md rounded-2xl border border-blue-400/50 bg-slate-950 p-4 text-white shadow-xl sm:left-4 sm:right-auto sm:mx-0 sm:max-w-sm">
+  return <aside ref={noticeRef} data-release-refresh role="status" aria-live="polite" style={{ bottom: 'calc(16px + env(safe-area-inset-bottom))' }} className="fixed bottom-4 left-4 right-4 z-[79] mx-auto max-w-md rounded-2xl border border-blue-400/50 bg-slate-950 p-4 text-white shadow-xl sm:left-4 sm:right-auto sm:mx-0 sm:max-w-sm">
     <p className="!text-white font-semibold">Top100 has been updated</p>
     {message && <p className="mt-2 !text-white/90 text-sm">{message}</p>}
     <button type="button" disabled={busy} onClick={() => void refresh()} className="mt-3 rounded-lg bg-blue-600 px-4 py-2 font-medium !text-white disabled:opacity-50">{busy ? 'Preparing refresh…' : 'Refresh now'}</button>
