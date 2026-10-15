@@ -85,7 +85,7 @@ describe("OpportunitySharePage", () => {
 
     expect(screen.getByRole("link", { name: /sign in/i })).toHaveAttribute(
       "href",
-      "/auth?mode=sign-in",
+      "/auth?mode=sign-in&screen=full",
     );
     expect(
       screen.getByRole("link", { name: /browse opportunities/i }),

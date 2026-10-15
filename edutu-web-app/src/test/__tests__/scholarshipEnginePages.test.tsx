@@ -274,7 +274,7 @@ describe("Scholarship Engine pages", () => {
     expect(screen.queryByText("POST /v1/scraper/run")).not.toBeInTheDocument();
     expect(screen.queryByText("POST /v1/keys")).not.toBeInTheDocument();
     expect(document.body.textContent ?? "").toContain(
-      "https://edutu-platform.onrender.com/v1/opportunities",
+      "https://backend.edutu.org/v1/opportunities",
     );
     expect(document.body.textContent ?? "").not.toContain("api.edutu.org");
     for (const staleExample of ["edutu_test_", "edutu_live_", "sk_live_edutu"]) {
@@ -292,7 +292,7 @@ describe("Scholarship Engine pages", () => {
     expect(screen.queryByText("POST /v1/scraper/run")).not.toBeInTheDocument();
     expect(screen.queryByText("POST /v1/keys")).not.toBeInTheDocument();
     expect(document.body.textContent ?? "").toContain(
-      "https://edutu-platform.onrender.com/v1/opportunities",
+      "https://backend.edutu.org/v1/opportunities",
     );
     expect(document.body.textContent ?? "").not.toContain("api.edutu.org");
 

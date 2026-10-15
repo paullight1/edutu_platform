@@ -52,6 +52,7 @@ export function estimateAiCostUsd({
   const prompt = safeTokenCount(promptTokens);
   const completion = safeTokenCount(completionTokens);
   const total = safeTokenCount(totalTokens);
+  if (prompt === null && completion === null && total === null) return null;
   const input = prompt ?? (completion === null && total !== null ? total : 0);
   const output = completion ?? 0;
 

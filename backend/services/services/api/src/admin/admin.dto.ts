@@ -126,7 +126,8 @@ export interface AdminUpdateUserRoleResponse {
 export interface AdminAiUsageDayPoint {
   day: string; // YYYY-MM-DD (UTC)
   totalTokens: number;
-  estimatedCostUsd: number;
+  estimatedCostUsd: number | null;
+  unpricedCalls: number;
   calls: number;
 }
 
@@ -136,7 +137,8 @@ export interface AdminAiUsageRouteBreakdown {
   promptTokens: number;
   completionTokens: number;
   totalTokens: number;
-  estimatedCostUsd: number;
+  estimatedCostUsd: number | null;
+  unpricedCalls: number;
   errorCount: number;
   avgLatencyMs: number | null;
 }
@@ -173,7 +175,8 @@ export interface AdminAiUsageSummaryResponse {
     promptTokens: number;
     completionTokens: number;
     totalTokens: number;
-    estimatedCostUsd: number;
+    estimatedCostUsd: number | null;
+    unpricedCalls: number;
     errorCount: number;
   };
   perDay: AdminAiUsageDayPoint[];

@@ -29,8 +29,8 @@ origin is served by Nginx, so include
 Nginx `server` block used by the Docploy production service and reload Nginx
 after publishing. The snippet disables caching for the HTML shell, release
 metadata, and service worker files while preserving immutable caching for
-Vite's hashed `/assets/` files. Vercel and Netlify configuration in the
-repository is not evidence of the live deployment path.
+Vite's hashed `/assets/` files. Verify the actual Docploy service and live
+origin when validating hosted headers.
 
 1. Publish build A to a staging HTTPS origin and install/open it as a PWA.
 2. Keep that session open. Publish build B to the same origin.

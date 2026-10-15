@@ -1308,6 +1308,7 @@ export class AdminService {
         completionTokens: 0,
         totalTokens: 0,
         estimatedCostUsd: 0,
+        unpricedCalls: 0,
         errorCount: 0,
       },
       perDay: [],
@@ -1324,7 +1325,9 @@ export class AdminService {
             coalesce(sum(prompt_tokens), 0)::bigint as prompt_tokens,
             coalesce(sum(completion_tokens), 0)::bigint as completion_tokens,
             coalesce(sum(total_tokens), 0)::bigint as total_tokens,
-            coalesce(sum(estimated_cost_usd), 0)::numeric as estimated_cost_usd,
+            sum(estimated_cost_usd)::numeric as estimated_cost_usd,
+            count(*) filter (where estimated_cost_usd is null or
+              (prompt_tokens is null and completion_tokens is null and total_tokens is null))::int as unpriced_calls,
             count(*) filter (where success = false)::int as error_count
           from ai_usage_events
           where created_at >= ${since}
@@ -1333,7 +1336,9 @@ export class AdminService {
           select
             to_char(date_trunc('day', created_at), 'YYYY-MM-DD') as day,
             coalesce(sum(total_tokens), 0)::bigint as total_tokens,
-            coalesce(sum(estimated_cost_usd), 0)::numeric as estimated_cost_usd,
+            sum(estimated_cost_usd)::numeric as estimated_cost_usd,
+            count(*) filter (where estimated_cost_usd is null or
+              (prompt_tokens is null and completion_tokens is null and total_tokens is null))::int as unpriced_calls,
             count(*)::int as calls
           from ai_usage_events
           where created_at >= ${since}
@@ -1347,13 +1352,15 @@ export class AdminService {
             coalesce(sum(prompt_tokens), 0)::bigint as prompt_tokens,
             coalesce(sum(completion_tokens), 0)::bigint as completion_tokens,
             coalesce(sum(total_tokens), 0)::bigint as total_tokens,
-            coalesce(sum(estimated_cost_usd), 0)::numeric as estimated_cost_usd,
+            sum(estimated_cost_usd)::numeric as estimated_cost_usd,
+            count(*) filter (where estimated_cost_usd is null or
+              (prompt_tokens is null and completion_tokens is null and total_tokens is null))::int as unpriced_calls,
             count(*) filter (where success = false)::int as error_count,
             round(avg(latency_ms))::int as avg_latency_ms
           from ai_usage_events
           where created_at >= ${since}
           group by route
-          order by estimated_cost_usd desc, total_tokens desc
+          order by estimated_cost_usd desc nulls last, total_tokens desc
         `),
       ]);
 
@@ -1368,14 +1375,22 @@ export class AdminService {
           promptTokens: Number(totalsRow.prompt_tokens ?? 0),
           completionTokens: Number(totalsRow.completion_tokens ?? 0),
           totalTokens: Number(totalsRow.total_tokens ?? 0),
-          estimatedCostUsd: Number(totalsRow.estimated_cost_usd ?? 0),
+          estimatedCostUsd:
+            Number(totalsRow.unpriced_calls ?? 0) > 0
+              ? null
+              : Number(totalsRow.estimated_cost_usd ?? 0),
+          unpricedCalls: Number(totalsRow.unpriced_calls ?? 0),
           errorCount: Number(totalsRow.error_count ?? 0),
         },
         perDay: this.extractRows<Record<string, unknown>>(perDayResult).map(
           (row) => ({
             day: String(row.day ?? ""),
             totalTokens: Number(row.total_tokens ?? 0),
-            estimatedCostUsd: Number(row.estimated_cost_usd ?? 0),
+            estimatedCostUsd:
+              Number(row.unpriced_calls ?? 0) > 0
+                ? null
+                : Number(row.estimated_cost_usd ?? 0),
+            unpricedCalls: Number(row.unpriced_calls ?? 0),
             calls: Number(row.calls ?? 0),
           }),
         ),
@@ -1386,7 +1401,11 @@ export class AdminService {
             promptTokens: Number(row.prompt_tokens ?? 0),
             completionTokens: Number(row.completion_tokens ?? 0),
             totalTokens: Number(row.total_tokens ?? 0),
-            estimatedCostUsd: Number(row.estimated_cost_usd ?? 0),
+            estimatedCostUsd:
+              Number(row.unpriced_calls ?? 0) > 0
+                ? null
+                : Number(row.estimated_cost_usd ?? 0),
+            unpricedCalls: Number(row.unpriced_calls ?? 0),
             errorCount: Number(row.error_count ?? 0),
             avgLatencyMs:
               row.avg_latency_ms === null || row.avg_latency_ms === undefined

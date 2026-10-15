@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
-import { Loader2 } from "lucide-react";
 import PublicEditorialShell from "./PublicEditorialShell";
 import Seo from "./Seo";
 import { fetchOpportunityShareCard } from "../services/opportunityShare";
@@ -79,8 +78,22 @@ export default function OpportunitySharePage() {
 
       <section className="rounded-3xl bg-surface-layer p-6 shadow-soft ring-1 ring-border-subtle sm:p-8">
         {loading ? (
-          <div className="flex min-h-[220px] items-center justify-center">
-            <Loader2 className="h-8 w-8 animate-spin text-brand" />
+          <div
+            className="min-h-[320px] animate-pulse rounded-[2rem] bg-gradient-to-br from-brand/10 via-surface-elevated to-brand/5 p-6 sm:min-h-[360px] sm:p-8"
+            role="status"
+            aria-label="Loading shared opportunity"
+          >
+            <div className="flex min-h-[272px] flex-col justify-between sm:min-h-[296px]">
+              <div className="space-y-5">
+                <div className="h-3 w-28 rounded-full bg-brand/20" />
+                <div className="space-y-3">
+                  <div className="h-8 w-4/5 rounded-lg bg-brand/15 sm:h-10" />
+                  <div className="h-8 w-3/5 rounded-lg bg-brand/10 sm:h-10" />
+                </div>
+              </div>
+              <div className="h-11 w-48 rounded-xl bg-brand/15" />
+            </div>
+            <span className="sr-only">Loading opportunity preview…</span>
           </div>
         ) : (
           <>

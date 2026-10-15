@@ -75,28 +75,50 @@ const FooterLinkItem: React.FC<{ link: FooterLink }> = ({ link }) => {
  * Shared marketing footer used across public pages. Every text link routes to a
  * real page so nothing dead-ends.
  */
-const SiteFooter: React.FC<{ version?: string }> = ({ version = 'v0.1.2' }) => {
+const SiteFooter: React.FC<{ version?: string; expandedOnMobile?: boolean }> = ({ version = 'v0.1.2', expandedOnMobile = false }) => {
     const { isDarkMode, toggleDarkMode } = useDarkMode();
 
     return (
         <footer className="border-t border-subtle px-4 py-7 sm:px-6 sm:py-16">
             <div className="mx-auto max-w-[1200px]">
-                <div className="mb-7 md:hidden">
-                    <div className="flex items-center justify-between gap-4">
-                        <Link to="/" className="inline-flex items-center gap-2 no-underline">
-                            <img src="/edutu-logo.png" alt="Edutu" className="h-8 w-8 object-contain" />
-                            <span className="font-display text-xl font-bold tracking-tight text-text-primary">edutu</span>
-                        </Link>
-                        <p className="text-xs font-medium text-text-muted">Your next step, clearer.</p>
+                {expandedOnMobile ? (
+                    <div className="mb-8 md:hidden">
+                        <div className="flex items-center justify-between gap-4">
+                            <Link to="/" className="inline-flex items-center gap-2 no-underline">
+                                <img src="/edutu-logo.png" alt="Edutu" className="h-8 w-8 object-contain" />
+                                <span className="font-display text-xl font-semibold tracking-tight text-text-primary">edutu</span>
+                            </Link>
+                            <p className="text-xs font-medium text-text-muted">Your next step, clearer.</p>
+                        </div>
+                        <nav aria-label="Footer links" className="homepage-footer-links mt-7">
+                            {columns.map((column) => (
+                                <div key={column.title} data-footer-group={column.title.toLowerCase()}>
+                                    <h4 className="mb-3 text-2xs font-semibold uppercase tracking-widest text-text-primary">{column.title}</h4>
+                                    <div className={column.title === 'Company' ? 'homepage-footer-company-links' : 'homepage-footer-column-links'}>
+                                        {column.links.map((link) => <FooterLinkItem key={link.label} link={link} />)}
+                                    </div>
+                                </div>
+                            ))}
+                        </nav>
                     </div>
-                    <nav aria-label="Footer" className="mt-5 flex flex-wrap gap-x-5 gap-y-3">
-                        <Link to="/opportunities" className="text-sm font-medium text-text-secondary no-underline">Opportunities</Link>
-                        <Link to="/about" className="text-sm font-medium text-text-secondary no-underline">About</Link>
-                        <Link to="/help" className="text-sm font-medium text-text-secondary no-underline">Help</Link>
-                        <Link to="/privacy" className="text-sm font-medium text-text-secondary no-underline">Privacy</Link>
-                        <Link to="/terms" className="text-sm font-medium text-text-secondary no-underline">Terms</Link>
-                    </nav>
-                </div>
+                ) : (
+                    <div className="mb-7 md:hidden">
+                        <div className="flex items-center justify-between gap-4">
+                            <Link to="/" className="inline-flex items-center gap-2 no-underline">
+                                <img src="/edutu-logo.png" alt="Edutu" className="h-8 w-8 object-contain" />
+                                <span className="font-display text-xl font-bold tracking-tight text-text-primary">edutu</span>
+                            </Link>
+                            <p className="text-xs font-medium text-text-muted">Your next step, clearer.</p>
+                        </div>
+                        <nav aria-label="Footer" className="mt-5 flex flex-wrap gap-x-5 gap-y-3">
+                            <Link to="/opportunities" className="text-sm font-medium text-text-secondary no-underline">Opportunities</Link>
+                            <Link to="/about" className="text-sm font-medium text-text-secondary no-underline">About</Link>
+                            <Link to="/help" className="text-sm font-medium text-text-secondary no-underline">Help</Link>
+                            <Link to="/privacy" className="text-sm font-medium text-text-secondary no-underline">Privacy</Link>
+                            <Link to="/terms" className="text-sm font-medium text-text-secondary no-underline">Terms</Link>
+                        </nav>
+                    </div>
+                )}
 
                 <div className="mb-16 hidden grid-cols-4 gap-12 md:grid">
                     <div className="col-span-2 min-w-0 md:col-span-1">

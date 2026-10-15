@@ -42,6 +42,9 @@ export interface ReadinessStatus {
       providers: {
         gemini: "configured" | "missing";
         openrouter: "configured" | "missing";
+        openai: "configured" | "missing";
+        deepseek: "configured" | "missing";
+        groq: "configured" | "missing";
       };
     };
   };
@@ -166,14 +169,21 @@ export class HealthService {
       openrouter: process.env.OPENROUTER_API_KEY
         ? ("configured" as const)
         : ("missing" as const),
+      openai: process.env.OPENAI_API_KEY
+        ? ("configured" as const)
+        : ("missing" as const),
+      deepseek: process.env.DEEPSEEK_API_KEY
+        ? ("configured" as const)
+        : ("missing" as const),
+      groq: process.env.GROQ_API_KEY
+        ? ("configured" as const)
+        : ("missing" as const),
     };
 
     return {
-      status:
-        providers.gemini === "configured" ||
-        providers.openrouter === "configured"
-          ? "configured"
-          : "degraded",
+      status: Object.values(providers).some((state) => state === "configured")
+        ? "configured"
+        : "degraded",
       providers,
     };
   }

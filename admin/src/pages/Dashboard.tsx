@@ -72,7 +72,8 @@ function isHealthStatus(value: unknown): value is HealthStatus {
 interface AiUsageDayPoint {
   day: string;
   totalTokens: number;
-  estimatedCostUsd: number;
+  estimatedCostUsd: number | null;
+  unpricedCalls: number;
   calls: number;
 }
 
@@ -82,7 +83,8 @@ interface AiUsageRouteBreakdown {
   promptTokens: number;
   completionTokens: number;
   totalTokens: number;
-  estimatedCostUsd: number;
+  estimatedCostUsd: number | null;
+  unpricedCalls: number;
   errorCount: number;
   avgLatencyMs: number | null;
 }
@@ -95,7 +97,8 @@ interface AiUsageSummaryResponse {
     promptTokens: number;
     completionTokens: number;
     totalTokens: number;
-    estimatedCostUsd: number;
+    estimatedCostUsd: number | null;
+    unpricedCalls: number;
     errorCount: number;
   };
   perDay: AiUsageDayPoint[];
@@ -109,7 +112,8 @@ function formatTokens(value: number): string {
   return value.toLocaleString();
 }
 
-function formatUsd(value: number): string {
+function formatUsd(value: number | null): string {
+  if (value === null) return "Unavailable";
   if (value > 0 && value < 0.01) return "<$0.01";
   return `$${value.toFixed(2)}`;
 }
@@ -841,7 +845,7 @@ const Dashboard = () => {
               AI Usage
             </h3>
             <p style={{ margin: "4px 0 0 0", fontSize: "13px", color: "var(--text-tertiary)" }}>
-              Tokens and estimated cost, last {aiUsage?.days ?? 30} days
+              Provider attempts, tokens and cost coverage for the last {aiUsage?.days ?? 30} days
             </p>
           </div>
           {aiUsage && (
@@ -857,15 +861,20 @@ const Dashboard = () => {
                 <div style={{ fontSize: "20px", fontWeight: 700, color: "#ff6600" }}>
                   {formatUsd(aiUsage.totals.estimatedCostUsd)}
                 </div>
+                {aiUsage.totals.unpricedCalls > 0 && (
+                  <div style={{ fontSize: "11px", color: "var(--text-tertiary)" }}>
+                    Pricing unavailable for {aiUsage.totals.unpricedCalls.toLocaleString()} provider attempts
+                  </div>
+                )}
               </div>
               <div>
-                <div style={{ fontSize: "12px", color: "var(--text-tertiary)" }}>Calls</div>
+                <div style={{ fontSize: "12px", color: "var(--text-tertiary)" }}>Provider attempts</div>
                 <div style={{ fontSize: "20px", fontWeight: 700 }}>
                   {aiUsage.totals.calls.toLocaleString()}
                 </div>
               </div>
               <div>
-                <div style={{ fontSize: "12px", color: "var(--text-tertiary)" }}>Errors</div>
+                <div style={{ fontSize: "12px", color: "var(--text-tertiary)" }}>Failed attempts</div>
                 <div
                   style={{
                     fontSize: "20px",
@@ -889,6 +898,9 @@ const Dashboard = () => {
             </div>
           ) : (
             <>
+              <p style={{ margin: "0 0 16px", fontSize: "12px", color: "var(--text-tertiary)" }}>
+                A failed provider attempt may be followed by a successful fallback; this count is not the number of failed learner requests.
+              </p>
               <svg
                 viewBox="0 0 300 48"
                 preserveAspectRatio="none"
@@ -940,10 +952,10 @@ const Dashboard = () => {
                   <thead>
                     <tr style={{ textAlign: "left", color: "var(--text-tertiary)" }}>
                       <th style={{ padding: "8px 12px 8px 0", fontWeight: 500 }}>Route</th>
-                      <th style={{ padding: "8px 12px", fontWeight: 500, textAlign: "right" }}>Calls</th>
+                      <th style={{ padding: "8px 12px", fontWeight: 500, textAlign: "right" }}>Attempts</th>
                       <th style={{ padding: "8px 12px", fontWeight: 500, textAlign: "right" }}>Tokens</th>
                       <th style={{ padding: "8px 12px", fontWeight: 500, textAlign: "right" }}>Est. cost</th>
-                      <th style={{ padding: "8px 12px", fontWeight: 500, textAlign: "right" }}>Errors</th>
+                      <th style={{ padding: "8px 12px", fontWeight: 500, textAlign: "right" }}>Failed attempts</th>
                       <th style={{ padding: "8px 0 8px 12px", fontWeight: 500, textAlign: "right" }}>Avg latency</th>
                     </tr>
                   </thead>

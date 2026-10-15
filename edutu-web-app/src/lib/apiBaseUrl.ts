@@ -1,4 +1,4 @@
-const PUBLIC_API_FALLBACK = "https://edutu-platform.onrender.com";
+const PUBLIC_API_FALLBACK = "https://backend.edutu.org";
 
 export function getApiBaseUrl(_serviceName: string): string {
   const configuredUrl =

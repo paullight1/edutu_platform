@@ -9,6 +9,16 @@ import {
 describe("HealthService", () => {
   const originalAppVersion = process.env.APP_VERSION;
   const originalHealthTimeout = process.env.DATABASE_HEALTH_TIMEOUT_MS;
+  const aiProviderEnvKeys = [
+    "GEMINI_API_KEY",
+    "OPENROUTER_API_KEY",
+    "OPENAI_API_KEY",
+    "DEEPSEEK_API_KEY",
+    "GROQ_API_KEY",
+  ] as const;
+  const originalAiProviderKeys = Object.fromEntries(
+    aiProviderEnvKeys.map((key) => [key, process.env[key]]),
+  );
 
   afterEach(() => {
     jest.useRealTimers();
@@ -21,6 +31,12 @@ describe("HealthService", () => {
       delete process.env.DATABASE_HEALTH_TIMEOUT_MS;
     } else {
       process.env.DATABASE_HEALTH_TIMEOUT_MS = originalHealthTimeout;
+    }
+
+    for (const key of aiProviderEnvKeys) {
+      const value = originalAiProviderKeys[key];
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
     }
   });
 
@@ -54,6 +70,28 @@ describe("HealthService", () => {
         database: {
           status: "up",
           responseTimeMs: expect.any(Number),
+        },
+      },
+    });
+  });
+
+  it("reports AI configured when a supported provider other than Gemini or OpenRouter is set", async () => {
+    for (const key of aiProviderEnvKeys) delete process.env[key];
+    process.env.OPENAI_API_KEY = "test-openai-key";
+    const service = new HealthService({ ping: jest.fn().mockResolvedValue(undefined) });
+
+    await expect(service.getReadiness()).resolves.toMatchObject({
+      status: "ready",
+      checks: {
+        ai: {
+          status: "configured",
+          providers: {
+            gemini: "missing",
+            openrouter: "missing",
+            openai: "configured",
+            deepseek: "missing",
+            groq: "missing",
+          },
         },
       },
     });
@@ -116,7 +154,13 @@ describe("HealthController", () => {
       },
       ai: {
         status: "degraded",
-        providers: { gemini: "missing", openrouter: "missing" },
+        providers: {
+          gemini: "missing",
+          openrouter: "missing",
+          openai: "missing",
+          deepseek: "missing",
+          groq: "missing",
+        },
       },
     },
   };

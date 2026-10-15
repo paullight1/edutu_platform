@@ -14,7 +14,7 @@ describe("getPublicApiBaseUrl", () => {
     const { getPublicApiBaseUrl } = await import("../../lib/apiProductUrls");
 
     expect(getPublicApiBaseUrl()).toBe(
-      "https://edutu-platform.onrender.com/v1",
+      "https://backend.edutu.org/v1",
     );
   });
 

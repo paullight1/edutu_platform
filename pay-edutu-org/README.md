@@ -4,8 +4,7 @@ This Next.js shell opens Bachs hosted checkout, reads canonical purchase status,
 and offers account management. The Nest API owns catalog pricing, identity,
 fulfillment, and the credit ledger.
 
-Production deployments are managed through Docploy. Vercel project metadata in
-the repository is not the production deployment source of truth.
+Production deployments and production verification are managed through Docploy.
 
 ## Required server configuration
 

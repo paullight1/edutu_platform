@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const SEO_API_ORIGIN = "https://edutu-platform.onrender.com";
+const SEO_API_ORIGIN = "https://backend.edutu.org";
 
 export const SEO_ROUTE_CONTRACT = [
   ["/sitemap.xml", "/seo/sitemap.xml"],

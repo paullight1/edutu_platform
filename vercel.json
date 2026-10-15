@@ -12,43 +12,43 @@
   "rewrites": [
     {
       "source": "/sitemap.xml",
-      "destination": "https://edutu-platform.onrender.com/seo/sitemap.xml"
+      "destination": "https://backend.edutu.org/seo/sitemap.xml"
     },
     {
       "source": "/sitemaps/:name.xml",
-      "destination": "https://edutu-platform.onrender.com/seo/sitemaps/:name.xml"
+      "destination": "https://backend.edutu.org/seo/sitemaps/:name.xml"
     },
     {
       "source": "/robots.txt",
-      "destination": "https://edutu-platform.onrender.com/seo/robots.txt"
+      "destination": "https://backend.edutu.org/seo/robots.txt"
     },
     {
       "source": "/blog",
-      "destination": "https://edutu-platform.onrender.com/seo/blog"
+      "destination": "https://backend.edutu.org/seo/blog"
     },
     {
       "source": "/blog/:slug",
-      "destination": "https://edutu-platform.onrender.com/seo/blog/:slug"
+      "destination": "https://backend.edutu.org/seo/blog/:slug"
     },
     {
       "source": "/opportunities",
-      "destination": "https://edutu-platform.onrender.com/seo/opportunities"
+      "destination": "https://backend.edutu.org/seo/opportunities"
     },
     {
       "source": "/opportunities/:category",
-      "destination": "https://edutu-platform.onrender.com/seo-hydration/opportunities/:category"
+      "destination": "https://backend.edutu.org/seo-hydration/opportunities/:category"
     },
     {
       "source": "/opportunity/:id",
-      "destination": "https://edutu-platform.onrender.com/seo/opportunity/:id"
+      "destination": "https://backend.edutu.org/seo/opportunity/:id"
     },
     {
       "source": "/share/opportunity/:id",
-      "destination": "https://edutu-platform.onrender.com/seo/share/opportunity/:id"
+      "destination": "https://backend.edutu.org/seo/share/opportunity/:id"
     },
     {
       "source": "/events/:slugOrId",
-      "destination": "https://edutu-platform.onrender.com/seo/event/:slugOrId"
+      "destination": "https://backend.edutu.org/seo/event/:slugOrId"
     },
     {
       "source": "/community",

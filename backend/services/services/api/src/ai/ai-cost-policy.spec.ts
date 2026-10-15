@@ -41,6 +41,18 @@ describe("AI cost policy", () => {
     ).toBeNull();
   });
 
+  it("returns null when provider usage is missing instead of treating it as free", () => {
+    expect(
+      estimateAiCostUsd({
+        provider: "deepseek",
+        model: "deepseek-chat",
+        promptTokens: null,
+        completionTokens: null,
+        totalTokens: null,
+      }),
+    ).toBeNull();
+  });
+
   it("bills total-only embedding usage as input tokens", () => {
     expect(
       estimateAiCostUsd({

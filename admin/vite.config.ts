@@ -10,7 +10,7 @@ export default defineConfig(({ mode }) => {
   const DEV_PROXY_TARGET =
     env.VITE_BACKEND_URL ||
     env.VITE_API_URL ||
-    "https://edutu-platform.onrender.com";
+    "https://backend.edutu.org";
 
   return {
     plugins: [react()],

@@ -67,6 +67,7 @@ describe("Dashboard health telemetry", () => {
             completionTokens: 0,
             totalTokens: 0,
             estimatedCostUsd: 0,
+            unpricedCalls: 0,
             errorCount: 0,
           },
           perDay: [],
@@ -160,6 +161,82 @@ describe("Dashboard health telemetry", () => {
     expect(screen.getAllByText("Unavailable").length).toBeGreaterThan(1);
   });
 
+  it("does not report $0 when some provider attempts have no configured price", async () => {
+    mockedBackendFetchJson.mockImplementation(async (path: string) => {
+      if (path === "/admin/dashboard") {
+        return {
+          success: true,
+          source: "database",
+          stats: {
+            totalUsers: 279,
+            activeOpportunities: 312,
+            applications: 107,
+            approvedCreators: 0,
+            pendingCreators: 0,
+            newUsersThisWeek: 141,
+            newOpportunitiesThisWeek: 145,
+          },
+          recentActivity: [],
+        };
+      }
+      if (path === "/health") return readyHealthResponse;
+      if (path === "/admin/ai-usage/summary?days=30") {
+        return {
+          success: true,
+          days: 30,
+          totals: {
+            calls: 2,
+            promptTokens: 100,
+            completionTokens: 50,
+            totalTokens: 150,
+            estimatedCostUsd: null,
+            unpricedCalls: 2,
+            errorCount: 1,
+          },
+          perDay: [
+            {
+              day: "2026-10-15",
+              totalTokens: 150,
+              estimatedCostUsd: null,
+              unpricedCalls: 2,
+              calls: 2,
+            },
+          ],
+          perRoute: [
+            {
+              route: "opportunities.extract",
+              calls: 2,
+              promptTokens: 100,
+              completionTokens: 50,
+              totalTokens: 150,
+              estimatedCostUsd: null,
+              unpricedCalls: 2,
+              errorCount: 1,
+              avgLatencyMs: 800,
+            },
+          ],
+        };
+      }
+      throw new Error(`Unexpected backend path: ${path}`);
+    });
+
+    render(
+      <MemoryRouter>
+        <Dashboard />
+      </MemoryRouter>,
+    );
+
+    expect(
+      await screen.findByText("Pricing unavailable for 2 provider attempts"),
+    ).toBeVisible();
+    expect(screen.getAllByText("Unavailable").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Provider attempts").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Failed attempts").length).toBeGreaterThan(0);
+    expect(
+      screen.getByText(/a failed provider attempt may be followed by a successful fallback/i),
+    ).toBeVisible();
+  });
+
   it("shows unavailable metrics and a retry action when dashboard data fails", async () => {
     mockedBackendFetchJson.mockImplementation(async (path: string) => {
       if (path === "/admin/dashboard") {
@@ -176,6 +253,7 @@ describe("Dashboard health telemetry", () => {
             completionTokens: 0,
             totalTokens: 0,
             estimatedCostUsd: 0,
+            unpricedCalls: 0,
             errorCount: 0,
           },
           perDay: [],

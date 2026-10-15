@@ -525,7 +525,7 @@
 .homepage-logo img { width:40px; height:40px; }
 .homepage-header-actions { gap:8px; }
 .homepage-login { font-size:0.9rem; margin:0; }
-.homepage-hero { min-height:0; padding:84px 22px; margin:0 6px; border-radius:18px; align-items:center; }
+.homepage-hero { min-height:0; padding:103.5px 22px; margin:0 6px; border-radius:18px; align-items:center; }
 .homepage-hero-content { text-align:left; }
 .homepage-announcement { margin:0 0 30px; }
 .homepage-announcement > a { font-size:0.78rem; }
@@ -534,3 +534,128 @@
 .homepage-hero-actions { margin-top:30px; align-items:stretch; }
 .homepage-hero-actions .homepage-button { width:100%; justify-content:center; min-height:58px; border-radius:16px; }
 }
+
+.homepage-logo { font-weight: 550; }
+
+/* Keep the full navigation scannable on a phone without a long scroll. */
+.homepage-menu-groups { gap: 0.85rem; padding-block: 1rem; }
+.homepage-menu-groups h3 { margin-bottom: 0.2rem; }
+.homepage-menu-groups a { min-height: 40px; }
+.homepage-menu-bottom { padding-top: 1rem; }
+
+/* Reframed menu as compact grouped navigation. */
+.homepage-menu {
+  width: min(100%, 520px);
+  padding: clamp(1rem, 4vw, 1.75rem);
+  background: rgb(var(--surface-body));
+}
+.homepage-menu-heading {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  margin: -0.25rem -0.25rem 0;
+  padding: 0.25rem 0.25rem 1rem;
+  background: rgb(var(--surface-body));
+}
+.homepage-menu-heading h2 {
+  color: rgb(var(--text-primary));
+  font-size: 1.35rem;
+  font-weight: 650;
+}
+.homepage-menu-groups {
+  gap: 0.7rem;
+  padding-block: 0.9rem 1.1rem;
+}
+.homepage-menu-groups > div {
+  padding: 0.7rem 0.85rem 0.45rem;
+  border: 1px solid rgb(var(--color-neutral-200) / 0.65);
+  border-radius: 16px;
+  background: rgb(var(--surface-elevated));
+}
+.homepage-menu-groups h3 {
+  margin: 0 0 0.3rem;
+  color: rgb(var(--color-brand-700));
+  font-size: 0.68rem;
+  letter-spacing: 0.12em;
+}
+.homepage-menu-groups a {
+  min-height: 38px;
+  border-bottom: 0;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  transition: color 150ms ease, background-color 150ms ease;
+}
+.homepage-menu-groups a:hover {
+  padding-inline: 0.45rem;
+  background: rgb(var(--color-brand-50));
+}
+.dark .homepage-menu-groups > div {
+  border-color: rgb(255 255 255 / 0.07);
+  background: rgb(255 255 255 / 0.025);
+}
+.dark .homepage-menu-groups h3 { color: rgb(var(--color-brand-300)); }
+.dark .homepage-menu-groups a:hover { background: rgb(var(--color-brand-500) / 0.1); }
+.homepage-menu-bottom {
+  position: sticky;
+  bottom: 0;
+  margin-inline: -0.25rem;
+  padding: 1rem 0.25rem 0.25rem;
+  background: rgb(var(--surface-body));
+}
+.homepage-menu-bottom p { font-size: 0.9rem; }
+
+/* Floating menu panel leaves the homepage visible around it. */
+.homepage-menu-backdrop {
+  align-items: flex-start;
+  justify-content: flex-end;
+  padding: 14px;
+  background: rgb(8 20 38 / 0.28);
+  backdrop-filter: blur(3px);
+}
+.homepage-menu {
+  width: min(88vw, 460px);
+  height: auto;
+  max-height: calc(100dvh - 28px);
+  margin: 0;
+  border: 1px solid rgb(var(--color-neutral-200) / 0.75);
+  border-radius: 24px;
+  overflow-y: auto;
+  box-shadow: 0 24px 80px rgb(4 16 34 / 0.24);
+}
+.dark .homepage-menu {
+  border-color: rgb(255 255 255 / 0.1);
+  box-shadow: 0 24px 80px rgb(0 0 0 / 0.5);
+}
+@media (max-width: 600px) {
+  .homepage-menu-backdrop { padding: 10px; }
+  .homepage-menu {
+    width: min(90vw, 420px);
+    max-height: calc(100dvh - 20px);
+    border-radius: 22px;
+  }
+}
+
+.homepage-footer-links {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-areas: "product resources" "company company";
+  gap: 1.25rem 1rem;
+}
+.homepage-footer-links [data-footer-group="product"] { grid-area: product; }
+.homepage-footer-links [data-footer-group="resources"] { grid-area: resources; }
+.homepage-footer-links [data-footer-group="company"] { grid-area: company; }
+.homepage-footer-links h4 { margin-bottom: 0.55rem; font-size: 0.65rem; }
+.homepage-footer-column-links,
+.homepage-footer-company-links { display: grid; gap: 0.5rem 0.75rem; }
+.homepage-footer-company-links { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.homepage-footer-links a { font-size: 0.78rem; line-height: 1.35; }
+.homepage-header-public { position: sticky; top: 0; }
+.homepage-header-public.homepage-header-fixed { position: fixed; }
+.homepage-header-public.homepage-header-dark-top { background: rgb(15 23 42 / .88); color: white; backdrop-filter: blur(16px); }
+.homepage-header-public.homepage-header-dark-top .homepage-logo,
+.homepage-header-public.homepage-header-dark-top .homepage-desktop-nav a,
+.homepage-header-public.homepage-header-dark-top .homepage-login,
+.homepage-header-public.homepage-header-dark-top .homepage-header-actions > .homepage-icon-button { color: white; }
+.homepage-header-public.homepage-header-dark-top .homepage-login { border-color: rgb(255 255 255 / .28); }
+.homepage-header-public.homepage-header-dark-top .homepage-menu-heading,
+.homepage-header-public.homepage-header-dark-top .homepage-menu-bottom { color: rgb(var(--text-primary)); }

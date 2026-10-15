@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@clerk/clerk-react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   ArrowRight,
   BookOpen,
@@ -11,7 +11,8 @@ import {
   Sparkles,
   UsersRound,
 } from "lucide-react";
-import PublicHeader from "../../components/PublicHeader";
+import HomepageHeader from "../../components/HomepageHeader";
+import "./CommunityLanding.css";
 import SiteFooter from "../../components/SiteFooter";
 import Seo from "../../components/Seo";
 import { fetchPublicGroups } from "./publicApi";
@@ -39,6 +40,7 @@ const paths = [
 
 export default function CommunityLandingPage() {
   const { isSignedIn } = useAuth();
+  const navigate = useNavigate();
   const [groups, setGroups] = useState<PublicCommunityGroupSummary[]>([]);
   const [loadingGroups, setLoadingGroups] = useState(true);
 
@@ -62,7 +64,7 @@ export default function CommunityLandingPage() {
     : "/auth?mode=sign-up&redirect=%2Fapp%2Fcommunity%2Fexplore";
 
   return (
-    <div className="min-h-[100dvh] overflow-x-hidden bg-[#fffaf4] text-[#3f1d14] dark:bg-surface-body dark:text-text-primary">
+    <div className="community-landing min-h-[100dvh] overflow-x-hidden bg-surface-body text-text-primary">
       <Seo
         title="Scholarship & Career Community for African Learners | Edutu"
         description="Join Edutu communities where learners discuss scholarships, fellowships, internships, applications and career opportunities together."
@@ -78,15 +80,15 @@ export default function CommunityLandingPage() {
           },
         ]}
       />
-      <PublicHeader />
+      <HomepageHeader onGetStarted={() => navigate(productPath)} />
 
       <main>
-        <section className="relative overflow-hidden border-b border-[#f2dfd2] px-4 pb-4 pt-5 dark:border-subtle min-[412px]:px-5 sm:px-6 sm:pb-20 sm:pt-20 lg:px-8">
+        <section className="community-hero relative overflow-hidden border-b border-subtle px-4 pb-4 pt-5 min-[412px]:px-5 sm:px-6 sm:pb-20 sm:pt-20 lg:px-8">
           <div
             aria-hidden="true"
             className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_20%,rgba(244,91,22,.12),transparent_27%),radial-gradient(circle_at_85%_25%,rgba(37,99,235,.08),transparent_28%)]"
           />
-          <div className="relative mx-auto grid max-w-6xl items-center gap-10 lg:grid-cols-[1.05fr_.95fr] lg:gap-16">
+          <div className="community-hero-inner relative mx-auto grid max-w-6xl items-center gap-10 lg:grid-cols-[1.05fr_.95fr] lg:gap-16">
             <div>
               <span className="hidden items-center gap-2 rounded-full border border-[#f2d2bd] bg-white/75 px-3 py-1.5 text-xs font-extrabold uppercase tracking-[0.15em] text-[#d94b0f] shadow-sm dark:border-subtle dark:bg-surface-layer dark:text-brand sm:inline-flex">
                 <Sparkles size={14} /> Edutu Community
@@ -278,7 +280,7 @@ export default function CommunityLandingPage() {
           </div>
         </section>
 
-        <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
+        <section className="community-feature-section mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
           <div className="mx-auto max-w-2xl text-center">
             <p className="text-xs font-extrabold uppercase tracking-[0.17em] text-[#f45b16]">
               Built for doing the work
@@ -291,11 +293,11 @@ export default function CommunityLandingPage() {
               social feed to manage.
             </p>
           </div>
-          <div className="mt-10 grid gap-4 md:grid-cols-3">
+          <div className="community-feature-grid mt-10 grid gap-4 md:grid-cols-3">
             {paths.map(({ icon: Icon, title, body }) => (
               <article
                 key={title}
-                className="rounded-[26px] border border-[#efd9ca] bg-white p-6 shadow-[0_12px_36px_-30px_rgba(74,23,13,.5)] dark:border-subtle dark:bg-surface-layer"
+                className="community-feature-card rounded-[26px] border border-subtle bg-surface-layer p-6 shadow-soft"
               >
                 <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#fcead5] text-[#f45b16] dark:bg-brand/10 dark:text-brand">
                   <Icon size={20} />
@@ -313,7 +315,7 @@ export default function CommunityLandingPage() {
 
         <section
           id="public-communities"
-          className="border-y border-[#f2dfd2] bg-white/65 dark:border-subtle dark:bg-surface-layer"
+          className="community-groups-section border-y border-subtle bg-surface-layer"
         >
           <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
             <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
@@ -352,7 +354,7 @@ export default function CommunityLandingPage() {
                   <Link
                     key={group.id}
                     to={`/community/groups/${group.slug}`}
-                    className="group overflow-hidden rounded-[24px] border border-[#efd9ca] bg-white shadow-sm transition hover:-translate-y-0.5 hover:border-[#f45b16]/35 dark:border-subtle dark:bg-surface-layer"
+                    className="community-group-card group overflow-hidden rounded-[24px] border border-subtle bg-surface-body shadow-sm transition hover:-translate-y-0.5 hover:border-brand/35"
                   >
                     <img
                       src={getCommunityFallbackCover(
@@ -397,7 +399,7 @@ export default function CommunityLandingPage() {
         </section>
 
         <section className="px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
-          <div className="mx-auto max-w-5xl overflow-hidden rounded-[32px] bg-[#4a170d] px-6 py-10 text-white shadow-[0_30px_70px_-45px_rgba(74,23,13,.75)] sm:px-10 sm:py-12">
+          <div className="community-cta mx-auto max-w-5xl overflow-hidden rounded-[32px] border border-brand/15 bg-gradient-to-br from-brand-50 via-surface-layer to-brand-100 px-6 py-10 text-text-primary shadow-soft sm:px-10 sm:py-12 dark:from-surface-layer dark:via-surface-layer dark:to-brand-900/20">
             <div className="grid items-center gap-7 md:grid-cols-[1fr_auto]">
               <div>
                 <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-orange-200">

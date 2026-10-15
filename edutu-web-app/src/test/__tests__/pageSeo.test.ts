@@ -5,7 +5,7 @@ import { OG_METADATA, PAGE_SEO } from "../../lib/pageSeo.generated";
 import { findPageSeo, getPageOgImage } from "../../lib/pageSeo";
 
 const repoRoot = path.resolve(__dirname, "..", "..", "..");
-const seoApiOrigin = "https://edutu-platform.onrender.com";
+const seoApiOrigin = "https://backend.edutu.org";
 const apiRenderedRoutes = new Map([
   ["/blog", `${seoApiOrigin}/seo/blog`],
   ["/opportunities", `${seoApiOrigin}/seo/opportunities`],

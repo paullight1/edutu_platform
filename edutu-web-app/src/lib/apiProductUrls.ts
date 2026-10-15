@@ -4,7 +4,7 @@
  * so the whole app re-points with one env change.
  */
 
-const FALLBACK_PUBLIC_API_BASE = 'https://edutu-platform.onrender.com/v1';
+const FALLBACK_PUBLIC_API_BASE = 'https://backend.edutu.org/v1';
 
 /** Base URL third parties call, e.g. shown in curl snippets. */
 export function getPublicApiBaseUrl(): string {

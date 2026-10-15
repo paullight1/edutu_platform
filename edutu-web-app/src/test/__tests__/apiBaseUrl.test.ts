@@ -20,7 +20,7 @@ describe("getApiBaseUrl", () => {
     const { getApiBaseUrl } = await import("../../lib/apiBaseUrl");
 
     expect(getApiBaseUrl("Opportunities API")).toBe(
-      "https://edutu-platform.onrender.com",
+      "https://backend.edutu.org",
     );
   });
 

@@ -86,14 +86,14 @@ SUPABASE_ANON_KEY=xxx
 ```env
 VITE_SUPABASE_URL=https://xxx.supabase.co
 VITE_SUPABASE_ANON_KEY=xxx
-VITE_API_URL=https://edutu-platform.onrender.com
+VITE_API_URL=https://backend.edutu.org
 ```
 
 ### Mobile (similar to admin)
 ```env
 SUPABASE_URL=https://xxx.supabase.co
 SUPABASE_ANON_KEY=xxx
-API_URL=https://edutu-platform.onrender.com
+API_URL=https://backend.edutu.org
 ```
 
 ## Deployment

@@ -296,10 +296,10 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                             </aside>
                         )}
                         <motion.h1 id="homepage-hero-title" initial={reduceMotion ? undefined : { opacity: 0, y: 24 }} animate={reduceMotion ? undefined : { opacity: 1, y: 0 }} transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }} className="homepage-hero-title">
-                            Find your next opportunity.<br /><span>Build the future you want.</span>
+                            Global opportunities<br /><span>at your fingertips.</span>
                         </motion.h1>
                         <motion.p initial={reduceMotion ? undefined : { opacity: 0, y: 18 }} animate={reduceMotion ? undefined : { opacity: 1, y: 0 }} transition={{ duration: 0.7, delay: 0.12 }} className="homepage-hero-copy">
-                            Scholarships, internships, and career programs — all in one place.<br />Find your fit and take your next step with Edutu.
+                            Finding the right opportunity can take hours of searching. Edutu’s AI matches your goals with scholarships, internships, and career programs, then helps you prepare your next move.
                         </motion.p>
                         <motion.div initial={reduceMotion ? undefined : { opacity: 0, y: 16 }} animate={reduceMotion ? undefined : { opacity: 1, y: 0 }} transition={{ duration: 0.7, delay: 0.24 }} className="homepage-hero-actions">
                             <button type="button" onClick={onGetStarted} className="homepage-button homepage-button-blue">Get started free</button>
@@ -806,7 +806,7 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
             </main>
 
             {/* ─── Footer ───────────────────────────────────────────────── */}
-            <SiteFooter />
+            <SiteFooter expandedOnMobile />
         </div>
     );
 };

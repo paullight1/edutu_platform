@@ -11,7 +11,7 @@ https://admin.edutu.org
 Backend target:
 
 ```txt
-https://edutu-platform.onrender.com
+https://backend.edutu.org
 ```
 
 ## Why admin stays separate
@@ -29,13 +29,13 @@ cd edutu-platform/admin
 
 ## Required environment variables
 
-Set these in the hosting dashboard for the admin site:
+Set these in the Docploy service environment for the admin site:
 
 ```env
 VITE_SUPABASE_URL=https://sioxocmrjmdevsdlzjns.supabase.co
 VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
-VITE_API_URL=https://edutu-platform.onrender.com
-VITE_BACKEND_URL=https://edutu-platform.onrender.com
+VITE_API_URL=https://backend.edutu.org
+VITE_BACKEND_URL=https://backend.edutu.org
 ```
 
 Do not put service-role keys, DeepSeek keys, Clerk secret keys, or backend-only secrets in this admin frontend.
@@ -66,30 +66,33 @@ Preview production output:
 npm run preview
 ```
 
-## Vercel deployment
+## Docploy production deployment
 
-The production domain `admin.edutu.org` is attached to the Vercel project
-`edutu-admin`. Keep the project root set to `admin`; `admin/vercel.json`
-contains the Vite build, output, install, and SPA rewrite settings.
+The production domain `admin.edutu.org` is managed through Docploy. Keep the
+admin service pointed at this app's build and output settings:
 
 Expected build settings:
 
 ```txt
-Root directory: admin
+Service root: admin
 Install command: npm install --legacy-peer-deps
 Build command: npm run build
 Publish/output directory: dist
 ```
 
-Domain:
+After publishing through Docploy, verify the admin route and authenticated API
+calls against `https://backend.edutu.org`. Keep DNS and service routing changes
+in the Docploy/DNS configuration rather than assuming repository metadata is
+the production source of truth.
+
+Production domain:
 
 ```txt
 admin.edutu.org
 ```
 
-The Vercel rewrite in `admin/vercel.json` serves the SPA entry point for
-client-side routes. Keep DNS attached to the verified Vercel project; do not
-change the domain record when only deploying a new build.
+The SPA must serve `index.html` for client-side routes. Confirm the Docploy
+service's static hosting configuration preserves that fallback.
 
 ## Backend CORS
 

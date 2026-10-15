@@ -2,31 +2,25 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@clerk/clerk-react';
 import { ArrowRight, Menu, Search, X } from 'lucide-react';
-import { getDocsUrl, isExternalDocsUrl } from '../lib/apiProductUrls';
 
 const groups = [
-    { title: 'Find your next step', links: [
+    { title: 'Explore', links: [
         { label: 'Opportunities', to: '/opportunities' },
-        { label: 'Scholarship Engine', to: '/scholarship-engine' },
-        { label: 'Mentors', to: '/mentor' },
         { label: 'Events', to: '/events' },
-    ] },
-    { title: 'Learn and connect', links: [
-        { label: 'Community', to: '/community' },
         { label: 'Blog', to: '/blog' },
-        { label: "What’s new", to: '/whats-new' },
-        { label: 'Developers', to: '/developers' },
-        { label: 'Documentation', to: getDocsUrl(), external: isExternalDocsUrl() },
     ] },
-    { title: 'Meet Edutu', links: [
+    { title: 'About Edutu', links: [
         { label: 'About us', to: '/about' },
         { label: 'Our impact', to: '/impact' },
         { label: 'What we believe', to: '/what-we-believe' },
         { label: 'Edutu For You', to: '/edutuforyou' },
     ] },
+    { title: 'Help', links: [
+        { label: 'Help Center', to: '/help' },
+    ] },
 ];
 
-export default function HomepageHeader({ onGetStarted }: { onGetStarted: () => void }) {
+export default function HomepageHeader({ onGetStarted, publicMode = false, fixed = false, darkAtTop = false }: { onGetStarted: () => void; publicMode?: boolean; fixed?: boolean; darkAtTop?: boolean }) {
     const { isSignedIn } = useAuth();
     const [open, setOpen] = useState(false);
     const panelRef = useRef<HTMLDivElement>(null);
@@ -59,7 +53,7 @@ export default function HomepageHeader({ onGetStarted }: { onGetStarted: () => v
     }, [open]);
 
     return (
-        <header className="homepage-header">
+        <header className={`homepage-header${publicMode ? ' homepage-header-public' : ''}${fixed ? ' homepage-header-fixed' : ''}${darkAtTop ? ' homepage-header-dark-top' : ''}`}>
             <div className="homepage-header-inner">
                 <Link to="/" className="homepage-logo" aria-label="Edutu home">
                     <img src="/edutu-logo.png" alt="" />
@@ -67,11 +61,10 @@ export default function HomepageHeader({ onGetStarted }: { onGetStarted: () => v
                 </Link>
                 <nav className="homepage-desktop-nav" aria-label="Primary navigation">
                     <Link to="/opportunities">Opportunities</Link>
-                    <Link to="/community">Community</Link>
                     <Link to="/about">About Edutu</Link>
                 </nav>
                 <div className="homepage-header-actions">
-                    <Link className="homepage-login" to={isSignedIn ? '/dashboard' : '/auth?mode=sign-in'}>
+                    <Link className="homepage-login" to={isSignedIn ? '/dashboard' : '/auth?mode=sign-in&screen=full'}>
                         {isSignedIn ? 'Dashboard' : 'Sign in'}
                     </Link>
                     <Link to="/opportunities" className="homepage-icon-button" aria-label="Search opportunities"><Search size={23} /></Link>
@@ -83,7 +76,7 @@ export default function HomepageHeader({ onGetStarted }: { onGetStarted: () => v
                     <div ref={panelRef} id="homepage-menu" className="homepage-menu" role="dialog" aria-modal="true" aria-labelledby="homepage-menu-title" onClick={(event) => event.stopPropagation()}>
                         <div className="homepage-menu-heading"><h2 id="homepage-menu-title">Explore Edutu</h2><button className="homepage-icon-button" type="button" aria-label="Close menu" onClick={() => setOpen(false)}><X size={26} /></button></div>
                         <nav className="homepage-menu-groups" aria-label="All pages">
-                            {groups.map((group) => <div key={group.title}><h3>{group.title}</h3>{group.links.map((item) => 'external' in item && item.external ? <a key={item.to} href={item.to} target="_blank" rel="noopener noreferrer" onClick={() => setOpen(false)}>{item.label}<ArrowRight size={18} aria-hidden="true" /></a> : <Link key={item.to} to={item.to} onClick={() => setOpen(false)}>{item.label}<ArrowRight size={18} aria-hidden="true" /></Link>)}</div>)}
+                            {groups.map((group) => <div key={group.title}><h3>{group.title}</h3>{group.links.map((item) => <Link key={item.to} to={item.to} onClick={() => setOpen(false)}>{item.label}<ArrowRight size={18} aria-hidden="true" /></Link>)}</div>)}
                         </nav>
                         <div className="homepage-menu-bottom"><p>Make room for your next chapter.</p><button type="button" className="homepage-button homepage-button-blue" onClick={() => { setOpen(false); onGetStarted(); }}>Get started free <ArrowRight size={20} /></button></div>
                     </div>

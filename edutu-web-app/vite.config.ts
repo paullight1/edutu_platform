@@ -21,7 +21,7 @@ export default defineConfig(({ mode, command }) => {
   }
 
   const configuredApiUrl =
-    env.VITE_API_URL || env.VITE_API_BASE_URL || 'https://edutu-platform.onrender.com';
+    env.VITE_API_URL || env.VITE_API_BASE_URL || 'https://backend.edutu.org';
   let apiOrigin: string;
   try {
     apiOrigin = new URL(configuredApiUrl).origin;

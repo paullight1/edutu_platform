@@ -84,7 +84,7 @@ describe("PublicEditorialShell", () => {
     );
     expect(screen.getByRole("link", { name: "Sign in" })).toHaveAttribute(
       "href",
-      "/auth?mode=sign-in",
+      "/auth?mode=sign-in&screen=full",
     );
     expect(screen.getByText("Editorial content")).toBeInTheDocument();
     expect(screen.getByRole("main")).toHaveClass("max-w-3xl", "py-8");
