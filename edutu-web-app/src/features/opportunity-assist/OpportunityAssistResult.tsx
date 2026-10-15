@@ -60,6 +60,11 @@ export function OpportunityAssistResult({
             AI was unavailable. Use this as a starting checklist and verify each item with the official requirements.
           </p>
         )}
+        {plan.generatedBy === "ai" && (
+          <p className="mt-2 text-xs leading-relaxed text-text-muted">
+            AI-generated preparation steps are suggestions, not confirmed application requirements. Check the official listing before submitting.
+          </p>
+        )}
       </div>
 
       <div className="space-y-3">
