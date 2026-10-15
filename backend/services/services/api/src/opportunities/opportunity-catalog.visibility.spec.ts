@@ -204,6 +204,25 @@ describe("persisted shared catalog visibility", () => {
     );
   });
 
+  it("uses a stable id tie-breaker so adjacent offset pages do not overlap", async () => {
+    const service = new OpportunitiesService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
+    // Keep this on Drizzle/PGlite even when the local test environment has
+    // Supabase credentials configured.
+    (service as any).supabase = null;
+
+    const firstPage = await service.findAll(1, 0, "active");
+    const secondPage = await service.findAll(1, 1, "active");
+
+    expect(firstPage.map((row: any) => row.id)).toEqual([MISCLASSIFIED_ID]);
+    expect(secondPage.map((row: any) => row.id)).toEqual([APPROVED_ID]);
+  });
+
   it("keeps public detail, search, share, and recommendation ID lookups fail-closed", async () => {
     const learnerService = new OpportunitiesService(
       {} as any,

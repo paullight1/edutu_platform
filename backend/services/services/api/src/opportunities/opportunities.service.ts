@@ -381,6 +381,10 @@ export class OpportunitiesService {
           if (!includeClosed) request = request.eq("status", statusFilter);
           request = request
             .order("created_at", { ascending: false })
+            // Stable ordering is required for offset pagination: many imported
+            // rows share the same created_at timestamp, so ordering only by
+            // time lets rows move between parallel page requests.
+            .order("id", { ascending: false })
             .range(normalizedOffset, normalizedOffset + cappedLimit - 1);
 
           if (excludeExpired) {
@@ -487,7 +491,7 @@ export class OpportunitiesService {
           .where(and(...conditions))
           .limit(cappedLimit)
           .offset(normalizedOffset)
-          .orderBy(desc(opportunities.createdAt));
+          .orderBy(desc(opportunities.createdAt), desc(opportunities.id));
 
         const rows = await query.execute();
         if (rows.length > 0) {
@@ -699,7 +703,7 @@ export class OpportunitiesService {
         select o.*, fused.score as search_score
         from fused
         join opportunities o on o.id = fused.id
-        order by fused.score desc, o.created_at desc
+        order by fused.score desc, o.created_at desc, o.id desc
         limit ${cappedLimit} offset ${cappedOffset}
       `);
 
@@ -749,7 +753,7 @@ export class OpportunitiesService {
             or o.category ilike ${pattern}
             or o.source ilike ${pattern}
           )
-        order by o.created_at desc
+        order by o.created_at desc, o.id desc
         limit ${limit} offset ${offset}
       `);
 
