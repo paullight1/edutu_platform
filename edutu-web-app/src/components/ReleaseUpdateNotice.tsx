@@ -1,11 +1,20 @@
 import { useEffect, useRef, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
+import { X } from 'lucide-react';
 import { deployedRelease, refreshRelease } from '../lib/releaseUpdate';
+
+const DISMISSED_RELEASE_KEY = 'edutu.dismissed-release-update';
+
+function wasDismissed(release: string) {
+  try { return window.localStorage.getItem(DISMISSED_RELEASE_KEY) === release; }
+  catch { return false; }
+}
 
 export default function ReleaseUpdateNotice() {
   const [available, setAvailable] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
+  const [release, setRelease] = useState('');
   const noticeRef = useRef<HTMLElement>(null);
   useEffect(() => {
     if (!import.meta.env.PROD || Capacitor.isNativePlatform()) return;
@@ -16,12 +25,21 @@ export default function ReleaseUpdateNotice() {
       checking = true;
       try {
         const latest = await deployedRelease();
-        if (!disposed) setAvailable(latest !== __APP_RELEASE__);
+        if (!disposed) {
+          setRelease(latest);
+          setAvailable(latest !== __APP_RELEASE__ && !wasDismissed(latest));
+        }
         if ('serviceWorker' in navigator) await (await navigator.serviceWorker.getRegistration())?.update();
       } catch { /* Offline or deployment in progress: try again on the next resume. */ }
       finally { checking = false; }
     };
-    const requested = () => { setAvailable(true); };
+    const requested = () => {
+      void deployedRelease().then(latest => {
+        if (disposed) return;
+        setRelease(latest);
+        setAvailable(latest !== __APP_RELEASE__ && !wasDismissed(latest));
+      }).catch(() => {});
+    };
     void check();
     document.addEventListener('visibilitychange', check);
     window.addEventListener('pageshow', check);
@@ -99,10 +117,21 @@ export default function ReleaseUpdateNotice() {
     } catch (error) { setMessage(error instanceof Error ? error.message : 'Could not save your drafts. Please try again.'); }
     finally { setBusy(false); }
   };
+  const dismiss = () => {
+    if (release) {
+      try { window.localStorage.setItem(DISMISSED_RELEASE_KEY, release); } catch { /* dismissal still applies for this visit */ }
+    }
+    setAvailable(false);
+  };
   if (!available) return null;
-  return <aside ref={noticeRef} data-release-refresh role="status" aria-live="polite" style={{ bottom: 'calc(16px + env(safe-area-inset-bottom))' }} className="fixed bottom-4 left-4 right-4 z-[79] mx-auto max-w-md rounded-2xl border border-blue-400/50 bg-slate-950 p-4 text-white shadow-xl sm:left-4 sm:right-auto sm:mx-0 sm:max-w-sm">
-    <p className="!text-white font-semibold">Top100 has been updated</p>
-    {message && <p className="mt-2 !text-white/90 text-sm">{message}</p>}
-    <button type="button" disabled={busy} onClick={() => void refresh()} className="mt-3 rounded-lg bg-blue-600 px-4 py-2 font-medium !text-white disabled:opacity-50">{busy ? 'Preparing refresh…' : 'Refresh now'}</button>
+  return <aside ref={noticeRef} data-release-refresh role="status" aria-live="polite" style={{ bottom: 'calc(16px + env(safe-area-inset-bottom))' }} className="fixed bottom-4 left-4 right-4 z-[79] mx-auto max-w-md rounded-2xl border border-blue-200 bg-white p-4 text-slate-900 shadow-[0_12px_40px_rgba(15,23,42,0.18)] dark:border-blue-400/30 dark:bg-slate-900 dark:text-white sm:left-4 sm:right-auto sm:mx-0 sm:max-w-sm">
+    <div className="flex items-start justify-between gap-3">
+      <p className="font-semibold">Top100 has been updated</p>
+      <button type="button" onClick={dismiss} aria-label="Dismiss update notice" className="-mr-1 -mt-1 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-600 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white">
+        <X aria-hidden="true" size={18} />
+      </button>
+    </div>
+    {message && <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">{message}</p>}
+    <button type="button" disabled={busy} onClick={() => void refresh()} className="mt-3 rounded-lg bg-blue-600 px-4 py-2 font-medium text-white transition hover:bg-blue-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:opacity-50">{busy ? 'Preparing refresh…' : 'Refresh now'}</button>
   </aside>;
 }

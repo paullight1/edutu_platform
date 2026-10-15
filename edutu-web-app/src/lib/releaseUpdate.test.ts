@@ -25,6 +25,14 @@ it('does not reload when a draft fails to save', async () => {
   await expect(refreshRelease('A', reload)).rejects.toThrow('Draft save failed');
   expect(reload).not.toHaveBeenCalled();
 });
+it('returns an actionable error when draft saving stalls', async () => {
+  vi.useFakeTimers();
+  safety.save.mockReturnValue(new Promise(() => {}));
+  const pending = refreshRelease('A', vi.fn());
+  const result = expect(pending).rejects.toThrow('Saving your drafts is taking longer');
+  await vi.advanceTimersByTimeAsync(15000);
+  await result;
+});
 it('protects managed draft edits typed during an asynchronous save', async () => {
   safety.save.mockImplementation(async () => { safety.revision++; });
   const reload = vi.fn();
@@ -81,4 +89,12 @@ it('activates a waiting worker before reloading', async () => {
   expect(update).toHaveBeenCalledOnce();
   expect(worker.postMessage).toHaveBeenCalledWith({ type: 'SKIP_WAITING' });
   expect(reload).toHaveBeenCalledOnce();
+});
+it('returns an actionable error when checking for a service-worker update stalls', async () => {
+  vi.useFakeTimers();
+  vi.stubGlobal('navigator', { onLine: true, serviceWorker: { getRegistration: async () => ({ update: () => new Promise(() => {}) }) } });
+  const pending = refreshRelease('A', vi.fn());
+  const result = expect(pending).rejects.toThrow('app update is taking longer');
+  await vi.advanceTimersByTimeAsync(10000);
+  await result;
 });

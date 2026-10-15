@@ -8,7 +8,7 @@ vi.mock('../lib/releaseSafety', async importOriginal => ({
   ...await importOriginal<typeof import('../lib/releaseSafety')>(),
   refreshBlocked: () => true,
 }));
-afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
+afterEach(() => { window.localStorage.clear(); vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 it('an old session sees a new deployment without reloading or interrupting work', async () => {
   vi.stubEnv('PROD', true);
   vi.stubGlobal('__APP_RELEASE__', 'release-a');
@@ -33,6 +33,26 @@ it('does not show a notice for the running release', async () => {
   render(<ReleaseUpdateNotice />);
   await waitFor(() => expect(fetch).toHaveBeenCalled());
   expect(screen.queryByText('Top100 has been updated')).toBeNull();
+});
+
+it('lets users dismiss an update until a different release is deployed', async () => {
+  vi.stubEnv('PROD', true);
+  vi.stubGlobal('__APP_RELEASE__', 'release-a');
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ version: 'release-b' }) }));
+  const first = render(<ReleaseUpdateNotice />);
+  await screen.findByText('Top100 has been updated');
+  expect(screen.getByRole('status')).toHaveClass('bg-white', 'text-slate-900');
+  fireEvent.click(screen.getByRole('button', { name: 'Dismiss update notice' }));
+  expect(screen.queryByText('Top100 has been updated')).toBeNull();
+  first.unmount();
+
+  render(<ReleaseUpdateNotice />);
+  await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
+  expect(screen.queryByText('Top100 has been updated')).toBeNull();
+
+  vi.mocked(fetch).mockResolvedValue({ ok: true, json: async () => ({ version: 'release-c' }) } as Response);
+  window.dispatchEvent(new Event('release-refresh-request'));
+  await screen.findByText('Top100 has been updated');
 });
 
 it('moves the release notice above an overlapping sign-in invitation', async () => {
@@ -65,8 +85,8 @@ it('moves the release notice above an overlapping sign-in invitation', async () 
     expect(noticeCard).toHaveClass('bottom-4');
     expect(noticeCard).toHaveClass('sm:left-4', 'sm:right-auto');
     expect(noticeCard).toHaveStyle({ top: `${expectedTop}px`, bottom: 'auto' });
-    expect(notice).toHaveClass('!text-white');
-    expect(screen.getByRole('button', { name: 'Refresh now' })).toHaveClass('!text-white');
+    expect(notice).toHaveClass('font-semibold');
+    expect(screen.getByRole('button', { name: 'Refresh now' })).toHaveClass('text-white', 'bg-blue-600');
     const noticeTop = expectedTop;
     const gateTop = 560;
     expect(gateTop - noticeTop - 140).toBe(12);

@@ -1,5 +1,4 @@
 import { StrictMode, Suspense } from 'react';
-import ReleaseUpdateNotice from './components/ReleaseUpdateNotice';
 import { installReleaseSafety } from './lib/releaseSafety';
 installReleaseSafety();
 import './index.css';
@@ -69,7 +68,6 @@ const root = getOrCreateReactRoot(window, document.getElementById('root')!);
 root.render(
   <StrictMode>
     <SkipLink />
-    <ReleaseUpdateNotice />
     <ErrorBoundary>
       <Suspense fallback={<LoadingScreen />}>
         <ClerkProvider publishableKey={clerkPubKey}>

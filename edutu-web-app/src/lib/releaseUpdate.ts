@@ -1,5 +1,15 @@
 import { refreshBlocked, releaseEditRevision, saveReleaseDrafts } from './releaseSafety';
 
+function withTimeout<T>(operation: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timeout = window.setTimeout(() => reject(new Error(message)), timeoutMs);
+    operation.then(
+      value => { clearTimeout(timeout); resolve(value); },
+      error => { clearTimeout(timeout); reject(error); },
+    );
+  });
+}
+
 export async function deployedRelease(): Promise<string> {
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), 10000);
@@ -39,14 +49,14 @@ export async function refreshRelease(runningRelease: string, reload = () => wind
     if (refreshBlocked() || revision !== releaseEditRevision()) throw new Error(finishWorkMessage);
   };
   assertSafe();
-  await saveReleaseDrafts();
+  await withTimeout(saveReleaseDrafts(), 15000, 'Saving your drafts is taking longer than expected. Please try again.');
   assertSafe();
   // A rollback or incomplete deployment must not trigger a stale-shell reload loop.
   if (await deployedRelease() === runningRelease) return false;
   assertSafe();
   const registration = 'serviceWorker' in navigator ? await navigator.serviceWorker.getRegistration() : undefined;
   if (registration) {
-    await registration.update();
+    await withTimeout(registration.update(), 10000, 'The app update is taking longer than expected. Please try again.');
     if (registration.installing) await waitForWorker(registration.installing, 'installed');
     assertSafe();
     const waiting = registration.waiting;
