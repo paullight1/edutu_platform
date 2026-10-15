@@ -108,7 +108,7 @@ Also keep local dev origins:
 http://localhost:5173
 ```
 
-If admin requests fail in production with CORS errors, update the backend CORS allowlist and redeploy Render.
+If admin requests fail in production with CORS errors, update the backend CORS allowlist and redeploy the API service through Docploy.
 
 ## Supabase settings
 

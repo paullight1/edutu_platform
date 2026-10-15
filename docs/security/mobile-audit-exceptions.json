@@ -1,0 +1,18 @@
+{
+  "exceptions": [
+    {
+      "package": "braces",
+      "url": "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm",
+      "expiresOn": "2026-12-15",
+      "scope": "Build tooling only: the dependency is reached through Tailwind/Metro and was absent from the exported Android Hermes bundle.",
+      "reason": "The reviewed advisory has no patched release. This exception expires for re-review and is limited to the build-time dependency path; it does not suppress advisories in shipped runtime dependencies."
+    },
+    {
+      "package": "node-forge",
+      "url": "https://github.com/advisories/GHSA-86w9-cpqp-85rv",
+      "expiresOn": "2026-12-15",
+      "scope": "Expo CLI/update-signing tooling only: node-forge and @expo/code-signing-certificates were absent from the exported Android Hermes bundle; native update signature verification is implemented in iOS and Android code.",
+      "reason": "The reviewed advisory has no patched release. This exception expires for re-review and is limited to Expo build/signing tooling; it does not suppress advisories in shipped runtime dependencies."
+    }
+  ]
+}

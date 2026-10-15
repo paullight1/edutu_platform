@@ -113,9 +113,8 @@ npm run dev
 
 ### Production (Recommended)
 
-1. **Backend** → Render / Railway / DigitalOcean
-2. **Admin** → Vercel / Netlify
-3. **Mobile** → EAS Build / TestFlight / Play Store
+1. **Backend API, admin, and payment shell** → Docploy
+2. **Mobile** → EAS Build / TestFlight / Play Store
 
 ## API Communication
 

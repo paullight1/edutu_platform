@@ -5,7 +5,7 @@ Edutu API exposes the opportunity engine as a paid third-party API for apps, age
 ## Identity and authentication boundary
 
 - Package name: `edutu-api`
-- Base URL: `https://edutu-platform.onrender.com/v1`
+- Base URL: `https://backend.edutu.org/v1`
 - Local URL: `http://localhost:3000/v1`
 - Clerk user session: sign in to Edutu to access `/developer/*` and `/dashboard/developer`, create projects, and manage keys. There is no separate developer login.
 - API access: `/v1/*` requires an Edutu API key, sent as `X-Edutu-API-Key: <api-key>`, `x-api-key: <api-key>`, or `Authorization: Bearer <api-key>`.

@@ -102,6 +102,13 @@ python main.py --all --save
 python cli.py scrape --all
 ```
 
+## Production deployment
+
+The production API (`backend.edutu.org`), admin (`admin.edutu.org`), and
+payment shell (`pay.edutu.org`) are managed through Docploy. Use each service's
+Docploy configuration for build settings, runtime variables, deploy status,
+and rollback. Mobile releases use EAS Build, TestFlight, and Play Store.
+
 ## Environment Checklist
 
 Backend:
@@ -125,7 +132,7 @@ Admin:
 ```env
 VITE_SUPABASE_URL=...
 VITE_SUPABASE_ANON_KEY=...
-VITE_API_URL=https://edutu-platform.onrender.com
+VITE_API_URL=https://backend.edutu.org
 ```
 
 Main web app:
@@ -133,7 +140,7 @@ Main web app:
 ```env
 VITE_SUPABASE_URL=...
 VITE_SUPABASE_ANON_KEY=...
-VITE_API_URL=https://edutu-platform.onrender.com
+VITE_API_URL=https://backend.edutu.org
 VITE_CLERK_PUBLISHABLE_KEY=...
 ```
 

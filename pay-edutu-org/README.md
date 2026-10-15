@@ -8,6 +8,7 @@ Production deployments and production verification are managed through Docploy.
 
 ## Required server configuration
 
+- `DEPLOYMENT_PLATFORM=docploy`: deployment health metadata supplied by the Docploy service environment.
 - `EDUTU_BILLING_API_URL`: canonical HTTPS Nest API origin without a path.
 - `PAY_SHELL_ORIGIN=https://pay.edutu.org`: exact Origin used for browser POST checks.
 - `BILLING_PAY_SHELL_API_KEY`: a dedicated server secret of at least 32 characters,
