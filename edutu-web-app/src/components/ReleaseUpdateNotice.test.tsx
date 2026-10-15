@@ -61,8 +61,10 @@ it('keeps the release notice above the sign-in invitation on narrow screens', as
     await waitFor(() => expect(noticeCard.style.bottom).toBe(`calc(${expectedBottom}px + env(safe-area-inset-bottom))`));
     expect(gate.style.bottom).toBe('');
     expect(noticeCard).toHaveClass('bottom-4');
+    expect(noticeCard).toHaveClass('sm:left-4', 'sm:right-auto');
     expect(noticeCard).toHaveStyle({ bottom: `calc(${expectedBottom}px + env(safe-area-inset-bottom))` });
-    expect(notice).toHaveStyle({ color: '#fff' });
+    expect(notice).toHaveClass('!text-white');
+    expect(screen.getByRole('button', { name: 'Refresh now' })).toHaveClass('!text-white');
     const noticeTop = viewportHeight - expectedBottom - 140;
     const gateTop = 560;
     expect(gateTop - noticeTop - 140).toBe(12);
