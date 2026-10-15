@@ -4,6 +4,9 @@ This Next.js shell opens Bachs hosted checkout, reads canonical purchase status,
 and offers account management. The Nest API owns catalog pricing, identity,
 fulfillment, and the credit ledger.
 
+Production deployments are managed through Docploy. Vercel project metadata in
+the repository is not the production deployment source of truth.
+
 ## Required server configuration
 
 - `EDUTU_BILLING_API_URL`: canonical HTTPS Nest API origin without a path.

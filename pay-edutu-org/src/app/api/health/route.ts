@@ -7,7 +7,7 @@ export function GET() {
   return NextResponse.json({
     ok: true,
     service: 'pay.edutu.org',
-    deploymentSource: 'github-vercel',
+    deploymentSource: 'docploy',
     time: new Date().toISOString(),
   });
 }
