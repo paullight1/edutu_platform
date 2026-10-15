@@ -39,30 +39,25 @@ export default function ReleaseUpdateNotice() {
   }, []);
   useEffect(() => {
     const compact = window.matchMedia('(max-width: 767px)');
-    const previousBottom = new Map<HTMLElement, string>();
+    const notice = noticeRef.current;
+    const defaultBottom = notice?.style.bottom ?? '';
     const sync = () => {
       const gate = compact.matches ? document.querySelector<HTMLElement>('[data-google-sign-in-gate]') : null;
-      const notice = noticeRef.current;
+      const currentNotice = noticeRef.current;
       resizeObserver?.disconnect();
-      for (const [element, bottom] of previousBottom) {
-        if (element !== gate) {
-          element.style.bottom = bottom;
-          previousBottom.delete(element);
-        }
-      }
-      if (!gate || !available || !notice) {
-        for (const [element, bottom] of previousBottom) element.style.bottom = bottom;
-        previousBottom.clear();
+      if (!currentNotice) return;
+      if (!gate || !available) {
+        currentNotice.style.bottom = defaultBottom;
         return;
       }
-      if (!previousBottom.has(gate)) previousBottom.set(gate, gate.style.bottom);
       resizeObserver?.observe(gate);
-      resizeObserver?.observe(notice);
-      // Keep the update action in a stable bottom slot and lift the optional
-      // sign-in sheet above it. This remains correct when the notice text wraps
-      // or gains an error message, and avoids relying on z-index overlap.
-      const noticeHeight = Math.ceil(notice.getBoundingClientRect().height);
-      gate.style.bottom = `calc(${noticeHeight + 16 + 12}px + env(safe-area-inset-bottom))`;
+      resizeObserver?.observe(currentNotice);
+      // Keep the sign-in invitation at its normal position, and move the
+      // release notice above its top edge. This avoids covering the sheet's
+      // actions on short mobile screens and keeps the sheet fully usable.
+      const gap = 12;
+      const offset = Math.max(16, Math.ceil(window.innerHeight - gate.getBoundingClientRect().top + gap));
+      currentNotice.style.bottom = `calc(${offset}px + env(safe-area-inset-bottom))`;
     };
     const resizeObserver = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(sync);
     const mutationObserver = new MutationObserver(sync);
@@ -73,7 +68,7 @@ export default function ReleaseUpdateNotice() {
     return () => {
       mutationObserver.disconnect();
       resizeObserver?.disconnect();
-      for (const [element, bottom] of previousBottom) element.style.bottom = bottom;
+      if (notice) notice.style.bottom = defaultBottom;
       compact.removeEventListener('change', sync);
       window.removeEventListener('resize', sync);
     };

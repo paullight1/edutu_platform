@@ -35,7 +35,7 @@ it('does not show a notice for the running release', async () => {
   expect(screen.queryByText('Top100 has been updated')).toBeNull();
 });
 
-it('lifts the sign-in invitation above the release notice on narrow screens', async () => {
+it('keeps the release notice above the sign-in invitation on narrow screens', async () => {
   vi.stubEnv('PROD', true);
   vi.stubGlobal('__APP_RELEASE__', 'release-a');
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ version: 'release-b' }) }));
@@ -47,7 +47,7 @@ it('lifts the sign-in invitation above the release notice on narrow screens', as
   gate.dataset.googleSignInGate = '';
   vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
     return this.matches('[data-release-refresh]')
-      ? new DOMRect(16, 0, 398, 140)
+      ? new DOMRect(16, 408, 398, 140)
       : new DOMRect(20, 560, 390, 352);
   });
   document.body.append(gate);
@@ -56,16 +56,18 @@ it('lifts the sign-in invitation above the release notice on narrow screens', as
     const view = render(<ReleaseUpdateNotice />);
     const notice = await screen.findByText('Top100 has been updated');
     const noticeCard = notice.closest<HTMLElement>('[data-release-refresh]')!;
-    await waitFor(() => expect(gate.style.bottom).toBe('calc(168px + env(safe-area-inset-bottom))'));
-    expect(noticeCard).toHaveClass('bottom-4');
-    expect(noticeCard).toHaveStyle({ bottom: 'calc(16px + env(safe-area-inset-bottom))' });
-    expect(notice).toHaveStyle({ color: '#fff' });
-    const viewportHeight = 932;
-    const noticeTop = viewportHeight - (140 + 16);
-    const gateBottom = viewportHeight - 168;
-    expect(noticeTop - gateBottom).toBe(12);
-    view.unmount();
+    const viewportHeight = window.innerHeight;
+    const expectedBottom = viewportHeight - 560 + 12;
+    await waitFor(() => expect(noticeCard.style.bottom).toBe(`calc(${expectedBottom}px + env(safe-area-inset-bottom))`));
     expect(gate.style.bottom).toBe('');
+    expect(noticeCard).toHaveClass('bottom-4');
+    expect(noticeCard).toHaveStyle({ bottom: `calc(${expectedBottom}px + env(safe-area-inset-bottom))` });
+    expect(notice).toHaveStyle({ color: '#fff' });
+    const noticeTop = viewportHeight - expectedBottom - 140;
+    const gateTop = 560;
+    expect(gateTop - noticeTop - 140).toBe(12);
+    view.unmount();
+    expect(noticeCard.style.bottom).toBe('calc(16px + env(safe-area-inset-bottom))');
   } finally {
     gate.remove();
   }
