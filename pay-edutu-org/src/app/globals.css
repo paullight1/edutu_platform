@@ -691,3 +691,50 @@ tbody tr:last-child td { border-bottom: 0; }
 @media (max-width: 340px) {
   .btn-row .btn { padding-inline: 5px; font-size: 11px; }
 }
+
+/* A glanceable, honest payment timeline — confirmation is always server-owned. */
+.payment-status-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+  margin: 23px 0 8px;
+  padding: 0;
+  list-style: none;
+  text-align: left;
+}
+.payment-status-steps li {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  min-width: 0;
+  border-top: 2px solid var(--border-strong);
+  padding: 10px 2px 0;
+  color: var(--muted);
+}
+.payment-status-steps li span {
+  display: grid;
+  place-items: center;
+  width: 25px;
+  height: 25px;
+  border: 1px solid var(--border-strong);
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 700;
+}
+.payment-status-steps li strong {
+  font-size: 12px;
+  line-height: 1.35;
+  font-weight: 600;
+}
+.payment-status-steps .is-complete { border-color: var(--success); color: var(--text); }
+.payment-status-steps .is-complete span { background: var(--tint-success-bg); border-color: var(--tint-success-bd); color: var(--tint-success-tx); }
+.payment-status-steps .is-current { border-color: var(--accent); color: var(--text); }
+.payment-status-steps .is-current span { background: var(--tint-accent-bg); border-color: var(--tint-accent-bd); color: var(--tint-accent-tx); }
+.payment-status-steps .is-attention { border-color: var(--danger); color: var(--text); }
+.payment-status-steps .is-attention span { background: var(--tint-danger-bg); border-color: var(--tint-danger-bd); color: var(--tint-danger-tx); }
+.payment-result .btn-row .btn:last-child { grid-column: 1 / -1; }
+@media (max-width: 420px) {
+  .payment-status-steps { gap: 5px; }
+  .payment-status-steps li strong { font-size: 11px; }
+  .payment-result .btn-row { grid-template-columns: 1fr; }
+}
