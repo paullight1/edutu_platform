@@ -19,7 +19,8 @@ import { useTranslation } from "react-i18next";
 import CoachComposer from "./CoachComposer";
 import { usePaywall } from "../../hooks/usePaywall";
 import { errorMessage, useProductSession } from "../workspace/shared";
-import { sendCoachTurn, type CoachMessage } from "./stream";
+import { sendCoachTurn, type CoachMessage, type CoachProgress } from "./stream";
+import { getMatchLabel } from "../../components/opportunity/MatchInsights";
 import {
   COACH_NEW_CONVERSATION_EVENT,
   COACH_OPEN_HISTORY_EVENT,
@@ -295,6 +296,7 @@ export default function CoachPage() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [stream, setStream] = useState("");
+  const [progress, setProgress] = useState<CoachProgress>("thinking");
   const [historyOpen, setHistoryOpen] = useState(false);
   const [speakingId, setSpeakingId] = useState<string | null>(null);
   const abort = useRef<AbortController | null>(null);
@@ -483,6 +485,7 @@ export default function CoachPage() {
     setDraft("");
     streamText.current = "";
     setStream("");
+    setProgress("thinking");
     setMessages((current) => [...current, pendingMessage]);
     try {
       const result = await sendCoachTurn(
@@ -500,6 +503,7 @@ export default function CoachPage() {
           streamText.current = text;
           setStream(text);
         },
+        setProgress,
       );
       setThread(result.threadId);
       setMessages((current) => [
@@ -966,8 +970,13 @@ export default function CoachPage() {
                                       <small>{item.organization}</small>
                                     )}
                                     <span className="coach-opportunity-meta">
-                                      {item.matchScore ? (
-                                        `${item.matchScore}% match`
+                                      {typeof item.matchScore === "number" &&
+                                      Number.isFinite(item.matchScore) &&
+                                      item.matchScore > 0 &&
+                                      item.matchScore <= 100 ? (
+                                        <span title="Profile relevance estimate, not eligibility or acceptance odds">
+                                          {getMatchLabel(item.matchScore)}
+                                        </span>
                                       ) : item.deadline ? (
                                         <>
                                           <CalendarDays size={13} />
@@ -981,6 +990,9 @@ export default function CoachPage() {
                                 </Link>
                               ))}
                             </div>
+                            <p className="mt-2 text-xs leading-relaxed text-text-muted">
+                              Fit is an estimate. Confirm eligibility and deadlines on the official application page.
+                            </p>
                           </section>
                         )}
                         {meta?.roadmapIntent && (
@@ -1133,16 +1145,20 @@ export default function CoachPage() {
                     {stream ? (
                       <RichText text={stream} />
                     ) : (
-                      <span
-                        className="coach-typing"
-                        aria-label={t("coachPage.thinking", {
-                          defaultValue: "Edutu is thinking",
-                        })}
-                      >
+                      <span className="coach-typing" aria-hidden="true">
                         <i />
                         <i />
                         <i />
                       </span>
+                    )}
+                    {busy && (
+                      <p className="mt-2 text-xs text-text-muted" role="status" aria-live="polite">
+                        {progress === "checking"
+                          ? t("coachPage.checkingRecords", { defaultValue: "Checking Edutu records…" })
+                          : progress === "writing"
+                            ? t("coachPage.writingAnswer", { defaultValue: "Preparing your answer…" })
+                            : t("coachPage.thinking", { defaultValue: "Edutu is thinking…" })}
+                      </p>
                     )}
                   </div>
                 </article>
