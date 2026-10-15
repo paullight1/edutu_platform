@@ -78,7 +78,9 @@ describe("HealthService", () => {
   it("reports AI configured when a supported provider other than Gemini or OpenRouter is set", async () => {
     for (const key of aiProviderEnvKeys) delete process.env[key];
     process.env.OPENAI_API_KEY = "test-openai-key";
-    const service = new HealthService({ ping: jest.fn().mockResolvedValue(undefined) });
+    const service = new HealthService({
+      ping: jest.fn().mockResolvedValue(undefined),
+    });
 
     await expect(service.getReadiness()).resolves.toMatchObject({
       status: "ready",
