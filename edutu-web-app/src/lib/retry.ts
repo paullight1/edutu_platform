@@ -17,17 +17,15 @@ const defaultOptions: Required<RetryOptions> = {
     baseDelay: 1000,
     maxDelay: 10000,
     shouldRetry: (error: unknown) => {
-        // Retry on network errors and 5xx server errors
-        if (error instanceof Error) {
-            if (error.message.includes('network') || error.message.includes('fetch')) {
-                return true;
-            }
-        }
+        // Do not retry validation, authentication or other application errors.
         if (typeof error === 'object' && error !== null && 'status' in error) {
-            const status = (error as { status: number }).status;
-            return status >= 500 && status < 600;
+            const status = (error as { status: unknown }).status;
+            return typeof status === 'number' && status >= 500 && status < 600;
         }
-        return true; // Default to retry
+        return error instanceof TypeError ||
+            (error instanceof Error &&
+                (error.name === 'TimeoutError' ||
+                    /network|failed to fetch|load failed|timeout/i.test(error.message)));
     },
     onRetry: () => { }
 };
@@ -67,15 +65,18 @@ export async function retry<T>(
     options: RetryOptions = {}
 ): Promise<T> {
     const opts = { ...defaultOptions, ...options };
+    const maxAttempts = Number.isFinite(opts.maxAttempts)
+        ? Math.max(1, Math.floor(opts.maxAttempts))
+        : 1;
     let lastError: unknown;
 
-    for (let attempt = 1; attempt <= opts.maxAttempts; attempt++) {
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         try {
             return await fn();
         } catch (error) {
             lastError = error;
 
-            if (attempt === opts.maxAttempts) {
+            if (attempt === maxAttempts) {
                 throw error;
             }
 
@@ -163,43 +164,81 @@ export function isTimeoutError(error: unknown): boolean {
 }
 
 /**
- * Create a fetch request with timeout
+ * Fetch while preserving the caller's cancellation signal. A timeout only
+ * aborts this request; it never detaches a navigation or user cancellation.
  */
 export async function fetchWithTimeout(
     input: RequestInfo | URL,
     init?: RequestInit & { timeout?: number }
 ): Promise<Response> {
     const { timeout = 30000, ...fetchInit } = init || {};
-
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeout);
+    const callerSignal = fetchInit.signal ?? (input instanceof Request ? input.signal : undefined);
+    const onAbort = () => controller.abort(callerSignal?.reason);
 
+    if (callerSignal?.aborted) {
+        onAbort();
+    } else {
+        callerSignal?.addEventListener('abort', onAbort, { once: true });
+    }
+
+    const timeoutId = setTimeout(
+        () => controller.abort(new DOMException('Request timed out', 'TimeoutError')),
+        timeout
+    );
     try {
-        const response = await fetch(input, {
-            ...fetchInit,
-            signal: controller.signal
-        });
+        return await fetch(input, { ...fetchInit, signal: controller.signal });
+    } finally {
         clearTimeout(timeoutId);
-        return response;
-    } catch (error) {
-        clearTimeout(timeoutId);
-        throw error;
+        callerSignal?.removeEventListener('abort', onAbort);
     }
 }
 
 /**
- * Fetch with retry and timeout
+ * Retrying non-idempotent requests can duplicate submissions and payments.
+ * Only GET/HEAD requests are retried. Preserve fetch semantics: the last
+ * HTTP error response is returned rather than converted into an exception.
  */
 export async function fetchWithRetry(
     input: RequestInfo | URL,
     init?: RequestInit & { timeout?: number; retryOptions?: RetryOptions }
 ): Promise<Response> {
     const { retryOptions, ...fetchInit } = init || {};
+    const method = (fetchInit.method ?? (input instanceof Request ? input.method : 'GET')).toUpperCase();
+    if (method !== 'GET' && method !== 'HEAD') {
+        return fetchWithTimeout(input, fetchInit);
+    }
 
-    return retry(
-        () => fetchWithTimeout(input, fetchInit),
-        retryOptions || retryPresets.standard
-    );
+    const callerSignal = fetchInit.signal ?? (input instanceof Request ? input.signal : undefined);
+    let latestHttpError: Error | undefined;
+    let latestHttpResponse: Response | undefined;
+
+    try {
+        return await retry(async () => {
+            if (callerSignal?.aborted) {
+                throw callerSignal.reason ?? new DOMException('Request cancelled', 'AbortError');
+            }
+
+            const response = await fetchWithTimeout(input, fetchInit);
+            if (response.status >= 500 && response.status < 600) {
+                latestHttpResponse = response;
+                latestHttpError = Object.assign(new Error(`HTTP ${response.status}`), {
+                    status: response.status,
+                });
+                throw latestHttpError;
+            }
+            return response;
+        }, {
+            ...retryPresets.standard,
+            ...retryOptions,
+            shouldRetry: (error, attempt) =>
+                !callerSignal?.aborted &&
+                (retryOptions?.shouldRetry ?? defaultOptions.shouldRetry)(error, attempt),
+        });
+    } catch (error) {
+        if (error === latestHttpError && latestHttpResponse) return latestHttpResponse;
+        throw error;
+    }
 }
 
 export default retry;
