@@ -900,21 +900,22 @@ export default function Opportunities() {
 
   useEffect(() => {
     if (!sharePreviewFailed || !shareChooser?.payload?.shareCard?.url) return;
-    // Keep the source image selected when its preview fails. Silently switching
-    // designs made a valid original look like it had disappeared on Share.
-    if (shareChooser.selectedDesign === "existing") return;
-
     const failedUrl = shareChooser.payload.shareCard.url;
     const alternatives =
-      shareChooser.selectedDesign === "creative"
-        ? [shareChooser.brandedPayload]
-        : [shareChooser.creativePayload];
+      shareChooser.selectedDesign === "existing"
+        ? [shareChooser.creativePayload, shareChooser.brandedPayload]
+        : shareChooser.selectedDesign === "creative"
+          ? [shareChooser.brandedPayload]
+          : [shareChooser.creativePayload];
     const fallback = alternatives.find(
       (candidate) =>
         candidate?.shareCard?.url && candidate.shareCard.url !== failedUrl,
     );
     if (!fallback) return;
 
+    // Prefer an existing generated flyer before asking the admin to regenerate
+    // it. Source images can be publicly viewable on a card but blocked by the
+    // authenticated proxy used by the share flow.
     setSharePreviewFailed(false);
     setShareChooser((current) =>
       current?.payload?.shareCard?.url === failedUrl
@@ -4732,6 +4733,24 @@ export default function Opportunities() {
               </div>
             ) : (
               <>
+                {sourceImagePreviewRetry > 0 &&
+                  shareChooser.existingImage &&
+                  shareChooser.selectedDesign !== "existing" && (
+                    <p
+                      role="status"
+                      style={{
+                        margin: "0 0 12px",
+                        color: "var(--text-secondary)",
+                        fontSize: "13px",
+                      }}
+                    >
+                      The original image could not be loaded. Showing the
+                      {shareChooser.selectedDesign === "creative"
+                        ? " saved flyer"
+                        : " Edutu flyer"}
+                      instead.
+                    </p>
+                  )}
                 <div
                   style={{
                     display: "grid",
@@ -4982,6 +5001,7 @@ export default function Opportunities() {
                       disabled={!shareChooser.brandedPayload?.shareCard?.url}
                       onClick={() => {
                         setSharePreviewFailed(false);
+                        setSourceImagePreviewRetry(0);
                         setShareChooser((current) =>
                           current?.brandedPayload
                             ? {
@@ -5033,6 +5053,7 @@ export default function Opportunities() {
                         }
                         onClick={() => {
                           setSharePreviewFailed(false);
+                          setSourceImagePreviewRetry(0);
                           setShareChooser((current) =>
                             current?.creativePayload
                               ? {

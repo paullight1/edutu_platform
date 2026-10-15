@@ -265,4 +265,40 @@ describe("opportunity share image chooser", () => {
       await screen.findByRole("img", { name: "Current opportunity image" }),
     ).toHaveAttribute("src", "blob:source-opportunity-image");
   });
+
+  it("falls back to an already-saved flyer when the original and proxy both fail", async () => {
+    const savedFlyerUrl =
+      "https://supabase.edutu.org/storage/v1/object/public/opportunity-share-cards/expiring/saved-flyer.png";
+    listedOpportunity = {
+      ...opportunity,
+      image_url: savedFlyerUrl,
+      metadata: { source_image_url: opportunity.metadata.source_image_url },
+    };
+    createPreviewUrl.mockResolvedValue(null);
+    const user = userEvent.setup();
+    render(<Opportunities />);
+
+    await user.click(
+      await screen.findByRole("button", {
+        name: `Share ${opportunity.title}`,
+      }),
+    );
+
+    const originalPreview = await screen.findByRole("img", {
+      name: "Current opportunity image",
+    });
+    fireEvent.error(originalPreview);
+
+    const savedFlyer = await screen.findByRole("img", {
+      name: "AI-created opportunity flyer",
+    });
+    expect(savedFlyer).toHaveAttribute("src", savedFlyerUrl);
+    const fallbackNotice = screen
+      .getAllByRole("status")
+      .find((element) =>
+        element.textContent?.includes("The original image could not be loaded."),
+      );
+    expect(fallbackNotice?.textContent).toContain("saved flyer");
+    expect(screen.getByRole("button", { name: "Share" })).toBeEnabled();
+  });
 });
