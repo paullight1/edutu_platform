@@ -46,6 +46,25 @@ type SecondFactorStrategy =
   | "backup_code"
   | "";
 
+const SIGN_UP_STEPS = [
+  {
+    title: "What should we call you?",
+    subtitle: "Start with the name you want to use on Edutu.",
+  },
+  {
+    title: "Where can we reach you?",
+    subtitle: "Use an email address you can check for a verification code.",
+  },
+  {
+    title: "Create a password",
+    subtitle: "Use at least 8 characters to keep your account secure.",
+  },
+  {
+    title: "Confirm your password",
+    subtitle: "One last check, then we’ll create your account.",
+  },
+] as const;
+
 const GoogleIcon = () => (
   <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true">
     <path
@@ -245,6 +264,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
   const [oauthLoading, setOauthLoading] = useState<OAuthProvider | null>(null);
   const [error, setError] = useState("");
   const [fullName, setFullName] = useState("");
+  const [signUpStep, setSignUpStep] = useState(0);
   const [emailAddress, setEmailAddress] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -318,6 +338,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
 
   const resetMode = (nextMode: AuthMode) => {
     setMode(nextMode);
+    if (nextMode === "sign-up") setSignUpStep(0);
     setError("");
     setCode("");
     setResetPassword("");
@@ -593,6 +614,24 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError("");
+
+    if (mode === "sign-up" && signUpStep < SIGN_UP_STEPS.length - 1) {
+      const stepError =
+        signUpStep === 0 && !fullName.trim()
+          ? t("auth.errors.enterName")
+          : signUpStep === 1 && !emailAddress.trim()
+            ? t("auth.errors.enterEmail")
+            : signUpStep === 2 && password.length < 8
+              ? t("auth.errors.passwordTooShort")
+              : "";
+      if (stepError) {
+        setError(stepError);
+        return;
+      }
+      setSignUpStep((step) => Math.min(step + 1, SIGN_UP_STEPS.length - 1));
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -604,6 +643,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
       }
       if (mode === "sign-up" && isExistingAccountError(err)) {
         setMode("sign-in");
+        setSignUpStep(0);
         setError(t("auth.errors.accountExists"));
         return;
       }
@@ -780,12 +820,19 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
   };
 
   useEffect(() => {
-    const target = mode === "sign-up" ? nameRef.current : emailRef.current;
+    const target =
+      mode === "sign-up" && signUpStep === 0
+        ? nameRef.current
+        : mode === "sign-up" && signUpStep !== 1
+          ? null
+          : emailRef.current;
     target?.focus();
-  }, [mode]);
+  }, [mode, signUpStep]);
 
   const title =
-    mode === "sign-in"
+    mode === "sign-up"
+      ? SIGN_UP_STEPS[signUpStep].title
+      : mode === "sign-in"
       ? t("auth.titles.welcomeBack")
       : mode === "verify" || mode === "verify-sign-in"
         ? t("auth.titles.checkEmail")
@@ -793,9 +840,11 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
           ? t("auth.titles.oneMoreStep")
           : mode === "reset-password"
             ? t("auth.titles.resetPassword")
-            : t("auth.titles.createAccount");
+          : t("auth.titles.createAccount");
   const subtitle =
-    mode === "verify" || mode === "verify-sign-in"
+    mode === "sign-up"
+      ? SIGN_UP_STEPS[signUpStep].subtitle
+      : mode === "verify" || mode === "verify-sign-in"
       ? t("auth.subtitles.verifyEmail", { email: emailAddress })
       : mode === "verify-second-factor"
         ? secondFactorStrategy === "totp"
@@ -815,7 +864,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
 
   return (
     <>
-      <PublicHeader onPrimaryAction={() => setMode("sign-up")} />
+      <PublicHeader onPrimaryAction={() => resetMode("sign-up")} />
       <div className="relative min-h-[100dvh] w-full bg-surface-body text-text-primary lg:grid lg:grid-cols-[1.05fr_1fr]">
       {/* ── Left promo panel (desktop only) ───────────────────────── */}
       <aside className="relative hidden overflow-hidden lg:block">
@@ -864,7 +913,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
               <div className="relative z-10 flex h-full flex-col justify-between p-8">
                 <div className="flex items-center gap-2 text-sm font-semibold">
                   <img
-                    src="/edutu-logo.png"
+                    src="/edutu-logo.webp"
                     alt=""
                     className="h-7 w-7 rounded-lg bg-white/90 p-1 dark:bg-gray-900/90"
                   />
@@ -938,6 +987,27 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
                     {subtitle}
                   </p>
                 </div>
+
+                {mode === "sign-up" && (
+                  <div className="mb-6" aria-label="Account creation progress">
+                    <div className="mb-2 flex items-center justify-between text-xs font-medium text-text-muted">
+                      <span>Step {signUpStep + 1} of {SIGN_UP_STEPS.length}</span>
+                      <span>{Math.round(((signUpStep + 1) / SIGN_UP_STEPS.length) * 100)}%</span>
+                    </div>
+                    <div
+                      className="h-1.5 overflow-hidden rounded-full bg-surface-elevated"
+                      role="progressbar"
+                      aria-valuemin={1}
+                      aria-valuemax={SIGN_UP_STEPS.length}
+                      aria-valuenow={signUpStep + 1}
+                    >
+                      <div
+                        className="h-full rounded-full bg-brand transition-[width] duration-200"
+                        style={{ width: `${((signUpStep + 1) / SIGN_UP_STEPS.length) * 100}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
 
                 <AnimatePresence>
                   {error && (
@@ -1157,7 +1227,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
                 ) : (
                   <>
                     <form onSubmit={handleSubmit} className="space-y-4">
-                      {mode === "sign-up" && (
+                      {mode === "sign-up" && signUpStep === 0 && (
                         <FieldShell label="Name">
                           <div className="relative">
                             <User
@@ -1167,6 +1237,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
                             <input
                               ref={nameRef}
                               type="text"
+                              required
                               value={fullName}
                               onChange={(event) =>
                                 setFullName(event.target.value)
@@ -1179,7 +1250,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
                         </FieldShell>
                       )}
 
-                      <FieldShell label="Email">
+                      {(mode === "sign-in" || (mode === "sign-up" && signUpStep === 1)) && <FieldShell label="Email">
                         <div className="relative">
                           <Mail
                             className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-text-muted"
@@ -1188,6 +1259,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
                           <input
                             ref={emailRef}
                             type="email"
+                            required
                             value={emailAddress}
                             onChange={(event) =>
                               setEmailAddress(event.target.value)
@@ -1197,15 +1269,17 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
                             autoComplete="email"
                           />
                         </div>
-                      </FieldShell>
+                      </FieldShell>}
 
-                      <FieldShell label="Password">
+                      {(mode === "sign-in" || (mode === "sign-up" && signUpStep === 2)) && <FieldShell label="Password">
                         <div className="relative">
                           <span className="pointer-events-none absolute left-3 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full bg-surface-elevated text-text-muted">
                             <LockKeyhole size={15} strokeWidth={1.9} />
                           </span>
                           <input
                             type={showPassword ? "text" : "password"}
+                            required
+                            minLength={mode === "sign-up" ? 8 : undefined}
                             value={password}
                             onChange={(event) =>
                               setPassword(event.target.value)
@@ -1233,7 +1307,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
                             )}
                           </button>
                         </div>
-                      </FieldShell>
+                      </FieldShell>}
 
                       {mode === "sign-in" && (
                         <div className="-mt-1 flex justify-end">
@@ -1263,7 +1337,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
                         </div>
                       )}
 
-                      {mode === "sign-up" && (
+                      {mode === "sign-up" && signUpStep === 3 && (
                         <>
                           <FieldShell label="Confirm password">
                             <div className="relative">
@@ -1272,6 +1346,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
                             </span>
                             <input
                               type={showConfirmPassword ? "text" : "password"}
+                              required
                               value={confirmPassword}
                               onChange={(event) =>
                                 setConfirmPassword(event.target.value)
@@ -1304,6 +1379,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
                           <label className="flex items-start gap-2 text-xs text-text-secondary">
                             <input
                               type="checkbox"
+                              required
                               checked={acceptTerms}
                               onChange={(event) =>
                                 setAcceptTerms(event.target.checked)
@@ -1356,8 +1432,23 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
                             : "Creating account..."
                           : mode === "sign-in"
                             ? "Sign in"
-                            : "Create an account"}
+                            : signUpStep === SIGN_UP_STEPS.length - 1
+                              ? "Create an account"
+                              : "Continue"}
                       </button>
+
+                      {mode === "sign-up" && signUpStep > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setError("");
+                            setSignUpStep((step) => Math.max(step - 1, 0));
+                          }}
+                          className="flex h-11 w-full items-center justify-center gap-2 rounded-xl text-sm font-medium text-text-secondary transition hover:bg-surface-elevated hover:text-text-primary"
+                        >
+                          <ArrowLeft size={16} /> Back
+                        </button>
+                      )}
                     </form>
 
                     <p className="mt-5 text-center text-sm text-text-secondary">
@@ -1375,25 +1466,29 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
                       </button>
                     </p>
 
-                    <div className="my-6 flex items-center gap-4">
-                      <div className="h-px flex-1 bg-surface-elevated" />
-                      <span className="text-xs text-text-muted">OR</span>
-                      <div className="h-px flex-1 bg-surface-elevated" />
-                    </div>
+                    {(mode === "sign-in" || signUpStep === 0) && (
+                      <>
+                        <div className="my-6 flex items-center gap-4">
+                          <div className="h-px flex-1 bg-surface-elevated" />
+                          <span className="text-xs text-text-muted">OR</span>
+                          <div className="h-px flex-1 bg-surface-elevated" />
+                        </div>
 
-                    <button
-                      type="button"
-                      onClick={() => handleOAuth("google")}
-                      disabled={oauthLoading !== null}
-                      className="flex h-12 w-full items-center justify-center gap-2.5 rounded-xl border border-subtle bg-white text-sm font-semibold text-text-secondary transition hover:border-strong hover:bg-surface-elevated disabled:cursor-not-allowed disabled:opacity-60 dark:bg-gray-900"
-                    >
-                      {oauthLoading === "google" ? (
-                        <Loader2 size={16} className="animate-spin" />
-                      ) : (
-                        <GoogleIcon />
-                      )}
-                      Continue with Google
-                    </button>
+                        <button
+                          type="button"
+                          onClick={() => handleOAuth("google")}
+                          disabled={oauthLoading !== null}
+                          className="flex h-12 w-full items-center justify-center gap-2.5 rounded-xl border border-subtle bg-white text-sm font-semibold text-text-secondary transition hover:border-strong hover:bg-surface-elevated disabled:cursor-not-allowed disabled:opacity-60 dark:bg-gray-900"
+                        >
+                          {oauthLoading === "google" ? (
+                            <Loader2 size={16} className="animate-spin" />
+                          ) : (
+                            <GoogleIcon />
+                          )}
+                          Continue with Google
+                        </button>
+                      </>
+                    )}
                   </>
                 )}
 

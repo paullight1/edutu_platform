@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth as useClerkAuth } from "@clerk/clerk-react";
 import {
   ArrowLeft,
@@ -27,6 +27,7 @@ import { syncOpportunityPreferences } from "../services/opportunityPreferences";
 import MultiSelectDropdown from "./ui/MultiSelectDropdown";
 import WelcomeIllustration from "./onboarding/WelcomeIllustration";
 import { markPremiumWelcomePending } from "../lib/premiumWelcome";
+import { isInternalDestination } from "../lib/googleSignupWelcome";
 
 const INTEREST_OPTIONS = [
   "Technology",
@@ -176,6 +177,7 @@ const labelClass = "mb-1.5 block text-sm font-medium text-text-secondary";
 export interface OnboardingFlowProps {
   presentation?: "modal" | "page";
   showWelcome?: boolean;
+  allowDismiss?: boolean;
   onComplete?: () => void;
   onDismiss?: () => void;
 }
@@ -188,6 +190,7 @@ export interface OnboardingFlowProps {
 export function OnboardingFlow({
   presentation = "page",
   showWelcome = false,
+  allowDismiss = true,
   onComplete,
   onDismiss,
 }: OnboardingFlowProps) {
@@ -376,13 +379,15 @@ export function OnboardingFlow({
                 aria-hidden="true"
               />
             </button>
-            <button
-              type="button"
-              onClick={handleSkip}
-              className="h-11 rounded-2xl text-sm font-semibold text-text-secondary transition hover:bg-surface-elevated hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand active:scale-[0.98]"
-            >
-              Maybe later
-            </button>
+            {allowDismiss && onDismiss && (
+              <button
+                type="button"
+                onClick={handleSkip}
+                className="h-11 rounded-2xl text-sm font-semibold text-text-secondary transition hover:bg-surface-elevated hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand active:scale-[0.98]"
+              >
+                Maybe later
+              </button>
+            )}
           </div>
           <p className="mt-4 text-center text-xs font-medium text-text-muted">
             Change these details anytime from your profile.
@@ -405,7 +410,7 @@ export function OnboardingFlow({
         <div className="mx-auto flex w-full max-w-xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
           <div className="flex items-center gap-2.5">
             <img
-              src="/edutu-logo.png"
+              src="/edutu-logo.webp"
               alt="Edutu"
               className="h-8 w-8 rounded-lg"
             />
@@ -418,14 +423,16 @@ export function OnboardingFlow({
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={handleSkip}
-            disabled={saving}
-            className="shrink-0 rounded-full px-3 py-1.5 text-sm font-semibold text-text-muted transition hover:bg-surface-elevated hover:text-text-primary disabled:opacity-50"
-          >
-            Skip for now
-          </button>
+          {allowDismiss && onDismiss && (
+            <button
+              type="button"
+              onClick={handleSkip}
+              disabled={saving}
+              className="shrink-0 rounded-full px-3 py-1.5 text-sm font-semibold text-text-muted transition hover:bg-surface-elevated hover:text-text-primary disabled:opacity-50"
+            >
+              Skip for now
+            </button>
+          )}
         </div>
 
         {/* Compact progress dots keep the quiz legible without another heavy rail. */}
@@ -718,16 +725,24 @@ export function OnboardingFlow({
 
 export default function PersonalizationScreen() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { userId } = useClerkAuth();
+  const params = new URLSearchParams(location.search);
+  const isGoogleSignup = params.get("welcome") === "google";
+  const requestedDestination = params.get("returnTo");
+  const destination = isInternalDestination(requestedDestination)
+    ? requestedDestination
+    : "/dashboard?focus=next-step";
 
   return (
     <OnboardingFlow
       presentation="page"
+      allowDismiss={!isGoogleSignup}
       onComplete={() => {
         markPremiumWelcomePending(userId);
-        navigate("/dashboard?focus=next-step", { replace: true });
+        navigate(destination, { replace: true });
       }}
-      onDismiss={() => navigate("/dashboard", { replace: true })}
+      onDismiss={isGoogleSignup ? undefined : () => navigate("/dashboard", { replace: true })}
     />
   );
 }

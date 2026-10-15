@@ -209,12 +209,18 @@ describe("AuthScreen OTP verification", () => {
     fireEvent.change(screen.getByPlaceholderText("e.g. Amina Bello"), {
       target: { value: "Edutu Member" },
     });
+    fireEvent.submit(screen.getByRole("button", { name: "Continue" }).closest("form")!);
+
     fireEvent.change(screen.getByPlaceholderText("e.g. ahmed@edutu.org"), {
       target: { value: "member@example.com" },
     });
+    fireEvent.submit(screen.getByRole("button", { name: "Continue" }).closest("form")!);
+
     fireEvent.change(screen.getByPlaceholderText("Enter your password"), {
       target: { value: "correct-password" },
     });
+    fireEvent.submit(screen.getByRole("button", { name: "Continue" }).closest("form")!);
+
     fireEvent.change(screen.getByPlaceholderText("Repeat your password"), {
       target: { value: "correct-password" },
     });

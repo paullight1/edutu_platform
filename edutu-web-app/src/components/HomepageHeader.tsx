@@ -56,7 +56,7 @@ export default function HomepageHeader({ onGetStarted, publicMode = false, fixed
         <header className={`homepage-header${publicMode ? ' homepage-header-public' : ''}${fixed ? ' homepage-header-fixed' : ''}${darkAtTop ? ' homepage-header-dark-top' : ''}`}>
             <div className="homepage-header-inner">
                 <Link to="/" className="homepage-logo" aria-label="Edutu home">
-                    <img src="/edutu-logo.png" alt="" />
+                    <img src="/edutu-logo.webp" alt="" />
                     <span>edutu</span>
                 </Link>
                 <nav className="homepage-desktop-nav" aria-label="Primary navigation">

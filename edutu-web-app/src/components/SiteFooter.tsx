@@ -85,7 +85,7 @@ const SiteFooter: React.FC<{ version?: string; expandedOnMobile?: boolean }> = (
                     <div className="mb-8 md:hidden">
                         <div className="flex items-center justify-between gap-4">
                             <Link to="/" className="inline-flex items-center gap-2 no-underline">
-                                <img src="/edutu-logo.png" alt="Edutu" className="h-8 w-8 object-contain" />
+                                <img src="/edutu-logo.webp" alt="Edutu" className="h-8 w-8 object-contain" />
                                 <span className="font-display text-xl font-semibold tracking-tight text-text-primary">edutu</span>
                             </Link>
                             <p className="text-xs font-medium text-text-muted">Your next step, clearer.</p>
@@ -105,7 +105,7 @@ const SiteFooter: React.FC<{ version?: string; expandedOnMobile?: boolean }> = (
                     <div className="mb-7 md:hidden">
                         <div className="flex items-center justify-between gap-4">
                             <Link to="/" className="inline-flex items-center gap-2 no-underline">
-                                <img src="/edutu-logo.png" alt="Edutu" className="h-8 w-8 object-contain" />
+                                <img src="/edutu-logo.webp" alt="Edutu" className="h-8 w-8 object-contain" />
                                 <span className="font-display text-xl font-bold tracking-tight text-text-primary">edutu</span>
                             </Link>
                             <p className="text-xs font-medium text-text-muted">Your next step, clearer.</p>
@@ -123,7 +123,7 @@ const SiteFooter: React.FC<{ version?: string; expandedOnMobile?: boolean }> = (
                 <div className="mb-16 hidden grid-cols-4 gap-12 md:grid">
                     <div className="col-span-2 min-w-0 md:col-span-1">
                         <Link to="/" className="mb-3 inline-flex items-center gap-2 no-underline">
-                            <img src="/edutu-logo.png" alt="Edutu" className="h-8 w-8 object-contain" />
+                            <img src="/edutu-logo.webp" alt="Edutu" className="h-8 w-8 object-contain" />
                             <span className="font-display text-xl font-bold tracking-tight text-text-primary">edutu</span>
                         </Link>
                         <p className="max-w-[22rem] text-sm leading-[1.65] text-text-muted">

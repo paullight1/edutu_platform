@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import { googleSignupWelcomeRedirect, isInternalDestination } from "./googleSignupWelcome";
 
 describe("Google signup welcome redirect", () => {
-  it("opens the dashboard welcome for a new Google account", () => {
-    expect(googleSignupWelcomeRedirect()).toBe("/dashboard?welcome=google");
+  it("opens required feed personalization for a new Google account", () => {
+    expect(googleSignupWelcomeRedirect()).toBe(
+      "/app/personalization?welcome=google",
+    );
   });
 
   it("preserves a member's intended opportunity destination", () => {
@@ -12,6 +14,9 @@ describe("Google signup welcome redirect", () => {
     );
     expect(params.get("welcome")).toBe("google");
     expect(params.get("returnTo")).toBe("/app/opportunity/opp-1?source=saved");
+    expect(googleSignupWelcomeRedirect("/app/opportunity/opp-1?source=saved")).toContain(
+      "/app/personalization?",
+    );
   });
 
   it.each(["https://example.com", "//example.com", "/\\example.com", null])(

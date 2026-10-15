@@ -22,7 +22,7 @@ describe("Google OAuth callback", () => {
     render(<MemoryRouter><AuthCallback /></MemoryRouter>);
     await waitFor(() => expect(handleRedirectCallback).toHaveBeenCalledWith({
       signInForceRedirectUrl: "/app/opportunity/opp-1",
-      signUpForceRedirectUrl: "/dashboard?welcome=google&returnTo=%2Fapp%2Fopportunity%2Fopp-1",
+      signUpForceRedirectUrl: "/app/personalization?welcome=google&returnTo=%2Fapp%2Fopportunity%2Fopp-1",
     }));
   });
 });
