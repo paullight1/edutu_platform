@@ -73,6 +73,8 @@ describe("BillingCatalogAdminService", () => {
     expect(result.readiness).toEqual({
       providerApiConfigured: false,
       webhookConfigured: false,
+      paymentShellEnabled: false,
+      paymentShellKeyConfigured: false,
       paymentShellConfigured: false,
       paymentShellSchemaReady: false,
       mappedPlanCount: 0,
@@ -81,6 +83,30 @@ describe("BillingCatalogAdminService", () => {
       purchasesReady: false,
     });
     expect(JSON.stringify(result)).not.toMatch(/apiKey|secret/i);
+  });
+
+  it("reports the shell enable flag separately from the shared key", async () => {
+    const env = {
+      BILLING_PAY_SHELL_ENABLED: process.env.BILLING_PAY_SHELL_ENABLED,
+      BILLING_PAY_SHELL_API_KEY: process.env.BILLING_PAY_SHELL_API_KEY,
+    };
+    process.env.BILLING_PAY_SHELL_ENABLED = "true";
+    delete process.env.BILLING_PAY_SHELL_API_KEY;
+    jest.spyOn(db, "execute").mockResolvedValue({ rows: [] } as never);
+
+    try {
+      const result = await new BillingCatalogAdminService().list();
+      expect(result.readiness).toMatchObject({
+        paymentShellEnabled: true,
+        paymentShellKeyConfigured: false,
+        paymentShellConfigured: false,
+      });
+    } finally {
+      for (const [key, value] of Object.entries(env)) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    }
   });
 
   it("allows mapped disabled products while requiring every enabled product to be mapped", async () => {

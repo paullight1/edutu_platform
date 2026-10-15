@@ -47,6 +47,8 @@ type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 type CatalogReadiness = {
   providerApiConfigured: boolean;
   webhookConfigured: boolean;
+  paymentShellEnabled: boolean;
+  paymentShellKeyConfigured: boolean;
   paymentShellConfigured: boolean;
   paymentShellSchemaReady: boolean;
   mappedPlanCount: number;
@@ -417,9 +419,12 @@ export class BillingCatalogAdminService {
       webhookFlag === "true" &&
       Boolean(process.env.BACHS_WEBHOOK_SECRET?.trim()) &&
       Boolean(process.env.BACHS_EXPECTED_ORGANIZATION_ID?.trim());
-    const paymentShellConfigured =
-      process.env.BILLING_PAY_SHELL_ENABLED === "true" &&
+    const paymentShellEnabled =
+      process.env.BILLING_PAY_SHELL_ENABLED === "true";
+    const paymentShellKeyConfigured =
       (process.env.BILLING_PAY_SHELL_API_KEY?.trim().length ?? 0) >= 32;
+    const paymentShellConfigured =
+      paymentShellEnabled && paymentShellKeyConfigured;
     const mappedPlanCount = rows.filter(
       (row) =>
         typeof row.provider_product_id === "string" && row.provider_product_id,
@@ -434,6 +439,8 @@ export class BillingCatalogAdminService {
     return {
       providerApiConfigured,
       webhookConfigured,
+      paymentShellEnabled,
+      paymentShellKeyConfigured,
       paymentShellConfigured,
       paymentShellSchemaReady,
       mappedPlanCount,

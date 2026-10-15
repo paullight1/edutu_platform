@@ -116,6 +116,8 @@ export interface BillingCatalog {
   readiness: {
     providerApiConfigured: boolean;
     webhookConfigured: boolean;
+    paymentShellEnabled: boolean;
+    paymentShellKeyConfigured: boolean;
     paymentShellConfigured: boolean;
     paymentShellSchemaReady: boolean;
     mappedPlanCount: number;

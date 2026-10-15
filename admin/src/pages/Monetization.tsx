@@ -1091,7 +1091,8 @@ export default function Monetization() {
                     <div className="mz-hint" style={{ marginTop: 6 }}>
                       Bachs API: {billingCatalog.readiness.providerApiConfigured ? 'ready' : 'missing configuration'} ·
                       Webhook: {billingCatalog.readiness.webhookConfigured ? 'ready' : 'missing configuration'} ·
-                      Payment shell key: {billingCatalog.readiness.paymentShellConfigured ? 'ready' : 'missing configuration'} ·
+                      Payment shell flag: {billingCatalog.readiness.paymentShellEnabled ? 'enabled' : 'disabled'} ·
+                      Shared key: {billingCatalog.readiness.paymentShellKeyConfigured ? 'configured' : 'missing or too short'} ·
                       Payment shell schema: {billingCatalog.readiness.paymentShellSchemaReady ? 'ready' : 'migration not applied'} ·
                       Plans mapped: {billingCatalog.readiness.mappedPlanCount}/{catalogDraft.length} ·
                       Plans enabled: {billingCatalog.readiness.enabledPlanCount} ·
