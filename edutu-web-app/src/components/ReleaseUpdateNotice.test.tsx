@@ -73,13 +73,13 @@ it('keeps the release notice inside the light dashboard flow', async () => {
   expect(screen.getByRole('button', { name: 'Refresh now' })).toHaveClass('bg-blue-700', 'text-white');
 });
 
-it('does not check or show updates outside the user dashboard', async () => {
+it.each(['/app/wallet', '/app/opportunities', '/auth', '/'])('does not check or show updates on %s', async path => {
   vi.stubEnv('PROD', true);
   vi.stubGlobal('__APP_RELEASE__', 'release-a');
   const fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ version: 'release-b' }) });
   vi.stubGlobal('fetch', fetch);
 
-  renderNotice('/');
+  renderNotice(path);
   await waitFor(() => expect(fetch).not.toHaveBeenCalled());
   expect(screen.queryByText('Top100 has been updated')).toBeNull();
 });
