@@ -153,6 +153,9 @@ export default function CopilotPage() {
   };
   const prompt = kit?.kit.essayPrompts.find((p) => p.id === promptId);
   const essay = kit?.essays?.find((e) => e.promptId === promptId);
+  const completedSteps = kit?.kit.checklist.filter((step) => kit.checklistState?.[step.id]).length ?? 0;
+  const totalSteps = kit?.kit.checklist.length ?? 0;
+  const checklistPercent = totalSteps ? Math.round((completedSteps / totalSteps) * 100) : 0;
   const changePrompt = (next: string) => {
     if (dirty && !window.confirm("Discard unsaved changes to this essay?"))
       return;
@@ -196,7 +199,7 @@ export default function CopilotPage() {
       title="copilotTitle"
       description=""
     >
-      <FeatureError error={error} />
+      <FeatureError error={error} onRetry={!kit && kits.length === 0 ? () => void load() : undefined} />
       {recovery.recovered && (
         <DraftRecovery
           onDiscard={recovery.discard}
@@ -289,6 +292,7 @@ export default function CopilotPage() {
           <p className="feature-muted">
             Create a plan, checklist and essay workspace for this opportunity.
           </p>
+          <p className="feature-muted mt-2">Edutu will prepare a draft plan and writing prompts. Check eligibility, deadlines and the final application requirements yourself.</p>
           <AccessSummary action="copilotKit" />
           <button
             className="feature-button"
@@ -311,7 +315,18 @@ export default function CopilotPage() {
         <>
           <div className="tool-card">
             <h2>{kit.opportunity?.title || "Application"}</h2>
-            <p>{Object.values(kit.checklistState || {}).filter(Boolean).length} of {kit.kit.checklist.length} steps done</p>
+            <p className="feature-muted mt-2">{completedSteps} of {totalSteps} preparation steps complete</p>
+            <div
+              className="mt-3 h-2 w-full overflow-hidden rounded-full bg-brand/10"
+              role="progressbar"
+              aria-label="Application preparation checklist progress"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={checklistPercent}
+            >
+              <div className="h-full rounded-full bg-brand transition-[width] duration-200" style={{ width: `${checklistPercent}%` }} />
+            </div>
+            <p className="feature-muted mt-2 text-xs">Track what you have completed. This is a preparation checklist, not an admission prediction.</p>
           </div>
           <div className="tool-tabs copilot-tabs" role="group" aria-label="Application sections">
             <button type="button" aria-pressed={detailTab === "plan"} onClick={() => setDetailTab("plan")}>Plan</button>
@@ -454,16 +469,17 @@ export default function CopilotPage() {
                   <p className="feature-muted">{prompt.suggestedAngle}</p>
                   <textarea
                     aria-label="Essay draft"
+                    aria-describedby="copilot-essay-hint"
                     className="feature-field min-h-64 mt-3"
                     maxLength={20000}
                     value={draft}
                     disabled={busy}
                     onChange={(e) => setDraft(e.target.value)}
                   />
-                  <p className="feature-muted">
+                  <p id="copilot-essay-hint" className="feature-muted" role="status">
                     {draft.trim().split(/\s+/).filter(Boolean).length}{" "}
                     <WorkspaceText value="words" />{" "}
-                    {dirty ? "Unsaved changes" : "Saved version"}
+                    {dirty ? "Unsaved changes — save before requesting AI feedback." : "Saved version — ready for feedback."}
                   </p>
                   <div className="feature-actions">
                     <button

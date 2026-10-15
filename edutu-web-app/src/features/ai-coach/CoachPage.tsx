@@ -299,7 +299,8 @@ export default function CoachPage() {
   const [speakingId, setSpeakingId] = useState<string | null>(null);
   const abort = useRef<AbortController | null>(null);
   const streamText = useRef("");
-  const bottom = useRef<HTMLDivElement>(null);
+  const transcriptScroll = useRef<HTMLDivElement>(null);
+  const followTranscript = useRef(true);
   const historyDialog = useRef<HTMLDivElement>(null);
   const historyButton = useRef<HTMLButtonElement>(null);
   const reportDialog = useRef<HTMLDivElement>(null);
@@ -317,6 +318,7 @@ export default function CoachPage() {
     const version = ++loadVersion.current;
     setMessages([]);
     setThread(null);
+    followTranscript.current = true;
     setDraft(params.get("prompt") || "");
     setLoading(true);
     setError(null);
@@ -354,7 +356,9 @@ export default function CoachPage() {
   }, [request, userId, params]);
 
   useEffect(() => {
-    bottom.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    // Do not pull someone away from an earlier answer while tokens stream in.
+    const container = transcriptScroll.current;
+    if (container && followTranscript.current) container.scrollTop = container.scrollHeight;
   }, [messages, stream]);
 
   useEffect(() => {
@@ -441,6 +445,7 @@ export default function CoachPage() {
     setError(null);
     setLoading(true);
     setHistoryOpen(false);
+    followTranscript.current = true;
     try {
       const result = await request<{ messages: CoachMessageView[] }>(
         `/chat/threads/${id}/messages`,
@@ -456,6 +461,7 @@ export default function CoachPage() {
   }
 
   function startNewConversation() {
+    followTranscript.current = true;
     loadVersion.current++;
     abort.current?.abort();
     setThread(null);
@@ -469,6 +475,7 @@ export default function CoachPage() {
   async function send(value = draft) {
     const input = value.trim();
     if (!input || busy) return;
+    followTranscript.current = true;
     const controller = new AbortController();
     abort.current = controller;
     const pendingId = `pending-${crypto.randomUUID()}`;
@@ -760,6 +767,11 @@ export default function CoachPage() {
       >
         <div
           className="coach-messages"
+          ref={transcriptScroll}
+          onScroll={(event) => {
+            const node = event.currentTarget;
+            followTranscript.current = node.scrollHeight - node.scrollTop - node.clientHeight < 120;
+          }}
           aria-label={t("coachPage.conversation", {
             defaultValue: "Conversation",
           })}
@@ -1147,11 +1159,30 @@ export default function CoachPage() {
                   </div>
                 </article>
               )}
-              <div ref={bottom} />
             </div>
           )}
         </div>
 
+        {!loading && !busy && !draft.trim() && messages.some((message) => message.role === "assistant") && (
+          <div className="coach-followup-bar" role="group" aria-label={t("coachPage.followupSuggestions", { defaultValue: "Suggested follow-up questions" })}>
+            {[
+              { key: "nextStep", prompt: "What should I do next to improve my chances?", label: "My next step" },
+              { key: "checklist", prompt: "Make a checklist of the documents and deadlines I need to verify.", label: "Make a checklist" },
+            ].map(({ key, prompt, label }) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => {
+                  setDraft(prompt);
+                  document.getElementById("coach-question")?.focus();
+                }}
+              >
+                {t(`coachPage.followup.${key}`, { defaultValue: label })}
+                <ChevronRight size={14} aria-hidden="true" />
+              </button>
+            ))}
+          </div>
+        )}
         <CoachComposer
           value={draft}
           onChange={setDraft}
