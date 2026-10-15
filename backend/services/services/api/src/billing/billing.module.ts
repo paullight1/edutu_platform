@@ -201,9 +201,7 @@ import {
           // Direct Bachs checkout is available only when the provider API and
           // signed fulfillment webhooks are configured for the same environment.
           // The optional Edutu account shell is not part of purchase readiness.
-          hostedCompletionEnabled:
-            config.checkoutEnabled &&
-            config.webhookEnabled,
+          hostedCompletionEnabled: config.checkoutEnabled && config.webhookEnabled,
         };
       },
     },
