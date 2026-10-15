@@ -202,8 +202,7 @@ import {
           // signed fulfillment webhooks are configured for the same environment.
           // The optional Edutu account shell is not part of purchase readiness.
           hostedCompletionEnabled:
-            config.checkoutEnabled &&
-            config.webhookEnabled,
+            config.checkoutEnabled && config.webhookEnabled,
         };
       },
     },
