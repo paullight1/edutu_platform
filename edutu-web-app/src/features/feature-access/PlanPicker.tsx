@@ -235,6 +235,8 @@ export default function PlanPicker({
     ) || [];
   const selectedProduct = products.find((p) => p.productKey === selectedProductKey) || products.find((p) => p.cadence === "monthly") || products[0];
   const enabled = !!catalog?.checkoutEnabled && isBachsCheckoutEnabled();
+  // The review summary must always use the authenticated billing catalogue, never a client-supplied price.
+  const checkoutProduct = checkout ? catalog?.products.find((p) => p.productKey === checkout.productKey) : null;
   // Prices and renewal terms must come only from /billing/user-catalog.
   // The general admin pricing feed may reflect different providers/currencies.
   const allowance = priceState.pricing?.[tier === "lite" ? "liteFairUse" : tier === "pro" ? "proFairUse" : "scholarFairUse"];
@@ -409,13 +411,36 @@ export default function PlanPicker({
           className="rounded-2xl border border-brand bg-brand/5 p-5"
           role="status"
         >
-          <h3 className="font-semibold">Secure checkout is ready</h3>
-          <p className="mt-2 text-sm text-text-secondary">
-            {checkout.renewalMode === "recurring"
-              ? "This plan renews automatically. Review the renewal terms before paying."
-              : "This is a one-time purchase. It will not renew automatically."}{" "}
-            Access is added after payment is confirmed by the server.
+          <h3 className="font-semibold">Review your purchase</h3>
+          {checkoutProduct && (
+            <dl className="mt-4 divide-y divide-subtle rounded-xl border border-subtle bg-surface-layer px-4 text-sm">
+              <div className="flex flex-wrap items-center justify-between gap-2 py-3">
+                <dt className="text-text-secondary">Selected plan</dt>
+                <dd className="font-semibold text-text-primary">{title(checkoutProduct.productKey)}</dd>
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-2 py-3">
+                <dt className="text-text-secondary">Price</dt>
+                <dd className="font-semibold text-text-primary">{price(checkoutProduct)} {checkoutProduct.currency}</dd>
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-2 py-3">
+                <dt className="text-text-secondary">Payment terms</dt>
+                <dd className="font-semibold text-text-primary">
+                  {checkoutProduct.renewalMode === "recurring"
+                    ? `Automatic renewal · ${checkoutProduct.cadence || "see checkout"}`
+                    : `One-time payment${checkoutProduct.validityDays ? ` · ${checkoutProduct.validityDays} days` : ""}`}
+                </dd>
+              </div>
+            </dl>
+          )}
+          <p className="mt-3 text-sm text-text-secondary">
+            {(checkoutProduct?.renewalMode ?? checkout.renewalMode) === "recurring"
+              ? "This plan renews automatically. Review the schedule and final terms on Bachs before paying."
+              : (checkoutProduct?.renewalMode ?? checkout.renewalMode) === "one_time"
+                ? "This is a one-time purchase, without automatic renewal."
+                : "Review the renewal terms on Bachs before authorizing payment."}{" "}
+            Edutu activates access only after the payment is confirmed.
           </p>
+          <p className="mt-2 text-xs text-text-muted">Next: you’ll leave Edutu for Bachs secure checkout. If you already paid, check your wallet before trying again.</p>
           <button
             className={docked ? "upgrade-docked-button" : "mt-4 rounded-xl bg-brand px-5 py-3 text-sm font-semibold text-white"}
             onClick={() => {
@@ -431,7 +456,7 @@ export default function PlanPicker({
               window.location.assign(checkout.checkoutUrl);
             }}
           >
-            Continue to secure checkout{" "}
+            Proceed to Bachs checkout{" "}
             <ArrowRight size={16} className="ml-2 inline" />
           </button>
           <Link to="/app/wallet" className="ml-4 text-sm text-brand">
