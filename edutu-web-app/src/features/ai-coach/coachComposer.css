@@ -34,9 +34,9 @@
 .coach-composer-caveat { margin: 7px 4px 0; color: rgb(var(--text-muted)); font-size: 11px; line-height: 1.4; }
 .coach-composer-count { color: rgb(var(--text-muted)); font-size: 11px; font-variant-numeric: tabular-nums; }
 .coach-composer-controls .coach-composer-submit {
-  width: 40px;
-  height: 40px;
-  min-width: 40px;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
   padding: 0;
   border-radius: 50%;
   background: rgb(var(--color-brand-500));
@@ -44,3 +44,12 @@
   color: white;
 }
 .coach-composer-controls .coach-composer-submit:disabled { background: rgb(var(--text-muted) / .12); color: rgb(var(--text-muted)); opacity: 1; }
+
+/* Keep the composer reachable on narrow devices and when fonts are enlarged. */
+.coach-composer-refined.is-empty .coach-composer-controls { min-width: 44px; }
+@media (max-width: 380px) {
+  .coach-composer-refined.is-empty .coach-composer-count { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .coach-composer.coach-composer-refined { transition: none; }
+}
