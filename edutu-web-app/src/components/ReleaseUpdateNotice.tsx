@@ -49,6 +49,17 @@ export default function ReleaseUpdateNotice() {
     const defaultTop = notice.style.top;
     let frame: number | null = null;
     let observedGate: HTMLElement | null = null;
+    // requestAnimationFrame is not implemented by some test/dom runtimes.
+    const supportsFrames =
+      typeof window.requestAnimationFrame === 'function' &&
+      typeof window.cancelAnimationFrame === 'function';
+    const requestFrame = supportsFrames
+      ? window.requestAnimationFrame.bind(window)
+      : (callback: FrameRequestCallback) =>
+          window.setTimeout(() => callback(performance.now()), 16);
+    const cancelFrame = supportsFrames
+      ? window.cancelAnimationFrame.bind(window)
+      : window.clearTimeout.bind(window);
 
     const restorePosition = () => {
       if (notice.style.bottom !== defaultBottom) notice.style.bottom = defaultBottom;
@@ -88,7 +99,7 @@ export default function ReleaseUpdateNotice() {
     // avoiding observer/layout feedback during rapid dashboard updates.
     const scheduleSync = () => {
       if (frame !== null) return;
-      frame = window.requestAnimationFrame(() => {
+      frame = requestFrame(() => {
         frame = null;
         sync();
       });
@@ -106,7 +117,7 @@ export default function ReleaseUpdateNotice() {
       mutationObserver.disconnect();
       resizeObserver?.disconnect();
       window.removeEventListener('resize', scheduleSync);
-      if (frame !== null) window.cancelAnimationFrame(frame);
+      if (frame !== null) cancelFrame(frame);
       restorePosition();
     };
   }, [available, message]);
