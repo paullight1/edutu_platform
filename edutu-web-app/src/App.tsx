@@ -20,7 +20,7 @@ import {
 } from "react-router-dom";
 import { useAuth as useClerkAuth } from "@clerk/clerk-react";
 import { ArrowLeft, ShieldAlert } from "lucide-react";
-import AppWorkspaceShell from "./components/AppWorkspaceShell";
+
 import PublicEditorialShell from "./components/PublicEditorialShell";
 import GoogleOneTapGate from "./components/GoogleOneTapGate";
 import ScrollToTop from "./components/ScrollToTop";
@@ -37,6 +37,8 @@ import { useAbsoluteSessionTimeout } from "./hooks/useAbsoluteSessionTimeout";
 import { parseEdutuDeepLink } from "./features/community-calls/deepLinks";
 import { scheduleAuthChunkPrefetch } from "./lib/authWarmup";
 
+// Keep LiquidGlass and the authenticated navigation out of public-page bundles.
+const AppWorkspaceShell = lazy(() => import("./components/AppWorkspaceShell"));
 const AuthScreen = lazy(() => import("./components/AuthScreen"));
 const AuthCallback = lazy(() => import("./components/AuthCallback"));
 const ApplicationsPage = lazy(() => import("./components/ApplicationsPage"));
@@ -554,17 +556,6 @@ function App() {
   const { signOut } = useAppAuth();
 
   useAbsoluteSessionTimeout(signOut);
-
-  useEffect(() => {
-    // Warm the opportunity cache at boot (dynamic import keeps the service
-    // out of the entry chunk) so the first feed screen paints from cache.
-    const warmup = window.setTimeout(() => {
-      void import("./services/opportunities")
-        .then((module) => module.fetchOpportunities())
-        .catch(() => {});
-    }, 300);
-    return () => window.clearTimeout(warmup);
-  }, []);
 
   useEffect(() => {
     if (isSignedIn) return;
