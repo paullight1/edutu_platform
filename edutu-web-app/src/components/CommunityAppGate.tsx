@@ -3,10 +3,12 @@ import { useAuth as useClerkAuth } from "@clerk/clerk-react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { lazyWithRetry as lazy } from "../lib/lazyWithRetry";
 import { isNativePlatform } from "../lib/capacitor";
-import App from "../App";
+
 import PageSuspense from "./PageSuspense";
 import PublicEditorialShell from "./PublicEditorialShell";
 
+// Public editorial pages must not parse every authenticated application route.
+const App = lazy(() => import("../App"));
 const CommunityCallPage = lazy(() => import("./CommunityCallPage"));
 
 export function isCommunityProductPath(pathname: string): boolean {
@@ -77,6 +79,12 @@ function CommunityProductRoutes() {
 
 export default function CommunityAppGate() {
   const location = useLocation();
-  if (!isCommunityProductPath(location.pathname)) return <App />;
+  if (!isCommunityProductPath(location.pathname)) {
+    return (
+      <Suspense fallback={<PageSuspense />}>
+        <App />
+      </Suspense>
+    );
+  }
   return <CommunityProductRoutes />;
 }
