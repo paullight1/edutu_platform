@@ -54,7 +54,7 @@ describe("personalized recommendations - trustworthy fit", () => {
     );
     expect(result.reasons.map((item) => item.label))
       .toContain("Listed as remote; check location eligibility");
-    expect(result.reasons.join(" ")).not.toContain("anywhere");
+    expect(result.reasons.map((item) => item.label).join(" ")).not.toContain("anywhere");
   });
 
   it("keeps unpersonalized discovery available without fake 50-point scores", async () => {
