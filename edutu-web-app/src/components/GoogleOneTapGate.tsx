@@ -62,7 +62,11 @@ export default function GoogleOneTapGate() {
 
   return (
     <aside data-google-sign-in-gate role="dialog" aria-modal="false" aria-labelledby="google-sign-in-title"
-      className="fixed bottom-5 right-5 z-[80] w-[calc(100%-2.5rem)] max-w-sm rounded-2xl border border-border bg-surface p-5 text-text-primary shadow-2xl">
+      style={{
+        bottom: "calc(var(--cookie-consent-height, 0px) + 1.25rem)",
+        maxHeight: "calc(100dvh - var(--cookie-consent-height, 0px) - 2.5rem)",
+      }}
+      className="fixed right-5 z-[80] w-[calc(100%-2.5rem)] max-w-sm overflow-y-auto rounded-2xl border border-border bg-surface p-5 text-text-primary shadow-2xl">
       <button type="button" aria-label="Dismiss sign-in" onClick={dismiss}
         className="absolute right-3 top-3 rounded-full p-2 text-text-secondary hover:bg-surface-elevated focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand">
         <X size={18} />

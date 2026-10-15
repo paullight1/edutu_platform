@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Link } from "react-router-dom";
 import { Cookie } from "lucide-react";
@@ -23,6 +23,36 @@ function hasStoredConsent(): boolean {
 export default function CookieConsent() {
   const reduceMotion = useReducedMotion();
   const [visible, setVisible] = useState(false);
+  const noticeRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    const notice = noticeRef.current;
+    if (!visible || !notice) {
+      root.style.setProperty("--cookie-consent-height", "0px");
+      return;
+    }
+
+    const updateHeight = () => {
+      root.style.setProperty(
+        "--cookie-consent-height",
+        `${Math.ceil(notice.getBoundingClientRect().height)}px`,
+      );
+    };
+    updateHeight();
+
+    const observer =
+      typeof ResizeObserver === "undefined"
+        ? null
+        : new ResizeObserver(updateHeight);
+    observer?.observe(notice);
+    window.addEventListener("resize", updateHeight);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", updateHeight);
+      root.style.setProperty("--cookie-consent-height", "0px");
+    };
+  }, [visible]);
 
   useEffect(() => {
     if (hasStoredConsent()) return;
@@ -45,9 +75,11 @@ export default function CookieConsent() {
     <AnimatePresence>
       {visible && (
         <motion.div
+          ref={noticeRef}
           role="dialog"
           aria-label="Cookie consent"
           aria-live="polite"
+          data-cookie-consent
           initial={reduceMotion ? undefined : { opacity: 0, y: 24 }}
           animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
           exit={reduceMotion ? undefined : { opacity: 0, y: 24 }}

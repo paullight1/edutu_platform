@@ -14,7 +14,13 @@ afterEach(() => { cleanup(); vi.clearAllMocks(); mocks.signedIn = false; });
 describe('public Google sign-in invitation', () => {
   it('offers only Google while leaving public content usable', () => {
     visit('/');
-    expect(screen.getByRole('dialog')).toHaveAttribute('aria-modal', 'false');
+    const invitation = screen.getByRole('dialog');
+    expect(invitation).toHaveAttribute('aria-modal', 'false');
+    expect(invitation).toHaveStyle({
+      bottom: 'calc(var(--cookie-consent-height, 0px) + 1.25rem)',
+      maxHeight: 'calc(100dvh - var(--cookie-consent-height, 0px) - 2.5rem)',
+    });
+    expect(invitation).toHaveClass('overflow-y-auto');
     expect(screen.getByRole('link', { name: 'Explore opportunities' })).toBeVisible();
     expect(screen.queryByLabelText('Password')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Keep exploring' }));
