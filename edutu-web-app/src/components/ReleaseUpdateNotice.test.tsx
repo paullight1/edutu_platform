@@ -53,6 +53,7 @@ it('lifts the sign-in invitation above the release notice on narrow screens', as
     const notice = await screen.findByText('Top100 has been updated');
     await waitFor(() => expect(gate.style.bottom).toBe('calc(28px + env(safe-area-inset-bottom))'));
     expect(notice.closest('[data-release-refresh]')).toHaveClass('bottom-4');
+    expect(notice.closest('[data-release-refresh]')).toHaveStyle({ bottom: 'calc(16px + env(safe-area-inset-bottom))' });
     expect(notice).toHaveStyle({ color: '#fff' });
   } finally {
     gate.remove();

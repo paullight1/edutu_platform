@@ -88,7 +88,7 @@ export default function ReleaseUpdateNotice() {
     finally { setBusy(false); }
   };
   if (!available) return null;
-  return <aside ref={noticeRef} data-release-refresh role="status" aria-live="polite" className="fixed bottom-4 left-4 right-4 z-[100] mx-auto max-w-md rounded-2xl border border-blue-400/50 bg-slate-950 p-4 text-white shadow-xl">
+  return <aside ref={noticeRef} data-release-refresh role="status" aria-live="polite" style={{ bottom: 'calc(16px + env(safe-area-inset-bottom))' }} className="fixed bottom-4 left-4 right-4 z-[100] mx-auto max-w-md rounded-2xl border border-blue-400/50 bg-slate-950 p-4 text-white shadow-xl">
     <p className="font-semibold text-white" style={{ color: '#fff' }}>Top100 has been updated</p>
     {message && <p className="mt-2 text-sm">{message}</p>}
     <button type="button" disabled={busy} onClick={() => void refresh()} className="mt-3 rounded-lg bg-blue-600 px-4 py-2 font-medium disabled:opacity-50">{busy ? 'Preparing refresh…' : 'Refresh now'}</button>
