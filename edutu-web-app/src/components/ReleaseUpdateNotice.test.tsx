@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import ReleaseUpdateNotice from './ReleaseUpdateNotice';
 import { registerReleaseDraftSaver } from '../lib/releaseSafety';
@@ -32,6 +32,25 @@ it('does not show a notice for the running release', async () => {
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ version: 'release-a' }) }));
   render(<ReleaseUpdateNotice />);
   await waitFor(() => expect(fetch).toHaveBeenCalled());
+  expect(screen.queryByText('Edutu has been updated')).toBeNull();
+});
+
+it('does not observe the entire document when no update banner is visible', async () => {
+  vi.stubEnv('PROD', true);
+  vi.stubGlobal('__APP_RELEASE__', 'release-a');
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+    ok: true,
+    json: async () => ({ version: 'release-a' }),
+  }));
+  const observe = vi.spyOn(MutationObserver.prototype, 'observe');
+
+  await act(async () => {
+    render(<ReleaseUpdateNotice />);
+  });
+
+  expect(observe.mock.calls.some(([target, options]) =>
+    target === document.body && options?.childList && options?.subtree
+  )).toBe(false);
   expect(screen.queryByText('Edutu has been updated')).toBeNull();
 });
 
