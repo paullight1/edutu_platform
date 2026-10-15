@@ -71,11 +71,19 @@ const Pagination: React.FC<PaginationProps> = ({
   arrowsOnly = false,
   getPageHref,
 }) => {
-  if (totalPages <= 1) return null;
+  // URLs and async counts can briefly supply an out-of-range page. Never
+  // render invalid links or enable navigation past the actual archive.
+  const validTotalPages = Number.isFinite(totalPages)
+    ? Math.max(0, Math.floor(totalPages))
+    : 0;
+  if (validTotalPages <= 1) return null;
 
-  const items = getPageItems(page, totalPages);
-  const previousPage = Math.max(1, page - 1);
-  const nextPage = Math.min(totalPages, page + 1);
+  const currentPage = Number.isFinite(page)
+    ? Math.min(validTotalPages, Math.max(1, Math.floor(page)))
+    : 1;
+  const items = getPageItems(currentPage, validTotalPages);
+  const previousPage = Math.max(1, currentPage - 1);
+  const nextPage = Math.min(validTotalPages, currentPage + 1);
 
   const compactPageControlClass = compactMobile
     ? "h-10 w-10 text-xs sm:text-sm"
@@ -101,7 +109,7 @@ const Pagination: React.FC<PaginationProps> = ({
       aria-label="Pagination"
       className={`flex flex-wrap items-center justify-center ${compactMobile ? "gap-1 sm:gap-2" : "gap-2"} ${className}`}
     >
-      {getPageHref && page > 1 ? (
+      {getPageHref && currentPage > 1 ? (
         <a
           href={getPageHref(previousPage)}
           rel="prev"
@@ -116,7 +124,7 @@ const Pagination: React.FC<PaginationProps> = ({
         <button
           type="button"
           onClick={() => onPageChange(previousPage)}
-          disabled={page === 1}
+          disabled={currentPage === 1}
           aria-label="Previous page"
           className={`${previousClass} ${compactPreviousClass}`}
         >
@@ -139,8 +147,8 @@ const Pagination: React.FC<PaginationProps> = ({
             key={item}
             href={getPageHref(item)}
             aria-label={`Page ${item}`}
-            aria-current={item === page ? "page" : undefined}
-            className={`${item === page ? activePageClass : pageControlClass} ${compactPageControlClass}`}
+            aria-current={item === currentPage ? "page" : undefined}
+            className={`${item === currentPage ? activePageClass : pageControlClass} ${compactPageControlClass}`}
             onClick={(event) => handleLinkClick(event, item)}
           >
             {item}
@@ -151,15 +159,15 @@ const Pagination: React.FC<PaginationProps> = ({
             type="button"
             onClick={() => onPageChange(item)}
             aria-label={`Page ${item}`}
-            aria-current={item === page ? "page" : undefined}
-            className={`${item === page ? activePageClass : pageControlClass} ${compactPageControlClass}`}
+            aria-current={item === currentPage ? "page" : undefined}
+            className={`${item === currentPage ? activePageClass : pageControlClass} ${compactPageControlClass}`}
           >
             {item}
           </button>
         ),
       ) : null}
 
-      {getPageHref && page < totalPages ? (
+      {getPageHref && currentPage < validTotalPages ? (
         <a
           href={getPageHref(nextPage)}
           rel="next"
@@ -174,7 +182,7 @@ const Pagination: React.FC<PaginationProps> = ({
         <button
           type="button"
           onClick={() => onPageChange(nextPage)}
-          disabled={page === totalPages}
+          disabled={currentPage === validTotalPages}
           aria-label="Next page"
           className={`${nextClass} ${compactNextClass}`}
         >
