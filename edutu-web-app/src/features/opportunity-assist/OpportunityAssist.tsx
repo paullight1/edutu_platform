@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { PaidToolGate } from "../feature-access/PaidToolGate";
 import AccessSummary from "../feature-access/AccessSummary";
-import { sendCoachTurn, type CoachTurn } from "../ai-coach/stream";
+import { sendCoachTurn, type CoachTurn, type CoachProgress } from "../ai-coach/stream";
 import {
   FeatureError,
   errorMessage,
@@ -74,6 +74,7 @@ function OpportunityActions({
   const [busy, setBusy] = useState<OpportunityAssistBusy>(null);
   const [selected, setSelected] = useState<OpportunityAssistAction>("fit_check");
   const [text, setText] = useState("");
+  const [coachProgress, setCoachProgress] = useState<CoachProgress>("thinking");
   const [turn, setTurn] = useState<CoachTurn | null>(null);
   const [plan, setPlan] = useState<OpportunityPlan | null>(null);
   const [saved, setSaved] = useState(false);
@@ -125,6 +126,7 @@ function OpportunityActions({
     activeRequest.current = controller;
     setSelected(action);
     setBusy(action);
+    setCoachProgress("thinking");
     setError(null);
     setText("");
     setPlan(null);
@@ -160,6 +162,9 @@ function OpportunityActions({
           controller.signal,
           (value) => {
             if (!controller.signal.aborted) setText(value);
+          },
+          (progress) => {
+            if (!controller.signal.aborted) setCoachProgress(progress);
           },
         );
         if (!controller.signal.aborted) setTurn(result);
@@ -276,7 +281,7 @@ function OpportunityActions({
       {busy && (
         <div role="status" className="mt-4 flex items-center gap-2 text-sm text-text-muted">
           <Loader2 className="animate-spin" size={16} aria-hidden="true" />
-          <span>{busy === "save" ? "Saving your plan…" : "Preparing your guidance…"}</span>
+          <span>{busy === "save" ? "Saving your plan…" : busy === "plan" ? "Building your preparation plan…" : coachProgress === "checking" ? "Checking opportunity records…" : coachProgress === "writing" ? "Preparing your guidance…" : "Thinking through your next step…"}</span>
           {busy !== "save" && (
             <button
               type="button"
