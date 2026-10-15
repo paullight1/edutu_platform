@@ -44,3 +44,23 @@
   color: white;
 }
 .coach-composer-controls .coach-composer-submit:disabled { background: rgb(var(--text-muted) / .12); color: rgb(var(--text-muted)); opacity: 1; }
+
+/* Draft actions stay reachable on touch devices and do not crowd the input. */
+.coach-composer-clear {
+  display: inline-flex;
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  color: rgb(var(--text-secondary));
+}
+.coach-composer-clear:hover { background: rgb(var(--text-muted) / .1); }
+.coach-composer-clear:focus-visible,
+.coach-composer-submit:focus-visible { outline: 2px solid rgb(var(--color-brand-500)); outline-offset: 2px; }
+.coach-composer-count.is-near-limit { color: #b45309; font-weight: 600; }
+@media (pointer: coarse) {
+  .coach-composer-desktop-hint { display: none; }
+  .coach-composer-controls .coach-composer-submit { width: 44px; height: 44px; min-width: 44px; }
+}
