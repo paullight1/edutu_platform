@@ -39,15 +39,44 @@ export const BILLING_RATE_LIMITER = Symbol("BILLING_RATE_LIMITER");
 export const BACHS_CHECKOUT_CONFIG = Symbol("BACHS_CHECKOUT_CONFIG");
 export const BACHS_WEBHOOK_SERVICE = Symbol("BACHS_WEBHOOK_SERVICE");
 
-export const BACHS_CHECKOUT_SUCCESS_URL = "https://pay.edutu.org/result";
-export const BACHS_CHECKOUT_CANCEL_URL =
-  "https://pay.edutu.org/result?state=cancelled";
+/**
+ * Bachs returns the browser to the app. The intent id is only a lookup hint;
+ * the authenticated API remains the authority for payment state and fulfillment.
+ */
+export function bachsCheckoutReturnUrl(
+  intentId: string,
+  state: "success" | "cancelled",
+): string {
+  const configuredBase =
+    process.env.EDUTU_PUBLIC_APP_URL ||
+    process.env.PUBLIC_WEB_APP_URL ||
+    process.env.WEB_APP_URL ||
+    process.env.FRONTEND_URL ||
+    "https://www.edutu.org";
+  const base = new URL(configuredBase);
+  const localDevelopment =
+    process.env.NODE_ENV !== "production" &&
+    (base.hostname === "localhost" || base.hostname === "127.0.0.1");
+  if (
+    base.username ||
+    base.password ||
+    !(localDevelopment ||
+      (base.protocol === "https:" && /(^|\.)edutu\.org$/i.test(base.hostname)))
+  ) {
+    throw new Error("The public Edutu app URL is not trusted for billing returns.");
+  }
+  const url = new URL("/app/wallet", base.origin);
+  url.searchParams.set("checkout", state);
+  url.searchParams.set("intentId", intentId);
+  return url.toString();
+}
+
 export const BACHS_CHECKOUT_ORIGIN = "https://checkout.bachs.io";
 export const BACHS_PORTAL_ORIGIN = "https://portal.bachs.io";
 
 export interface CheckoutServiceConfig {
   checkoutEnabled: boolean;
-  /** Explicit release gate after hosted protocol, webhook and server secret configuration. */
+  /** Server-side gate requiring configured checkout and signed fulfillment webhooks. */
   hostedCompletionEnabled?: boolean;
   environment: BillingEnvironment;
   /** Maps Edutu catalog keys to the Bachs product in this environment. */

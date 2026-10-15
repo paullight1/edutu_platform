@@ -11,8 +11,6 @@ import { ThemeProvider } from './hooks/useTheme';
 import PublicRouteGate from './components/PublicRouteGate';
 import { ToastProvider } from './components/ui/ToastProvider';
 import ErrorBoundary from './components/ErrorBoundary';
-import { CommunityProtectedImageHydrator } from './components/CommunityProtectedImage';
-import CommunityReportDialogAccessibility from './components/CommunityReportDialogAccessibility';
 import { initSentry } from './lib/sentry';
 import { SkipLink } from './lib/accessibility';
 
@@ -54,7 +52,6 @@ initSentry();
 
 preconnectAuthOrigins({
   clerkPublishableKey: clerkPubKey,
-  supabaseUrl: import.meta.env.VITE_SUPABASE_URL,
 });
 
 // Loading fallback for Suspense
@@ -80,8 +77,6 @@ root.render(
             <ToastProvider>
               <ThemeProvider>
                 <AuthProvider>
-                  <CommunityProtectedImageHydrator />
-                  <CommunityReportDialogAccessibility />
                   <PaywallProvider>
                     <PersonalizationProvider>
                       <AnalyticsProvider>

@@ -10,6 +10,10 @@ const supabaseClient = readFileSync(
   resolve(process.cwd(), "src/lib/supabaseClient.ts"),
   "utf8",
 );
+const clerkToken = readFileSync(
+  resolve(process.cwd(), "src/lib/clerkToken.ts"),
+  "utf8",
+);
 
 describe("web DM synchronization contract", () => {
   it("uses focused realtime plus bounded reconciliation", () => {
@@ -19,7 +23,8 @@ describe("web DM synchronization contract", () => {
   });
 
   it("hands the Clerk token to Supabase Realtime, not only fetch", () => {
-    expect(supabaseClient).toContain("accessToken:");
-    expect(supabaseClient).toContain("_getToken");
+    expect(supabaseClient).toContain("accessToken: getClerkAccessToken");
+    expect(clerkToken).toContain("setClerkTokenGetter");
+    expect(clerkToken).toContain("clerkTokenGetter()");
   });
 });

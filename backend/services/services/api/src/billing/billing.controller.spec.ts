@@ -1,7 +1,13 @@
 import { BillingController } from "./billing.controller";
+import { ServiceUnavailableException } from "@nestjs/common";
 
 describe("BillingController Bachs routes", () => {
   const checkout = {
+    assertCheckoutReady: jest.fn(() => {
+      throw new ServiceUnavailableException(
+        "Bachs checkout is temporarily unavailable.",
+      );
+    }),
     createCheckout: jest.fn(),
   };
   const portal = {
@@ -53,14 +59,14 @@ describe("BillingController Bachs routes", () => {
     jest.clearAllMocks();
   });
 
-  it("rejects learner checkout before provider calls while the hosted completion contract is absent", async () => {
+  it("rejects learner checkout before provider calls while Bachs readiness is absent", async () => {
     await expect(createController().createConsumerCheckout()).rejects.toThrow(
-      "Hosted payment completion is not ready yet",
+      "Bachs checkout is temporarily unavailable.",
     );
     expect(checkout.createCheckout).not.toHaveBeenCalled();
   });
 
-  it("holds legacy hosted checkout too, before invoking its provider", async () => {
+  it("holds legacy Bachs checkout too, before invoking its provider", async () => {
     await expect(
       createController().createBachsCheckout(
         "user_123",
@@ -72,6 +78,32 @@ describe("BillingController Bachs routes", () => {
       ),
     ).rejects.toMatchObject({ status: 503 });
     expect(checkout.createCheckout).not.toHaveBeenCalled();
+  });
+
+  it("returns the validated provider checkout URL directly without a pay-shell service", async () => {
+    checkout.assertCheckoutReady.mockImplementation(() => undefined);
+    checkout.createCheckout.mockResolvedValue({
+      intentId: "6a3f1d32-944a-4716-b770-1be093812345",
+      checkoutUrl: "https://checkout.bachs.io/s/session-1",
+      expiresAt: "2026-10-15T12:00:00.000Z",
+      renewalMode: "one_time",
+      productSnapshot: { validityDays: 31 },
+    });
+
+    await expect(
+      createController().createBachsCheckout(
+        "user_123",
+        "student@example.com",
+        "Student",
+        undefined,
+        "idem-1",
+        { productKey: "pro_monthly_pass", returnSurface: "web" },
+      ),
+    ).resolves.toMatchObject({
+      checkoutUrl: "https://checkout.bachs.io/s/session-1",
+      intentId: "6a3f1d32-944a-4716-b770-1be093812345",
+    });
+    expect(checkout.createCheckout).toHaveBeenCalledTimes(1);
   });
 
   it("creates a fresh authenticated Bachs portal session", async () => {

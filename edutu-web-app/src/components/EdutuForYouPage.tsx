@@ -98,7 +98,7 @@ export default function EdutuForYouPage() {
               transition={{ duration: 0.75, ease: [0.16, 1, 0.3, 1] }}
               className="relative min-h-[340px] overflow-hidden rounded-[28px] bg-[#d9e7f8] sm:min-h-[470px] lg:min-h-[540px] lg:rounded-[36px]"
             >
-              <ImageWithFallback src="/community/scholarships.jpg" alt="Young people working together on scholarship applications" className="absolute inset-0 h-full w-full object-cover object-center" />
+                <ImageWithFallback src="/community/scholarships.webp" alt="Young people working together on scholarship applications" className="absolute inset-0 h-full w-full object-cover object-center" />
             </motion.div>
           </div>
         </section>
@@ -220,7 +220,7 @@ export default function EdutuForYouPage() {
                 <a href={PARTNER_MAILTO} className="relative z-10 mt-auto inline-flex min-h-11 w-fit items-center gap-2 rounded-full bg-brand px-5 py-2.5 text-sm font-semibold text-white no-underline transition-colors hover:bg-brand-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand">
                   <Mail size={17} aria-hidden="true" /> Partner with us
                 </a>
-                <ImageWithFallback src="/illustrations/edutu-global-opportunity-globe.png" alt="" className="pointer-events-none absolute -bottom-12 -right-12 hidden w-56 opacity-75 sm:block lg:w-64" />
+                <ImageWithFallback src="/illustrations/edutu-global-opportunity-globe.webp" alt="" className="pointer-events-none absolute -bottom-12 -right-12 hidden w-56 opacity-75 sm:block lg:w-64" />
               </Reveal>
             </div>
           </div>

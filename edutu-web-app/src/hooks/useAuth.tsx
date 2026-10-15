@@ -1,8 +1,7 @@
 import { useState, useEffect, useContext, createContext, useCallback } from 'react';
 import { useAuth as useClerkAuth, useUser, useSignIn, useSignUp } from '@clerk/clerk-react';
 import type { AppUser } from '../types/user';
-import { setClerkTokenGetter } from '../lib/supabaseClient';
-import { getClerkSessionToken } from '../lib/clerkToken';
+import { getClerkSessionToken, setClerkTokenGetter } from '../lib/clerkToken';
 
 interface AuthContextType {
   user: AppUser | null;

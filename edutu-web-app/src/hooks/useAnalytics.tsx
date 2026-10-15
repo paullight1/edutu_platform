@@ -6,7 +6,6 @@ import React, {
   useMemo,
   useState
 } from 'react';
-import { supabase } from '../lib/supabaseClient';
 import {
   recordChatSessionAggregate,
   recordOpportunityExploreAggregate,
@@ -69,6 +68,7 @@ export const AnalyticsProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setIsLoading(true);
 
     try {
+      const { supabase } = await import('../lib/supabaseClient');
       // `data` is reassigned below when we have to insert a fresh row, so it
       // stays `let`; `error` never is.
       const { data: initialData, error } = await supabase
@@ -130,6 +130,7 @@ export const AnalyticsProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const updateAnalytics = useCallback(async (updates: Partial<AnalyticsRecord>) => {
     if (!userId || !analytics) return;
 
+    const { supabase } = await import('../lib/supabaseClient');
     const { error } = await supabase
       .from('analytics')
       .update({

@@ -79,7 +79,13 @@ export class BillingPortalService {
 
   private assertHostedUrl(value: string): void {
     try {
-      if (new URL(value).origin !== BACHS_PORTAL_ORIGIN) {
+      const url = new URL(value);
+      if (
+        url.protocol !== "https:" ||
+        url.origin !== BACHS_PORTAL_ORIGIN ||
+        url.username ||
+        url.password
+      ) {
         throw new Error("invalid origin");
       }
     } catch {

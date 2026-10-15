@@ -9,7 +9,6 @@ import {
 } from "@nestjs/common";
 import { sql } from "drizzle-orm";
 import { db } from "../db";
-import { BillingPayShellPersistence } from "./billing-pay-shell.persistence";
 import { BachsClient } from "./providers/bachs/bachs.client";
 import { decimalToMinorUnits } from "./providers/bachs/bachs-money";
 import { matchesBachsCadence } from "./providers/bachs/bachs-cadence";
@@ -47,10 +46,6 @@ type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 type CatalogReadiness = {
   providerApiConfigured: boolean;
   webhookConfigured: boolean;
-  paymentShellEnabled: boolean;
-  paymentShellKeyConfigured: boolean;
-  paymentShellConfigured: boolean;
-  paymentShellSchemaReady: boolean;
   mappedPlanCount: number;
   enabledPlanCount: number;
   mappedEnabledPlanCount: number;
@@ -60,8 +55,6 @@ type CatalogReadiness = {
 @Injectable()
 export class BillingCatalogAdminService {
   constructor(
-    @Optional()
-    private readonly payShellPersistence?: BillingPayShellPersistence,
     @Optional()
     @Inject(BACHS_CHECKOUT_PROVIDER)
     private readonly bachsClient?: BachsClient,
@@ -89,12 +82,10 @@ export class BillingCatalogAdminService {
       order by product.product_key
     `);
     const rows = (result as { rows?: Record<string, unknown>[] }).rows ?? [];
-    const paymentShellSchemaReady =
-      (await this.payShellPersistence?.ready().catch(() => false)) ?? false;
     return {
       environment,
       liveEditingEnabled: environment === "live",
-      readiness: this.readiness(rows, paymentShellSchemaReady),
+      readiness: this.readiness(rows),
       products: rows.map((row) => ({
         productKey: String(row.product_key),
         fulfillmentKind: String(row.fulfillment_kind),
@@ -368,12 +359,10 @@ export class BillingCatalogAdminService {
       order by product.product_key
     `);
     const rows = (result as { rows?: Record<string, unknown>[] }).rows ?? [];
-    const paymentShellSchemaReady =
-      (await this.payShellPersistence?.ready().catch(() => false)) ?? false;
     return {
       environment,
       liveEditingEnabled: false,
-      readiness: this.readiness(rows, paymentShellSchemaReady),
+      readiness: this.readiness(rows),
       products: rows.map((row) => ({
         productKey: String(row.product_key),
         fulfillmentKind: String(row.fulfillment_kind),
@@ -396,10 +385,7 @@ export class BillingCatalogAdminService {
     };
   }
 
-  private readiness(
-    rows: Record<string, unknown>[],
-    paymentShellSchemaReady: boolean,
-  ): CatalogReadiness {
+  private readiness(rows: Record<string, unknown>[]): CatalogReadiness {
     const checkoutFlag = process.env.BACHS_CHECKOUT_ENABLED === "true";
     const webhookFlag =
       process.env.BACHS_WEBHOOK_ENABLED?.trim() ??
@@ -419,12 +405,6 @@ export class BillingCatalogAdminService {
       webhookFlag === "true" &&
       Boolean(process.env.BACHS_WEBHOOK_SECRET?.trim()) &&
       Boolean(process.env.BACHS_EXPECTED_ORGANIZATION_ID?.trim());
-    const paymentShellEnabled =
-      process.env.BILLING_PAY_SHELL_ENABLED === "true";
-    const paymentShellKeyConfigured =
-      (process.env.BILLING_PAY_SHELL_API_KEY?.trim().length ?? 0) >= 32;
-    const paymentShellConfigured =
-      paymentShellEnabled && paymentShellKeyConfigured;
     const mappedPlanCount = rows.filter(
       (row) =>
         typeof row.provider_product_id === "string" && row.provider_product_id,
@@ -439,10 +419,6 @@ export class BillingCatalogAdminService {
     return {
       providerApiConfigured,
       webhookConfigured,
-      paymentShellEnabled,
-      paymentShellKeyConfigured,
-      paymentShellConfigured,
-      paymentShellSchemaReady,
       mappedPlanCount,
       enabledPlanCount,
       mappedEnabledPlanCount,
@@ -450,8 +426,6 @@ export class BillingCatalogAdminService {
         checkoutFlag &&
         providerApiConfigured &&
         webhookConfigured &&
-        paymentShellConfigured &&
-        paymentShellSchemaReady &&
         enabledPlanCount > 0 &&
         mappedEnabledPlanCount === enabledPlanCount,
     };

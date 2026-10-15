@@ -1,7 +1,7 @@
 const COMMUNITY_COVERS = {
   fellowships: "/community/fellowships.jpg",
-  scholarships: "/community/scholarships.jpg",
-  internships: "/community/internships.jpg",
+  scholarships: "/community/scholarships.webp",
+  internships: "/community/internships.webp",
   study: "/community/study-support.jpg",
 } as const;
 

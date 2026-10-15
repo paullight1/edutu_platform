@@ -4,7 +4,7 @@ Date: 2026-08-11
 
 ## Decision
 
-Edutu will use Bachs as the only web/PWA payment provider for new purchases. The NestJS API is the only Edutu component allowed to create provider sessions, accept provider lifecycle events, change financial records, grant credits, or change Pro access. `pay.edutu.org` remains an Edutu-branded shell around Bachs-hosted checkout and account-management UI. RevenueCat remains the only native App Store/Play Store purchase rail.
+Edutu will use Bachs as the only web/PWA payment provider for new purchases. The NestJS API is the only Edutu component allowed to create provider sessions, accept provider lifecycle events, change financial records, grant credits, or change Pro access. Clients open the validated Bachs-hosted checkout directly; Edutu's authenticated app verifies the return state against the API. `pay.edutu.org` is not required for checkout. RevenueCat remains the only native App Store/Play Store purchase rail.
 
 Legacy Paystack webhook handling stays available only to finish and reconcile already-created transactions. No client may initiate a new Paystack checkout after the Bachs feature flag is enabled.
 
@@ -33,9 +33,9 @@ The canonical ledger stores signed integer minor units with an uppercase ISO cur
 1. An authenticated client calls `POST /billing/checkout` with `productKey`, `returnSurface`, and `Idempotency-Key`.
 2. NestJS resolves the raw authenticated subject, validates the server catalog, and inserts a checkout intent before any provider call.
 3. NestJS calls Bachs with its own idempotency key and the opaque Edutu intent reference.
-4. The API validates the returned Bachs checkout origin, persists the provider checkout identity, and returns a client-safe checkout URL plus opaque intent token.
-5. The client opens Bachs hosted checkout or the Bachs overlay. UI events never fulfill.
-6. The result shell polls an authenticated intent-status endpoint and renders a precise state without changing it.
+4. The API validates the returned Bachs checkout origin, persists the provider checkout identity, and returns the Bachs checkout URL plus the owner-scoped intent ID.
+5. The client opens Bachs hosted checkout. Bachs returns to the Edutu wallet with the intent ID as a lookup hint; UI and redirect events never fulfill.
+6. The authenticated app polls the owner-scoped intent-status endpoint and renders the canonical state without changing it.
 
 Repeated client calls using the same user/idempotency key return the same open intent. Timeouts are safe to retry. Provider failure leaves a resumable local intent rather than creating an untracked provider transaction.
 

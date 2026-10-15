@@ -6,7 +6,7 @@ import {
 import { BillingCheckoutService } from "./billing-checkout.service";
 import {
   BACHS_CHECKOUT_REPOSITORY,
-  BACHS_CHECKOUT_SUCCESS_URL,
+  bachsCheckoutReturnUrl,
   type BillingCheckoutRepositoryPort,
   type BillingCheckoutProduct,
   type BillingCheckoutIntentRecord,
@@ -36,10 +36,11 @@ const product: BillingCheckoutProduct = {
 
 const recurringProduct: BillingCheckoutProduct = {
   ...product,
-  productKey: "pro_monthly_recurring",
+  productKey: "pro_monthly_pass",
   providerProductId: "prod_monthly_recurring_sandbox",
   renewalMode: "recurring",
   validityDays: null,
+  allowedPaymentMethods: ["card"],
 };
 
 const apiCreditProduct: BillingCheckoutProduct = {
@@ -60,6 +61,7 @@ const apiCreditProduct: BillingCheckoutProduct = {
 
 const config: CheckoutServiceConfig = {
   checkoutEnabled: true,
+  hostedCompletionEnabled: true,
   environment: "sandbox",
   productMappings: {
     [product.productKey]: product.providerProductId!,
@@ -282,8 +284,8 @@ describe("BillingCheckoutService", () => {
         "CRYPTO",
       ],
       reference: "intent-1",
-      successUrl: BACHS_CHECKOUT_SUCCESS_URL,
-      cancelUrl: "https://pay.edutu.org/result?state=cancelled",
+      successUrl: bachsCheckoutReturnUrl("intent-1", "success"),
+      cancelUrl: bachsCheckoutReturnUrl("intent-1", "cancelled"),
     });
     expect(result).toMatchObject({
       intentId: "intent-1",
@@ -295,9 +297,15 @@ describe("BillingCheckoutService", () => {
         currency: "USD",
       },
     });
+    const successReturn = new URL(provider.calls[0].successUrl);
+    const cancelReturn = new URL(provider.calls[0].cancelUrl);
+    expect(successReturn.pathname).toBe("/app/wallet");
+    expect(successReturn.searchParams.get("checkout")).toBe("success");
+    expect(successReturn.searchParams.get("intentId")).toBe("intent-1");
+    expect(cancelReturn.searchParams.get("checkout")).toBe("cancelled");
   });
 
-  it("does not accept a client-supplied email, uid, amount, or provider id", async () => {
+  it("uses server-resolved customer identity and authenticated ownership metadata", async () => {
     const { service, provider } = createFixture();
 
     await service.createCheckout("user_123", "request-2", {
@@ -306,8 +314,11 @@ describe("BillingCheckoutService", () => {
     });
 
     expect(provider.calls[0].customer.email).toBe("student@example.com");
-    expect(provider.calls[0].metadata).toEqual({ edutu_intent_id: "intent-1" });
-    expect(JSON.stringify(provider.calls[0])).not.toContain("user_123");
+    expect(provider.calls[0].metadata).toEqual({
+      edutu_intent_id: "intent-1",
+      edutu_user_id: "user_123",
+    });
+    expect(provider.calls[0].metadata.edutu_user_id).toBe("user_123");
   });
 
   it("replays an open intent on a double tap without calling Bachs again or consuming cooldown", async () => {
@@ -629,7 +640,7 @@ describe("learner wallet contracts", () => {
       listEnabledUserProducts: async () => [product, apiCreditProduct],
     });
     const catalog = await service.getUserCatalog();
-    expect(catalog.checkoutEnabled).toBe(false);
+    expect(catalog.checkoutEnabled).toBe(true);
     expect(catalog.products.map((p) => p.productKey)).toEqual([
       product.productKey,
     ]);

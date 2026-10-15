@@ -90,6 +90,9 @@ const MentorPage = lazy(() => import("./components/MentorPage"));
 const MentorDashboardPage = lazy(
   () => import("./components/MentorDashboardPage"),
 );
+const CommunityWorkspaceObservers = lazy(
+  () => import("./components/CommunityWorkspaceObservers"),
+);
 const DownloadPage = lazy(() => import("./components/DownloadPage"));
 const ScholarshipApiPage = lazy(
   () => import("./components/ScholarshipApiPage"),
@@ -568,7 +571,6 @@ function App() {
 
     return scheduleAuthChunkPrefetch(() => {
       void import("./components/AuthScreen").catch(() => {});
-      void import("./components/Dashboard").catch(() => {});
     });
   }, [isSignedIn]);
 
@@ -612,6 +614,12 @@ function App() {
       <ScrollToTop />
       <GoogleOneTapGate />
       {isSignedIn ? <DeadlineReminders /> : null}
+      {location.pathname === "/app/community" ||
+      location.pathname.startsWith("/app/community/") ? (
+        <Suspense fallback={null}>
+          <CommunityWorkspaceObservers />
+        </Suspense>
+      ) : null}
       <Suspense fallback={<PageSuspense />}>
         <Routes location={coachOpen ? coachBackground : location}>
           <Route

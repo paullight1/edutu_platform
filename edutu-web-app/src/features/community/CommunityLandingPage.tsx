@@ -184,12 +184,12 @@ export default function CommunityLandingPage() {
                   {[
                     {
                       id: "scholarships",
-                      image: "/community/scholarships.jpg",
+                      image: "/community/scholarships.webp",
                       name: "Scholarship communities",
                     },
                     {
                       id: "internships",
-                      image: "/community/internships.jpg",
+                      image: "/community/internships.webp",
                       name: "Internship communities",
                     },
                   ].map((preview) => (

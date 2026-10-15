@@ -118,7 +118,7 @@ describe("PlanPicker unavailable catalog recovery", () => {
       { productKey: "pro_monthly_pass", amountMinor: 1500, currency: "USD", cadence: "monthly", renewalMode: "one_time", validityDays: 30 },
       { productKey: "pro_yearly_pass", amountMinor: 15000, currency: "USD", cadence: "yearly", renewalMode: "one_time", validityDays: 365 },
     ] });
-    mocks.checkout.mockResolvedValueOnce({ intentId: "intent-1", checkoutUrl: "https://pay.edutu.org/handoff", renewalMode: "one_time" });
+    mocks.checkout.mockResolvedValueOnce({ intentId: "intent-1", checkoutUrl: "https://checkout.bachs.io/s/session-1", expiresAt: "2026-12-01T00:00:00.000Z", renewalMode: "one_time" });
     render(<MemoryRouter><PlanPicker compact docked /></MemoryRouter>);
     const yearly = await screen.findByRole("button", { name: /yearly.*150/i });
     fireEvent.click(yearly);

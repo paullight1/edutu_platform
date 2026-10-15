@@ -1,4 +1,5 @@
 import { WorkspaceText } from "../workspace/shared";
+import { useSearchParams } from "react-router-dom";
 import AccessSummary from "../feature-access/AccessSummary";
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
@@ -21,7 +22,7 @@ import {
 } from "../workspace/shared";
 import {
   createCheckout,
-  validatePaymentHandoffUrl,
+  validateBachsPortalUrl,
   isBachsCheckoutEnabled,
   type BillingStatus,
 } from "../../services/billing";
@@ -45,10 +46,12 @@ interface Pending {
 }
 interface Intent {
   intentId: string;
+  productKey: string;
   status: string;
   fulfilled: boolean;
   expiresAt: string | null;
 }
+const INTENT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const label = (key: string) =>
   key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 const planLabel = (key: string) =>
@@ -70,6 +73,7 @@ export function displayPrice(amountMinor: number, currency: string) {
 }
 export default function WalletPage() {
   const { request, token, userId } = useProductSession();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { refreshBilling } = usePaywall();
   const [status, setStatus] = useState<BillingStatus | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
@@ -79,6 +83,7 @@ export default function WalletPage() {
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState<Pending | null>(null);
   const [intent, setIntent] = useState<Intent | null>(null);
+  const [returnedIntentId, setReturnedIntentId] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
   const storageKey = `edutu.checkout.${userId}`;
   const persist = useCallback(
@@ -131,15 +136,28 @@ export default function WalletPage() {
     }
   }, [request, refreshBilling]);
   const verify = useCallback(
-    async (p: Pending) => {
-      if (!p.intentId) return;
+    async (intentId: string) => {
+      if (!INTENT_ID.test(intentId)) return;
       try {
-        const value = await request<Intent>(`/billing/intents/${p.intentId}`);
+        const value = await request<Intent>(`/billing/intents/${intentId}`);
+        if (value.intentId !== intentId) return;
         setIntent(value);
+        setPending((current) => current ?? {
+          productKey: value.productKey,
+          idempotencyKey: "",
+          intentId: value.intentId,
+          expiresAt: value.expiresAt ?? undefined,
+        });
         if (value.fulfilled) {
+          setReturnedIntentId(null);
           persist(null);
           setNotice("Payment confirmed and access applied.");
           await refresh();
+        } else if (["failed", "cancelled", "canceled", "expired"].includes(value.status)) {
+          setReturnedIntentId(null);
+          setNotice(`Bachs reports this checkout as ${friendlyStatus(value.status)}. No access or credits were applied.`);
+        } else {
+          setNotice("Payment is still processing. Don’t pay again; Edutu will apply access after Bachs confirms it.");
         }
       } catch (e) {
         setError(errorMessage(e));
@@ -162,7 +180,7 @@ export default function WalletPage() {
           typeof p.idempotencyKey === "string"
         ) {
           setPending(p);
-          void verify(p);
+          if (typeof p.intentId === "string") void verify(p.intentId);
         }
       }
     } catch {
@@ -178,10 +196,10 @@ export default function WalletPage() {
         clearInterval(timer);
         return;
       }
-      if (document.visibilityState === "visible") void verify(pending);
+      if (document.visibilityState === "visible") void verify(pending.intentId!);
     }, 5000);
     const focus = () => {
-      void verify(pending);
+      void verify(pending.intentId!);
     };
     window.addEventListener("focus", focus);
     return () => {
@@ -189,14 +207,46 @@ export default function WalletPage() {
       window.removeEventListener("focus", focus);
     };
   }, [pending, verify]);
+  useEffect(() => {
+    const intentId = searchParams.get("intentId");
+    const returnState = searchParams.get("checkout");
+    if (loading) return;
+    if (!intentId && !returnState) return;
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete("checkout");
+    nextParams.delete("intentId");
+    setSearchParams(nextParams, { replace: true });
+    if (!intentId || !INTENT_ID.test(intentId)) {
+      setNotice("We could not verify that checkout reference. Refresh your wallet to check your purchases.");
+      return;
+    }
+    setNotice(returnState === "cancelled"
+      ? "Checkout was closed. No access or credits are applied until Bachs confirms payment."
+      : "Checking your payment with Edutu. Access is applied only after Bachs confirms it.");
+    setReturnedIntentId(intentId);
+    void verify(intentId);
+  }, [loading, searchParams, setSearchParams, verify]);
+  const returnIntentId = pending?.intentId ? null : returnedIntentId;
+  useEffect(() => {
+    if (!returnIntentId) return;
+    let checks = 0;
+    const timer = window.setInterval(() => {
+      if (++checks > 12) {
+        window.clearInterval(timer);
+        return;
+      }
+      if (document.visibilityState === "visible") void verify(returnIntentId);
+    }, 5000);
+    return () => window.clearInterval(timer);
+  }, [returnIntentId, verify]);
   const manage = async () => {
     setBusy(true);
     setError(null);
     try {
-      const result = await request<{ url: string }>("/billing/pay-shell/handoff", {
-        method: "POST", body: JSON.stringify({destination: "account"}),
+      const result = await request<{ url: string }>("/billing/portal-session", {
+        method: "POST",
       });
-      window.location.assign(validatePaymentHandoffUrl(result.url));
+      window.location.assign(validateBachsPortalUrl(result.url));
     } catch (e) {
       setError(errorMessage(e));
     } finally {
@@ -351,7 +401,7 @@ export default function WalletPage() {
                   className="feature-button"
                   type="button"
                   disabled={busy || !pending.intentId}
-                  onClick={() => void verify(pending)}
+                  onClick={() => void verify(pending.intentId!)}
                 >
                   Check payment status
                 </button>
@@ -436,7 +486,7 @@ export default function WalletPage() {
               <Receipt className="text-brand" size={19} aria-hidden="true" />
               <h2 id="wallet-payment-history" className="!mb-0">Recent payments</h2>
             </div>
-            {!status?.transactions.length ? (
+            {!status?.transactions?.length ? (
               <p className="feature-muted rounded-xl border border-dashed border-subtle px-4 py-6 text-center">No payment activity to show yet. Your recent payments will appear here.</p>
             ) : (
               status.transactions.map((tx) => (

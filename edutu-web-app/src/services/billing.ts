@@ -42,8 +42,7 @@ export interface CheckoutResponse {
   intentId: string;
   checkoutUrl: string;
   expiresAt: string;
-  handoffExpiresAt?: string;
-  /** Optional for compatibility while the checkout controller rolls out the richer response. */
+  /** Optional for compatibility with older billing deployments. */
   renewalMode?: RenewalMode;
   accessUntil?: string | null;
 }
@@ -264,12 +263,14 @@ export function validateBachsCheckoutUrl(value: unknown): string {
   return url.toString();
 }
 
-/** Accept only the first-party shell's exact, opaque single-use handoff. */
-export function validatePaymentHandoffUrl(value: unknown): string {
-  if (typeof value !== "string") throw new Error("Billing returned an invalid payment link.");
+/** Accept only Bachs' first-party portal origin for account management. */
+export function validateBachsPortalUrl(value: unknown): string {
+  if (typeof value !== "string") throw new Error("Billing returned an invalid portal URL.");
   let url: URL;
-  try { url = new URL(value); } catch { throw new Error("Billing returned an invalid payment link."); }
-  if (url.origin !== "https://pay.edutu.org" || url.pathname !== "/start" || url.search || url.username || url.password || !/^#code=[A-Za-z0-9_-]{43}$/.test(url.hash)) throw new Error("Billing did not return a trusted Edutu payment link.");
+  try { url = new URL(value); } catch { throw new Error("Billing returned an invalid portal URL."); }
+  if (url.protocol !== "https:" || url.origin !== "https://portal.bachs.io" || url.username || url.password) {
+    throw new Error("Billing did not return a trusted Bachs portal URL.");
+  }
   return url.toString();
 }
 
@@ -291,8 +292,7 @@ function validateCheckoutResponse(value: unknown): CheckoutResponse {
 
   return {
     intentId: response.intentId,
-    checkoutUrl: validatePaymentHandoffUrl(response.checkoutUrl),
-    handoffExpiresAt: typeof response.handoffExpiresAt === "string" ? response.handoffExpiresAt : undefined,
+    checkoutUrl: validateBachsCheckoutUrl(response.checkoutUrl),
     expiresAt: response.expiresAt,
     renewalMode: response.renewalMode,
     accessUntil:

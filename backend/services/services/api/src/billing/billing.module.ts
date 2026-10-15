@@ -198,15 +198,12 @@ import {
         const config = loadBachsConfig();
         return {
           ...config,
-          // Keep the shell closed until Bachs, signed webhooks, and the
-          // persistent handoff protocol are all configured for the selected
-          // environment. Bachs configuration already enforces environment
-          // matched API origins, credentials, organization, and webhook keys.
+          // Direct Bachs checkout is available only when the provider API and
+          // signed fulfillment webhooks are configured for the same environment.
+          // The optional Edutu account shell is not part of purchase readiness.
           hostedCompletionEnabled:
-            process.env.BILLING_PAY_SHELL_ENABLED === "true" &&
             config.checkoutEnabled &&
-            config.webhookEnabled &&
-            (process.env.BILLING_PAY_SHELL_API_KEY?.trim().length ?? 0) >= 32,
+            config.webhookEnabled,
         };
       },
     },

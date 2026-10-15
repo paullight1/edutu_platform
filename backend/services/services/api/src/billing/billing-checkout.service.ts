@@ -18,12 +18,11 @@ import { decimalToMinorUnits } from "./providers/bachs/bachs-money";
 import { matchesBachsCadence } from "./providers/bachs/bachs-cadence";
 import { toBachsPaymentMethodTypes } from "./providers/bachs/bachs.types";
 import {
-  BACHS_CHECKOUT_CANCEL_URL,
+  bachsCheckoutReturnUrl,
   BACHS_CHECKOUT_CONFIG,
   BACHS_CHECKOUT_ORIGIN,
   BACHS_CHECKOUT_PROVIDER,
   BACHS_CHECKOUT_REPOSITORY,
-  BACHS_CHECKOUT_SUCCESS_URL,
   BILLING_CLOCK,
   BILLING_CUSTOMER_IDENTITY_RESOLVER,
   BILLING_RATE_LIMITER,
@@ -157,6 +156,14 @@ export class BillingCheckoutService {
     private readonly config: CheckoutServiceConfig,
   ) {}
 
+  assertCheckoutReady(): void {
+    if (!this.config.checkoutEnabled || !this.config.hostedCompletionEnabled) {
+      throw new ServiceUnavailableException(
+        "Bachs checkout is temporarily unavailable.",
+      );
+    }
+  }
+
   async getUserCatalog() {
     const products =
       (await this.repository.listEnabledUserProducts?.(
@@ -170,7 +177,7 @@ export class BillingCheckoutService {
       ),
       checkoutUnavailableReason: this.config.hostedCompletionEnabled
         ? null
-        : "Hosted payment completion is not ready yet",
+        : "Bachs checkout and signed payment confirmation are not ready yet",
       products: products
         .filter(
           (product) =>
@@ -249,9 +256,7 @@ export class BillingCheckoutService {
     verifiedCustomer?: VerifiedCustomer,
   ): Promise<BillingCheckoutResult> {
     this.assertRequest(rawAuthSubject, idempotencyKey, request);
-    if (!this.config.checkoutEnabled) {
-      throw new ServiceUnavailableException("Bachs checkout is unavailable.");
-    }
+    this.assertCheckoutReady();
 
     const product = await this.repository.findEnabledProduct(
       request.productKey,
@@ -344,8 +349,8 @@ export class BillingCheckoutService {
           product.renewalMode === "recurring"
             ? ["USD_CARD"]
             : toBachsPaymentMethodTypes(product.allowedPaymentMethods),
-        successUrl: BACHS_CHECKOUT_SUCCESS_URL,
-        cancelUrl: BACHS_CHECKOUT_CANCEL_URL,
+        successUrl: bachsCheckoutReturnUrl(intent.id, "success"),
+        cancelUrl: bachsCheckoutReturnUrl(intent.id, "cancelled"),
         reference: intent.id,
         metadata: {
           edutu_intent_id: intent.id,

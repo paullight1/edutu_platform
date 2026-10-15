@@ -14,7 +14,7 @@ type CheckoutCreator = (
 const createBachsCheckout = createCheckout as unknown as CheckoutCreator;
 
 function checkoutResponse(
-  checkoutUrl = `https://pay.edutu.org/start#code=${"A".repeat(43)}`,
+  checkoutUrl = "https://checkout.bachs.io/s/session-123",
 ) {
   return {
     intentId: "intent_123",
@@ -98,13 +98,13 @@ describe("createCheckout", () => {
     expect([...requestedUrl.searchParams.keys()]).toEqual([]);
   });
 
-  it("blocks a payment handoff outside the trusted Edutu origin", async () => {
+  it("blocks checkout URLs outside the trusted Bachs origin", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue(
         new Response(
           JSON.stringify(
-            checkoutResponse(`https://pay.edutu.org.attacker.test/start#code=${"A".repeat(43)}`),
+            checkoutResponse("https://checkout.bachs.io.attacker.test/s/session-123"),
           ),
           {
             status: 200,
@@ -119,16 +119,16 @@ describe("createCheckout", () => {
         returnSurface: "web",
         idempotencyKey: "d2719a52-ef21-4d8b-a53a-82ba4ea7542b",
       }),
-    ).rejects.toThrow("trusted Edutu payment link");
+    ).rejects.toThrow("trusted Bachs checkout URL");
   });
 
-  it("blocks a payment handoff with URL credentials", async () => {
+  it("blocks a Bachs checkout URL with credentials", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue(
         new Response(
           JSON.stringify(
-            checkoutResponse(`https://user:pass@pay.edutu.org/start#code=${"A".repeat(43)}`),
+            checkoutResponse("https://user:pass@checkout.bachs.io/s/session-123"),
           ),
           {
             status: 200,
@@ -143,7 +143,7 @@ describe("createCheckout", () => {
         returnSurface: "web",
         idempotencyKey: "b6c8a3f1-8056-4bbc-8a92-d7b6b20bc2ef",
       }),
-    ).rejects.toThrow("trusted Edutu payment link");
+    ).rejects.toThrow("trusted Bachs checkout URL");
   });
 
   it("does not request checkout while Bachs is disabled by default", async () => {
@@ -194,7 +194,7 @@ describe("createCheckout", () => {
         new Response(
           JSON.stringify({
             intentId: "intent_123",
-            checkoutUrl: `https://pay.edutu.org/start#code=${"A".repeat(43)}`,
+            checkoutUrl: "https://checkout.bachs.io/s/session-123",
             expiresAt: "2026-08-11T12:00:00.000Z",
           }),
           { status: 200 },

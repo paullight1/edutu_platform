@@ -73,40 +73,12 @@ describe("BillingCatalogAdminService", () => {
     expect(result.readiness).toEqual({
       providerApiConfigured: false,
       webhookConfigured: false,
-      paymentShellEnabled: false,
-      paymentShellKeyConfigured: false,
-      paymentShellConfigured: false,
-      paymentShellSchemaReady: false,
       mappedPlanCount: 0,
       enabledPlanCount: 0,
       mappedEnabledPlanCount: 0,
       purchasesReady: false,
     });
     expect(JSON.stringify(result)).not.toMatch(/apiKey|secret/i);
-  });
-
-  it("reports the shell enable flag separately from the shared key", async () => {
-    const env = {
-      BILLING_PAY_SHELL_ENABLED: process.env.BILLING_PAY_SHELL_ENABLED,
-      BILLING_PAY_SHELL_API_KEY: process.env.BILLING_PAY_SHELL_API_KEY,
-    };
-    process.env.BILLING_PAY_SHELL_ENABLED = "true";
-    delete process.env.BILLING_PAY_SHELL_API_KEY;
-    jest.spyOn(db, "execute").mockResolvedValue({ rows: [] } as never);
-
-    try {
-      const result = await new BillingCatalogAdminService().list();
-      expect(result.readiness).toMatchObject({
-        paymentShellEnabled: true,
-        paymentShellKeyConfigured: false,
-        paymentShellConfigured: false,
-      });
-    } finally {
-      for (const [key, value] of Object.entries(env)) {
-        if (value === undefined) delete process.env[key];
-        else process.env[key] = value;
-      }
-    }
   });
 
   it("allows mapped disabled products while requiring every enabled product to be mapped", async () => {
@@ -118,8 +90,6 @@ describe("BillingCatalogAdminService", () => {
       BACHS_WEBHOOK_SECRET: process.env.BACHS_WEBHOOK_SECRET,
       BACHS_EXPECTED_ORGANIZATION_ID:
         process.env.BACHS_EXPECTED_ORGANIZATION_ID,
-      BILLING_PAY_SHELL_ENABLED: process.env.BILLING_PAY_SHELL_ENABLED,
-      BILLING_PAY_SHELL_API_KEY: process.env.BILLING_PAY_SHELL_API_KEY,
     };
     Object.assign(process.env, {
       BACHS_ENVIRONMENT: "sandbox",
@@ -129,8 +99,6 @@ describe("BillingCatalogAdminService", () => {
       BACHS_WEBHOOK_ENABLED: "true",
       BACHS_WEBHOOK_SECRET: "whsec_test_key",
       BACHS_EXPECTED_ORGANIZATION_ID: "org_edutu_test",
-      BILLING_PAY_SHELL_ENABLED: "true",
-      BILLING_PAY_SHELL_API_KEY: "x".repeat(40),
     });
     const rows = products.map((product, index) => ({
       product_key: product.productKey,
@@ -145,12 +113,8 @@ describe("BillingCatalogAdminService", () => {
       provider_product_id: `prod_${product.productKey}`,
     }));
     jest.spyOn(db, "execute").mockResolvedValue({ rows } as never);
-    const payShell = { ready: jest.fn().mockResolvedValue(true) };
-
     try {
-      const result = await new BillingCatalogAdminService(
-        payShell as never,
-      ).list();
+      const result = await new BillingCatalogAdminService().list();
       expect(result.readiness).toMatchObject({
         mappedPlanCount: planKeys.length,
         enabledPlanCount: 1,
@@ -175,8 +139,6 @@ describe("BillingCatalogAdminService", () => {
       BACHS_WEBHOOK_SECRET: process.env.BACHS_WEBHOOK_SECRET,
       BACHS_EXPECTED_ORGANIZATION_ID:
         process.env.BACHS_EXPECTED_ORGANIZATION_ID,
-      BILLING_PAY_SHELL_ENABLED: process.env.BILLING_PAY_SHELL_ENABLED,
-      BILLING_PAY_SHELL_API_KEY: process.env.BILLING_PAY_SHELL_API_KEY,
     };
     Object.assign(process.env, {
       BACHS_ENVIRONMENT: "live",
@@ -186,8 +148,6 @@ describe("BillingCatalogAdminService", () => {
       BACHS_WEBHOOK_ENABLED: "true",
       BACHS_WEBHOOK_SECRET: "whsec_test_key",
       BACHS_EXPECTED_ORGANIZATION_ID: "org_edutu_test",
-      BILLING_PAY_SHELL_ENABLED: "true",
-      BILLING_PAY_SHELL_API_KEY: "x".repeat(40),
     });
     const rows = products.map((product) => ({
       product_key: product.productKey,
@@ -202,17 +162,11 @@ describe("BillingCatalogAdminService", () => {
       provider_product_id: `prod_${product.productKey}`,
     }));
     jest.spyOn(db, "execute").mockResolvedValue({ rows } as never);
-    const payShell = { ready: jest.fn().mockResolvedValue(true) };
-
     try {
-      const result = await new BillingCatalogAdminService(
-        payShell as never,
-      ).list();
+      const result = await new BillingCatalogAdminService().list();
       expect(result.readiness).toMatchObject({
         providerApiConfigured: true,
         webhookConfigured: true,
-        paymentShellConfigured: true,
-        paymentShellSchemaReady: true,
         mappedPlanCount: planKeys.length,
         enabledPlanCount: planKeys.length,
         mappedEnabledPlanCount: planKeys.length,
@@ -259,7 +213,7 @@ describe("BillingCatalogAdminService", () => {
       .spyOn(db, "transaction")
       .mockResolvedValue({} as never);
 
-    await new BillingCatalogAdminService(undefined, provider as never).save(
+    await new BillingCatalogAdminService(provider as never).save(
       { authId: "admin_1", role: "admin" },
       "Enable verified plan",
       enabled,

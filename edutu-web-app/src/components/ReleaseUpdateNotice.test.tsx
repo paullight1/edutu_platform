@@ -35,12 +35,14 @@ it('does not show a notice for the running release', async () => {
   expect(screen.queryByText('Top100 has been updated')).toBeNull();
 });
 
-it('keeps the release notice above the sign-in invitation on narrow screens', async () => {
+it('moves the release notice above an overlapping sign-in invitation', async () => {
   vi.stubEnv('PROD', true);
   vi.stubGlobal('__APP_RELEASE__', 'release-a');
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ version: 'release-b' }) }));
   vi.spyOn(window, 'matchMedia').mockImplementation(query => ({
-    matches: query === '(max-width: 767px)', media: query, onchange: null,
+    // Some mobile browsers report a desktop layout viewport while their
+    // visual viewport is narrow; geometry, not the media query, must win.
+    matches: false, media: query, onchange: null,
     addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn(),
   }));
   const gate = document.createElement('aside');

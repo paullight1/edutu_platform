@@ -104,10 +104,12 @@ python cli.py scrape --all
 
 ## Production deployment
 
-The production API (`backend.edutu.org`), admin (`admin.edutu.org`), and
-payment shell (`pay.edutu.org`) are managed through Docploy. Use each service's
-Docploy configuration for build settings, runtime variables, deploy status,
-and rollback. Mobile releases use EAS Build, TestFlight, and Play Store.
+The production API (`backend.edutu.org`), admin (`admin.edutu.org`), and web
+app (`www.edutu.org`) are managed through Dokploy. Payments use Bachs hosted
+checkout pages directly; there is no separate payment-shell service to deploy.
+Use each Dokploy service's configuration for build settings, runtime
+variables, deploy status, and rollback. Mobile releases use EAS Build,
+TestFlight, and Play Store.
 
 ## Environment Checklist
 

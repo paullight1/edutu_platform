@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
     ArrowRight,
     Calendar,
@@ -203,6 +203,8 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
     const [announcement, setAnnouncement] = useState<WebAnnouncement>(
         DEFAULT_WEB_ANNOUNCEMENT,
     );
+    const impactGlobeRef = useRef<HTMLDivElement>(null);
+    const [loadImpactGlobe, setLoadImpactGlobe] = useState(false);
     const [opportunitySelection] = useState(() => ({
         seed: createOpportunityShuffleSeed(),
         selectedAt: new Date(),
@@ -231,6 +233,26 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                 if (!controller.signal.aborted) setBlogLoading(false);
             });
         return () => controller.abort();
+    }, []);
+
+    useEffect(() => {
+        const target = impactGlobeRef.current;
+        if (!target) return;
+        if (typeof IntersectionObserver === 'undefined') {
+            setLoadImpactGlobe(true);
+            return;
+        }
+
+        const observer = new IntersectionObserver(
+            ([entry]) => {
+                if (!entry?.isIntersecting) return;
+                setLoadImpactGlobe(true);
+                observer.disconnect();
+            },
+            { rootMargin: '500px 0px' },
+        );
+        observer.observe(target);
+        return () => observer.disconnect();
     }, []);
 
     useEffect(() => {
@@ -475,11 +497,16 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                         <motion.div
                             {...fadeUp}
                             className="flex justify-center md:justify-end"
+                            ref={impactGlobeRef}
                         >
                             <motion.img
-                                src="/illustrations/edutu-global-opportunity-globe.png"
+                                src={loadImpactGlobe ? "/illustrations/edutu-global-opportunity-globe.webp" : undefined}
                                 alt="Hand-drawn globe showing opportunity moving across borders"
                                 className="w-full max-w-[250px] drop-shadow-[0_18px_24px_rgba(24,86,220,0.18)] sm:max-w-[310px]"
+                                width={1303}
+                                height={1207}
+                                loading="lazy"
+                                decoding="async"
                                 animate={reduceMotion ? undefined : { rotate: [0, 3, -3, 0], y: [0, -5, 0] }}
                                 transition={reduceMotion ? undefined : { duration: 8, repeat: Infinity, ease: 'easeInOut' }}
                             />

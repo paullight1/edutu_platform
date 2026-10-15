@@ -27,7 +27,6 @@ import {
   type BillingCatalogEdit,
   type BillingCatalogOperator,
 } from "./billing-catalog-admin.service";
-import { BillingPayShellService } from "./billing-pay-shell.service";
 import { isApiCreditProductKey } from "./types/billing-checkout.types";
 import { BillingPortalService } from "./billing-portal.service";
 import { BillingService } from "./billing.service";
@@ -51,7 +50,6 @@ export class BillingController {
     @Optional()
     @Inject(REVENUECAT_WEBHOOK_SERVICES)
     private readonly revenueCatWebhookServices?: RevenueCatWebhookServices,
-    @Optional() private readonly payShell?: BillingPayShellService,
     @Optional() private readonly catalogAdmin?: BillingCatalogAdminService,
   ) {}
 
@@ -63,13 +61,13 @@ export class BillingController {
   @Get("user-catalog")
   async getUserCatalog() {
     const catalog = await this.billingCheckoutService.getUserCatalog();
-    const checkoutEnabled = (await this.payShell?.isReady()) ?? false;
+    const checkoutEnabled = catalog.checkoutEnabled;
     return {
       ...catalog,
       checkoutEnabled,
       checkoutUnavailableReason: checkoutEnabled
         ? null
-        : "Hosted payment completion is not ready yet",
+        : "Bachs checkout and signed payment confirmation are not ready yet",
     };
   }
 
@@ -113,11 +111,7 @@ export class BillingController {
   }
 
   private async assertHostedCheckoutReady(): Promise<void> {
-    if (!this.payShell)
-      throw new ServiceUnavailableException(
-        "Hosted payment completion is not ready yet",
-      );
-    await this.payShell.assertReady();
+    this.billingCheckoutService.assertCheckoutReady();
   }
 
   @Post("checkout")
@@ -150,16 +144,10 @@ export class BillingController {
           }
         : undefined,
     );
-    const handoff = await this.payShell!.issueHandoff(rawAuthSubject, {
-      destination: "checkout",
-      intentId: result.intentId,
-      checkoutUrl: result.checkoutUrl,
-    });
     return {
-      checkoutUrl: handoff.url,
+      checkoutUrl: result.checkoutUrl,
       intentId: result.intentId,
       expiresAt: result.expiresAt,
-      handoffExpiresAt: handoff.expiresAt,
       renewalMode: result.renewalMode,
       validityDays: result.productSnapshot.validityDays,
     };

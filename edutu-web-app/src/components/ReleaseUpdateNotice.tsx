@@ -38,16 +38,24 @@ export default function ReleaseUpdateNotice() {
     };
   }, []);
   useEffect(() => {
-    const compact = window.matchMedia('(max-width: 767px)');
     const notice = noticeRef.current;
     const defaultBottom = notice?.style.bottom ?? '';
     const defaultTop = notice?.style.top ?? '';
     const sync = () => {
-      const gate = compact.matches ? document.querySelector<HTMLElement>('[data-google-sign-in-gate]') : null;
+      const gate = document.querySelector<HTMLElement>('[data-google-sign-in-gate]');
       const currentNotice = noticeRef.current;
       resizeObserver?.disconnect();
       if (!currentNotice) return;
       if (!gate || !available) {
+        currentNotice.style.bottom = defaultBottom;
+        currentNotice.style.top = defaultTop;
+        return;
+      }
+      const noticeRect = currentNotice.getBoundingClientRect();
+      const gateRect = gate.getBoundingClientRect();
+      const overlapsHorizontally =
+        noticeRect.left < gateRect.right && noticeRect.right > gateRect.left;
+      if (!overlapsHorizontally) {
         currentNotice.style.bottom = defaultBottom;
         currentNotice.style.top = defaultTop;
         return;
@@ -62,15 +70,14 @@ export default function ReleaseUpdateNotice() {
       // describe the layout viewport while fixed-element rectangles follow
       // the mobile visual viewport, which can put a bottom-offset notice over
       // the sign-in sheet on browsers with collapsing browser chrome.
-      const gateTop = gate.getBoundingClientRect().top;
-      const noticeHeight = currentNotice.getBoundingClientRect().height;
+      const gateTop = gateRect.top;
+      const noticeHeight = noticeRect.height;
       currentNotice.style.bottom = 'auto';
       currentNotice.style.top = `${Math.max(16, Math.floor(gateTop - noticeHeight - gap))}px`;
     };
     const resizeObserver = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(sync);
     const mutationObserver = new MutationObserver(sync);
     mutationObserver.observe(document.body, { childList: true, subtree: true });
-    compact.addEventListener('change', sync);
     window.addEventListener('resize', sync);
     sync();
     return () => {
@@ -80,7 +87,6 @@ export default function ReleaseUpdateNotice() {
         notice.style.bottom = defaultBottom;
         notice.style.top = defaultTop;
       }
-      compact.removeEventListener('change', sync);
       window.removeEventListener('resize', sync);
     };
   }, [available, message]);

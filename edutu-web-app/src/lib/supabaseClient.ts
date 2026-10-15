@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { getClerkAccessToken } from './clerkToken';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -7,17 +8,7 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
 
 /** Clerk JWT getter - set by AuthProvider */
-let _getToken: (() => Promise<string | null | undefined>) | null = null;
 let _client: SupabaseClient | null = null;
-
-async function getClerkAccessToken(): Promise<string | null> {
-    if (!_getToken) return null;
-    try {
-        return (await _getToken()) ?? null;
-    } catch {
-        return null;
-    }
-}
 
 function createClientWithClerkAuth(): SupabaseClient {
     return createClient(supabaseUrl as string, supabaseAnonKey as string, {
@@ -68,8 +59,3 @@ export const supabase = new Proxy({} as SupabaseClient, {
         return typeof value === 'function' ? value.bind(client) : value;
     },
 });
-
-/** Set the Clerk token getter used by PostgREST and Realtime transports. */
-export function setClerkTokenGetter(getToken: () => Promise<string | null | undefined>) {
-    _getToken = getToken;
-}

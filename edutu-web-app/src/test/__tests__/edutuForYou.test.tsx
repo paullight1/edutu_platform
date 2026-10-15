@@ -88,7 +88,7 @@ describe("EdutuForYouPage", () => {
       screen.getByRole("img", {
         name: /young people working together on scholarship applications/i,
       }),
-    ).toHaveAttribute("src", "/community/scholarships.jpg");
+    ).toHaveAttribute("src", "/community/scholarships.webp");
   });
 
   it("uses the Edutu mascot to guide the final choice", () => {

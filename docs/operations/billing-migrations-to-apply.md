@@ -37,8 +37,9 @@ preserved without fabricating a placeholder migration.
 
 Configure `BACHS_API_KEY`, `BACHS_WEBHOOK_SECRET`,
 `BACHS_EXPECTED_ORGANIZATION_ID`, the live API URL/environment, and the checkout
-product mapping configuration using the server secret manager. Configure the
-pay-shell URL, API key, and enabled settings. Deploy the updated backend and
+product mapping configuration using the server secret manager. Web and mobile
+clients open the Bachs-hosted checkout directly; a separate pay-shell URL, key,
+or Dokploy service is not required for checkout. Deploy the updated backend and
 register the signed Bachs webhook before enabling the checkout/webhook flags.
 No credentials should be pasted into chat or committed.
 

@@ -1,7 +1,13 @@
+import { Suspense } from "react";
 import { useLocation } from "react-router-dom";
-import BlogPage from "./BlogPage";
+import { lazyWithRetry as lazy } from "../lib/lazyWithRetry";
 import CommunityAppGate from "./CommunityAppGate";
-import PublicOpportunitiesArchivePage from "./PublicOpportunitiesArchivePage";
+import PageSuspense from "./PageSuspense";
+
+const BlogPage = lazy(() => import("./BlogPage"));
+const PublicOpportunitiesArchivePage = lazy(
+  () => import("./PublicOpportunitiesArchivePage"),
+);
 
 function normalisePathname(pathname: string): string {
   const trimmed = pathname.replace(/\/+$/, "");
@@ -20,14 +26,22 @@ export default function PublicRouteGate() {
   const pathname = normalisePathname(location.pathname);
 
   if (pathname === "/blog") {
-    return <BlogPage />;
+    return (
+      <Suspense fallback={<PageSuspense />}>
+        <BlogPage />
+      </Suspense>
+    );
   }
 
   if (
     pathname === "/opportunities" ||
     /^\/opportunities\/[^/]+$/.test(pathname)
   ) {
-    return <PublicOpportunitiesArchivePage />;
+    return (
+      <Suspense fallback={<PageSuspense />}>
+        <PublicOpportunitiesArchivePage />
+      </Suspense>
+    );
   }
 
   return <CommunityAppGate />;

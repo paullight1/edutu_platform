@@ -1,8 +1,11 @@
-import { supabase } from "./supabaseClient";
 import type { AppUser } from "../types/user";
 import type { OnboardingState } from "../types/onboarding";
 
 const POST_AUTH_REDIRECT_KEY = "edutu_post_auth_from";
+
+async function getSupabaseClient() {
+  return (await import("./supabaseClient")).supabase;
+}
 
 export interface AuthRedirectSource {
   pathname?: string | null;
@@ -310,6 +313,7 @@ export const authService = {
   },
 
   async getProfile(userId: string): Promise<Profile | null> {
+    const supabase = await getSupabaseClient();
     const { data, error } = await supabase
       .from("profiles")
       .select("*")
@@ -323,6 +327,7 @@ export const authService = {
   },
 
   async upsertProfile(profile: Profile) {
+    const supabase = await getSupabaseClient();
     const profileInsert = buildSelfServiceProfileInsert(profile);
     const profileUpdate = {
       ...buildSelfServiceProfileUpdate(profile),
@@ -345,6 +350,7 @@ export const authService = {
   },
 
   async updateProfile(userId: string, updates: Partial<Profile>) {
+    const supabase = await getSupabaseClient();
     const rest = buildSelfServiceProfileUpdate(updates);
     delete rest.updated_at;
     const { data, error } = await supabase

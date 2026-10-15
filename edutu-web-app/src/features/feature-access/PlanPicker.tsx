@@ -420,8 +420,7 @@ export default function PlanPicker({
             className={docked ? "upgrade-docked-button" : "mt-4 rounded-xl bg-brand px-5 py-3 text-sm font-semibold text-white"}
             onClick={() => {
               if (
-                checkout.handoffExpiresAt &&
-                Date.parse(checkout.handoffExpiresAt) <= Date.now()
+                Date.parse(checkout.expiresAt) <= Date.now()
               ) {
                 setCheckout(null);
                 setError(

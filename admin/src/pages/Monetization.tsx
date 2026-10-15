@@ -1050,14 +1050,9 @@ export default function Monetization() {
             </EditorCard>
 
             <EditorCard icon={<Users size={16} />} color="#06b6d4" title="Checkout links">
-              <div className="mz-form mz-form-single">
-                <Field label="Checkout base URL">
-                  <input className="input-field" value={pricing.checkoutBaseUrl} onChange={(e) => updatePricing({ checkoutBaseUrl: e.target.value })} placeholder="https://pay.edutu.org" />
-                </Field>
-                <Field label="Manage subscription URL">
-                  <input className="input-field" value={pricing.manageUrl} onChange={(e) => updatePricing({ manageUrl: e.target.value })} placeholder="https://pay.edutu.org/manage" />
-                </Field>
-              </div>
+              <p className="mz-hint">
+                Web and mobile purchases use authenticated Bachs sessions created by the billing API. Checkout and account-management links are validated and returned for each action; there are no static payment URLs to configure here.
+              </p>
             </EditorCard>
           </div>
 
@@ -1091,9 +1086,6 @@ export default function Monetization() {
                     <div className="mz-hint" style={{ marginTop: 6 }}>
                       Bachs API: {billingCatalog.readiness.providerApiConfigured ? 'ready' : 'missing configuration'} ·
                       Webhook: {billingCatalog.readiness.webhookConfigured ? 'ready' : 'missing configuration'} ·
-                      Payment shell flag: {billingCatalog.readiness.paymentShellEnabled ? 'enabled' : 'disabled'} ·
-                      Shared key: {billingCatalog.readiness.paymentShellKeyConfigured ? 'configured' : 'missing or too short'} ·
-                      Payment shell schema: {billingCatalog.readiness.paymentShellSchemaReady ? 'ready' : 'migration not applied'} ·
                       Plans mapped: {billingCatalog.readiness.mappedPlanCount}/{catalogDraft.length} ·
                       Plans enabled: {billingCatalog.readiness.enabledPlanCount} ·
                       Enabled plans mapped: {billingCatalog.readiness.mappedEnabledPlanCount}/{billingCatalog.readiness.enabledPlanCount}
