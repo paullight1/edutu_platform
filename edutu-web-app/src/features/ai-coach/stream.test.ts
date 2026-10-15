@@ -35,3 +35,30 @@ it("rejects incomplete streams instead of pretending partial text is saved", asy
     /interrupted/i,
   );
 });
+
+it("reports progress while the coach checks records before replying", async () => {
+  const payload = [
+    'event: turn.start\ndata: {}',
+    'event: token\ndata: {"content":"Let me check"}',
+    'event: tool.start\ndata: {"id":"one","name":"search_opportunities"}',
+    'event: tool.result\ndata: {"id":"one","name":"search_opportunities","ok":true}',
+    'event: token\ndata: {"content":"Here is what I found"}',
+    'event: turn.final\ndata: {"reply":"Here is what I found"}',
+  ].join("\n\n") + "\n\n";
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode(payload));
+      controller.close();
+    },
+  });
+  const phases: string[] = [];
+  const visible: string[] = [];
+  await consumeCoachStream(
+    stream,
+    (value) => visible.push(value),
+    (phase) => phases.push(phase),
+  );
+  expect(phases).toEqual(["thinking", "writing", "checking", "thinking", "writing"]);
+  expect(visible).toContain("");
+  expect(visible.at(-1)).toBe("Here is what I found");
+});
