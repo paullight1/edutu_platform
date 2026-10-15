@@ -3,6 +3,7 @@ import { useAuth } from "@clerk/clerk-react";
 import { Link } from "react-router-dom";
 import { ArrowRight, Check, Loader2 } from "lucide-react";
 import {
+  checkoutUnavailableMessage,
   createCheckout,
   isBachsCheckoutEnabled,
   type CheckoutResponse,
@@ -22,6 +23,7 @@ interface Product {
 interface Catalog {
   products: Product[];
   checkoutEnabled: boolean;
+  checkoutUnavailableReason?: string | null;
 }
 const title = (key: string) =>
   key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
@@ -291,7 +293,7 @@ export default function PlanPicker({
       )}
       {!enabled && catalog && products.length > 0 && (
         <p role="status" className="rounded-xl border border-amber-400/20 bg-amber-400/5 p-3 text-sm text-text-secondary">
-          Checkout is being set up. These plans are not available to purchase yet.
+          {checkoutUnavailableMessage(catalog) || "Online purchases are not ready yet."}
         </p>
       )}
       {docked && products.length > 0 ? (

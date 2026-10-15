@@ -3,6 +3,26 @@ import { getApiBaseUrl } from "../lib/apiBaseUrl";
 export type BillingInterval = "weekly" | "monthly" | "yearly";
 export type RenewalMode = "recurring" | "one_time";
 
+export interface CheckoutAvailability {
+  checkoutEnabled: boolean;
+  checkoutUnavailableReason?: string | null;
+}
+
+export function checkoutUnavailableMessage(
+  availability: CheckoutAvailability,
+): string | null {
+  if (!availability.checkoutEnabled) {
+    if (availability.checkoutUnavailableReason?.toLowerCase().includes("confirmation")) {
+      return "Bachs checkout and signed payment confirmation are not ready yet. You can still view plans, but purchases are unavailable.";
+    }
+    return "Online purchases are not ready yet. Please try again later.";
+  }
+  if (!isBachsCheckoutEnabled()) {
+    return "Billing is ready, but checkout is not enabled in this app yet.";
+  }
+  return null;
+}
+
 export interface BillingStatus {
   isPro: boolean;
   planTier: "none" | "lite" | "pro" | "scholar";

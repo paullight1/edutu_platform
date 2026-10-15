@@ -20,6 +20,7 @@ beforeEach(() => {
     });
     if (path === "/billing/user-catalog") return Promise.resolve({
       checkoutEnabled: false,
+      checkoutUnavailableReason: "Bachs checkout and signed payment confirmation are not ready yet",
       products: [{ productKey: "pro_monthly_pass", amountMinor: 1500, currency: "USD", creditQuantity: null, renewalMode: "one_time", cadence: "monthly", validityDays: 31, fulfillmentKind: "subscription" }],
     });
     return Promise.reject(new Error(`Unexpected request: ${path}`));
@@ -33,5 +34,8 @@ it("shows server-confirmed plan access and catalog terms", async () => {
   expect(screen.getByText(/Pro Monthly/)).toBeInTheDocument();
   expect(screen.getByText("31 days of access")).toBeInTheDocument();
   expect(screen.getByText("One-time payment. No automatic renewal.")).toBeInTheDocument();
+  expect(screen.getByText(
+    "Bachs checkout and signed payment confirmation are not ready yet. You can still view plans, but purchases are unavailable.",
+  )).toBeInTheDocument();
   expect(refreshBilling).toHaveBeenCalled();
 });

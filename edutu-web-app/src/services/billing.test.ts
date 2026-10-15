@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as billing from "./billing";
 import {
+  checkoutUnavailableMessage,
   createCheckout,
   getCreditProducts,
   BillingRequestError,
@@ -236,6 +237,30 @@ describe("createCheckout", () => {
 
     expect(error).toBeInstanceOf(BillingRequestError);
     expect(error).toMatchObject({ status: 503, code: "billing_unavailable" });
+  });
+});
+
+describe("checkoutUnavailableMessage", () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("explains when Bachs has not enabled signed checkout confirmation", () => {
+    vi.stubEnv("VITE_BACHS_CHECKOUT_ENABLED", "true");
+    expect(checkoutUnavailableMessage({
+      checkoutEnabled: false,
+      checkoutUnavailableReason: "Bachs checkout and signed payment confirmation are not ready yet",
+    })).toMatch(/signed payment confirmation are not ready yet/i);
+  });
+
+  it("distinguishes an app rollout gate from a server checkout gate", () => {
+    vi.stubEnv("VITE_BACHS_CHECKOUT_ENABLED", "false");
+    expect(checkoutUnavailableMessage({ checkoutEnabled: true })).toBe(
+      "Billing is ready, but checkout is not enabled in this app yet.",
+    );
+  });
+
+  it("returns no warning when both server and app gates are ready", () => {
+    vi.stubEnv("VITE_BACHS_CHECKOUT_ENABLED", "true");
+    expect(checkoutUnavailableMessage({ checkoutEnabled: true })).toBeNull();
   });
 });
 

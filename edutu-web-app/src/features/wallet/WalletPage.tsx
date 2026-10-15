@@ -24,6 +24,7 @@ import {
   createCheckout,
   validateBachsPortalUrl,
   isBachsCheckoutEnabled,
+  checkoutUnavailableMessage,
   type BillingStatus,
 } from "../../services/billing";
 import { usePaywall } from "../../hooks/usePaywall";
@@ -78,6 +79,7 @@ export default function WalletPage() {
   const [status, setStatus] = useState<BillingStatus | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [enabled, setEnabled] = useState(false);
+  const [checkoutUnavailableReason, setCheckoutUnavailableReason] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -103,7 +105,7 @@ export default function WalletPage() {
     try {
       const [statusResult, catalogResult] = await Promise.allSettled([
         request<BillingStatus>("/billing/status"),
-        request<{ products: Product[]; checkoutEnabled: boolean }>(
+        request<{ products: Product[]; checkoutEnabled: boolean; checkoutUnavailableReason?: string | null }>(
           "/billing/user-catalog",
         ),
       ]);
@@ -115,9 +117,11 @@ export default function WalletPage() {
       if (catalogResult.status === "fulfilled") {
         setProducts(catalogResult.value.products);
         setEnabled(catalogResult.value.checkoutEnabled);
+        setCheckoutUnavailableReason(catalogResult.value.checkoutUnavailableReason ?? null);
       } else {
         setProducts([]);
         setEnabled(false);
+        setCheckoutUnavailableReason(null);
       }
       if (statusResult.status === "rejected" || catalogResult.status === "rejected") {
         const failure = statusResult.status === "rejected"
@@ -434,9 +438,9 @@ export default function WalletPage() {
               </div>
               <Link className="feature-button secondary" to="/upgrade">Compare plan benefits <ArrowRight size={15} aria-hidden="true" /></Link>
             </div>
-            {(!enabled || !isBachsCheckoutEnabled()) && (
-              <p className="feature-notice">
-                <WorkspaceText value="onlineCheckoutIsCurrentlyUnavailable" />
+            {checkoutUnavailableMessage({ checkoutEnabled: enabled, checkoutUnavailableReason }) && (
+              <p className="feature-notice" role="status">
+                {checkoutUnavailableMessage({ checkoutEnabled: enabled, checkoutUnavailableReason })}
               </p>
             )}
             {!products.length ? (

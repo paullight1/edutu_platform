@@ -33,7 +33,11 @@ vi.mock("../../services/productApi", async () => {
   return { ...actual, productApiRequest: mocks.request };
 });
 
-vi.mock("../../services/billing", () => ({ isBachsCheckoutEnabled: () => true, createCheckout: mocks.checkout }));
+vi.mock("../../services/billing", async importOriginal => ({
+  ...await importOriginal<typeof import("../../services/billing")>(),
+  isBachsCheckoutEnabled: () => true,
+  createCheckout: mocks.checkout,
+}));
 
 vi.mock("../../lib/proPricing", () => ({
   effectivePrice: vi.fn((pricing, period, tier) => pricing[tier][`${period}Price`]),
@@ -135,6 +139,22 @@ describe("PlanPicker unavailable catalog recovery", () => {
     expect(action).toBeDisabled();
     fireEvent.click(action);
     expect(mocks.request).toHaveBeenCalledTimes(1);
+    expect(mocks.checkout).not.toHaveBeenCalled();
+  });
+
+  it("shows the server's payment-confirmation blocker beside available plans", async () => {
+    mocks.request.mockResolvedValueOnce({
+      checkoutEnabled: false,
+      checkoutUnavailableReason: "Bachs checkout and signed payment confirmation are not ready yet",
+      products: [
+        { productKey: "pro_monthly_pass", amountMinor: 1500, currency: "USD", cadence: "monthly", renewalMode: "one_time", validityDays: 30 },
+      ],
+    });
+    render(<MemoryRouter><PlanPicker /></MemoryRouter>);
+    expect(await screen.findByText(
+      "Bachs checkout and signed payment confirmation are not ready yet. You can still view plans, but purchases are unavailable.",
+    )).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Choose plan" })).toBeDisabled();
     expect(mocks.checkout).not.toHaveBeenCalled();
   });
 
