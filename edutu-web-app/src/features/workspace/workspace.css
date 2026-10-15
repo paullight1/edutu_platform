@@ -292,7 +292,9 @@
   max-height: 62dvh;
   overflow: auto;
   padding: 12px 4px 24px;
-  scroll-behavior: smooth;
+  /* Avoid animating an entire transcript for every streamed AI token. */
+  scroll-behavior: auto;
+  overscroll-behavior: contain;
 }
 .coach-message {
   max-width: min(88%, 720px);
