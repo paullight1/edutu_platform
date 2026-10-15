@@ -153,6 +153,9 @@ export default function CopilotPage() {
   };
   const prompt = kit?.kit.essayPrompts.find((p) => p.id === promptId);
   const essay = kit?.essays?.find((e) => e.promptId === promptId);
+  const completedSteps = kit?.kit.checklist.filter((step) => kit.checklistState?.[step.id]).length ?? 0;
+  const totalSteps = kit?.kit.checklist.length ?? 0;
+  const checklistPercent = totalSteps ? Math.round((completedSteps / totalSteps) * 100) : 0;
   const changePrompt = (next: string) => {
     if (dirty && !window.confirm("Discard unsaved changes to this essay?"))
       return;
@@ -312,16 +315,16 @@ export default function CopilotPage() {
         <>
           <div className="tool-card">
             <h2>{kit.opportunity?.title || "Application"}</h2>
-            <p className="feature-muted mt-2">{Object.values(kit.checklistState || {}).filter(Boolean).length} of {kit.kit.checklist.length} preparation steps complete</p>
+            <p className="feature-muted mt-2">{completedSteps} of {totalSteps} preparation steps complete</p>
             <div
               className="mt-3 h-2 w-full overflow-hidden rounded-full bg-brand/10"
               role="progressbar"
               aria-label="Application preparation checklist progress"
               aria-valuemin={0}
               aria-valuemax={100}
-              aria-valuenow={kit.kit.checklist.length ? Math.round((Object.values(kit.checklistState || {}).filter(Boolean).length / kit.kit.checklist.length) * 100) : 0}
+              aria-valuenow={checklistPercent}
             >
-              <div className="h-full rounded-full bg-brand transition-[width] duration-200" style={{ width: `${kit.kit.checklist.length ? Math.min(100, Math.round((Object.values(kit.checklistState || {}).filter(Boolean).length / kit.kit.checklist.length) * 100)) : 0}%` }} />
+              <div className="h-full rounded-full bg-brand transition-[width] duration-200" style={{ width: `${checklistPercent}%` }} />
             </div>
             <p className="feature-muted mt-2 text-xs">Track what you have completed. This is a preparation checklist, not an admission prediction.</p>
           </div>
@@ -474,7 +477,7 @@ export default function CopilotPage() {
                     onChange={(e) => setDraft(e.target.value)}
                   />
                   <p id="copilot-essay-hint" className="feature-muted" role="status">
-                    {draft.trim().split(/\\s+/).filter(Boolean).length}{" "}
+                    {draft.trim().split(/\s+/).filter(Boolean).length}{" "}
                     <WorkspaceText value="words" />{" "}
                     {dirty ? "Unsaved changes — save before requesting AI feedback." : "Saved version — ready for feedback."}
                   </p>
