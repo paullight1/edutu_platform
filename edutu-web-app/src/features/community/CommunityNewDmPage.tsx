@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@clerk/clerk-react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Mail, MessageCircle, ShieldOff } from "lucide-react";
+import { Mail, MessageCircle, ShieldOff } from "lucide-react";
 import Seo from "../../components/Seo";
 import { CommunityDmApi, DM_MESSAGE_MAX_LENGTH, type DmRelationship } from "./dmApi";
 import CommunityProductShell from "./components/CommunityProductShell";
@@ -25,7 +25,7 @@ export default function CommunityNewDmPage() {
     setRelationshipError(null);
     if (!recipientId) {
       setRelationship(null);
-      setRelationshipError("Open a member from a community before starting a private conversation.");
+      setRelationshipError("Find a member in a community and open their profile to start a private conversation.");
       return;
     }
     try {
@@ -67,13 +67,12 @@ export default function CommunityNewDmPage() {
       <CommunityProductShell
         title={`Message ${name}`}
         description="Private messages start with one request. The other person chooses whether to continue."
-        action={<Link to="/app/community/chats" className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-[#f4dcc9] bg-white text-[#796f6b] dark:border-subtle dark:bg-surface-layer" aria-label="Back to chats"><ArrowLeft size={18} className="rtl:rotate-180" /></Link>}
       >
         <div className="mx-auto max-w-2xl">
           {relationship === undefined ? (
             <CommunityState kind="loading" />
           ) : relationshipError ? (
-            <CommunityState kind="error" title="Messages unavailable" body={relationshipError} actionLabel={recipientId ? "Try again" : "Back to Chats"} onAction={recipientId ? () => void load() : () => navigate("/app/community/chats")} />
+            <CommunityState kind="error" title="Messages unavailable" body={relationshipError} actionLabel={recipientId ? "Try again" : "Explore communities"} onAction={recipientId ? () => void load() : () => navigate("/app/community/explore")} />
           ) : pending || unavailable ? (
             <div className="rounded-[24px] border border-[#f4dcc9] bg-white p-7 text-center shadow-sm dark:border-subtle dark:bg-surface-layer">
               <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#fcead5] text-[#f45b16] dark:bg-brand/10 dark:text-brand">
