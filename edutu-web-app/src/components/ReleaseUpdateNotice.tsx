@@ -37,57 +37,88 @@ export default function ReleaseUpdateNotice() {
       window.removeEventListener('release-refresh-request', requested);
     };
   }, []);
+  // Only watch page layout while the update banner is actually visible.
+  // Previously a whole-document MutationObserver ran on every React DOM change
+  // even when there was no update, forcing repeated layout measurements.
   useEffect(() => {
+    if (!available) return;
     const notice = noticeRef.current;
-    const defaultBottom = notice?.style.bottom ?? '';
-    const defaultTop = notice?.style.top ?? '';
+    if (!notice) return;
+
+    const defaultBottom = notice.style.bottom;
+    const defaultTop = notice.style.top;
+    let frame: number | null = null;
+    let observedGate: HTMLElement | null = null;
+    // requestAnimationFrame is not implemented by some test/dom runtimes.
+    const supportsFrames =
+      typeof window.requestAnimationFrame === 'function' &&
+      typeof window.cancelAnimationFrame === 'function';
+    const requestFrame = supportsFrames
+      ? window.requestAnimationFrame.bind(window)
+      : (callback: FrameRequestCallback) =>
+          window.setTimeout(() => callback(performance.now()), 16);
+    const cancelFrame = supportsFrames
+      ? window.cancelAnimationFrame.bind(window)
+      : window.clearTimeout.bind(window);
+
+    const restorePosition = () => {
+      if (notice.style.bottom !== defaultBottom) notice.style.bottom = defaultBottom;
+      if (notice.style.top !== defaultTop) notice.style.top = defaultTop;
+    };
+
     const sync = () => {
       const gate = document.querySelector<HTMLElement>('[data-google-sign-in-gate]');
-      const currentNotice = noticeRef.current;
-      resizeObserver?.disconnect();
-      if (!currentNotice) return;
-      if (!gate || !available) {
-        currentNotice.style.bottom = defaultBottom;
-        currentNotice.style.top = defaultTop;
+      if (gate !== observedGate) {
+        if (observedGate) resizeObserver?.unobserve(observedGate);
+        observedGate = gate;
+        if (gate) resizeObserver?.observe(gate);
+      }
+
+      if (!gate) {
+        restorePosition();
         return;
       }
-      const noticeRect = currentNotice.getBoundingClientRect();
+
+      const noticeRect = notice.getBoundingClientRect();
       const gateRect = gate.getBoundingClientRect();
       const overlapsHorizontally =
         noticeRect.left < gateRect.right && noticeRect.right > gateRect.left;
       if (!overlapsHorizontally) {
-        currentNotice.style.bottom = defaultBottom;
-        currentNotice.style.top = defaultTop;
+        restorePosition();
         return;
       }
-      resizeObserver?.observe(gate);
-      resizeObserver?.observe(currentNotice);
-      // Keep the sign-in invitation at its normal position, and move the
-      // release notice above its top edge. This avoids covering the sheet's
-      // actions on short mobile screens and keeps the sheet fully usable.
-      const gap = 12;
-      // Use top coordinates from both elements directly. `innerHeight` can
-      // describe the layout viewport while fixed-element rectangles follow
-      // the mobile visual viewport, which can put a bottom-offset notice over
-      // the sign-in sheet on browsers with collapsing browser chrome.
-      const gateTop = gateRect.top;
-      const noticeHeight = noticeRect.height;
-      currentNotice.style.bottom = 'auto';
-      currentNotice.style.top = `${Math.max(16, Math.floor(gateTop - noticeHeight - gap))}px`;
+
+      // Use visual-viewport coordinates; innerHeight is unreliable on mobile
+      // browsers with collapsing address bars and safe-area insets.
+      const top = `${Math.max(16, Math.floor(gateRect.top - noticeRect.height - 12))}px`;
+      if (notice.style.bottom !== 'auto') notice.style.bottom = 'auto';
+      if (notice.style.top !== top) notice.style.top = top;
     };
-    const resizeObserver = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(sync);
-    const mutationObserver = new MutationObserver(sync);
+
+    // Coalesce DOM and resize events into one layout read per animation frame,
+    // avoiding observer/layout feedback during rapid dashboard updates.
+    const scheduleSync = () => {
+      if (frame !== null) return;
+      frame = requestFrame(() => {
+        frame = null;
+        sync();
+      });
+    };
+
+    const resizeObserver =
+      typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(scheduleSync);
+    resizeObserver?.observe(notice);
+    const mutationObserver = new MutationObserver(scheduleSync);
     mutationObserver.observe(document.body, { childList: true, subtree: true });
-    window.addEventListener('resize', sync);
+    window.addEventListener('resize', scheduleSync);
     sync();
+
     return () => {
       mutationObserver.disconnect();
       resizeObserver?.disconnect();
-      if (notice) {
-        notice.style.bottom = defaultBottom;
-        notice.style.top = defaultTop;
-      }
-      window.removeEventListener('resize', sync);
+      window.removeEventListener('resize', scheduleSync);
+      if (frame !== null) cancelFrame(frame);
+      restorePosition();
     };
   }, [available, message]);
   const refresh = async () => {
@@ -101,7 +132,7 @@ export default function ReleaseUpdateNotice() {
   };
   if (!available) return null;
   return <aside ref={noticeRef} data-release-refresh role="status" aria-live="polite" style={{ bottom: 'calc(16px + env(safe-area-inset-bottom))' }} className="fixed bottom-4 left-4 right-4 z-[79] mx-auto max-w-md rounded-2xl border border-blue-400/50 bg-slate-950 p-4 text-white shadow-xl sm:left-4 sm:right-auto sm:mx-0 sm:max-w-sm">
-    <p className="!text-white font-semibold">Top100 has been updated</p>
+    <p className="!text-white font-semibold">Edutu has been updated</p>
     {message && <p className="mt-2 !text-white/90 text-sm">{message}</p>}
     <button type="button" disabled={busy} onClick={() => void refresh()} className="mt-3 rounded-lg bg-blue-600 px-4 py-2 font-medium !text-white disabled:opacity-50">{busy ? 'Preparing refresh…' : 'Refresh now'}</button>
   </aside>;

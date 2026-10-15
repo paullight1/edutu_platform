@@ -889,7 +889,38 @@ function revalidateOpportunitiesInBackground(options: FetchOptions) {
   })();
 }
 
-export async function fetchOpportunities(
+// Multiple screens can request the same anonymous browse feed at once.
+// Share only the default request: per-user, filtered, paginated, forced and
+// abortable requests must keep their own lifecycle and response semantics.
+let inFlightBrowseRequest: Promise<Opportunity[]> | null = null;
+
+export function fetchOpportunities(
+  options: FetchOptions = {},
+): Promise<Opportunity[]> {
+  const canShare =
+    !options.signal &&
+    !options.force &&
+    options.userId === undefined &&
+    options.limit === undefined &&
+    options.offset === undefined &&
+    options.status === undefined &&
+    options.category === undefined;
+
+  if (!canShare) return loadOpportunities(options);
+  if (inFlightBrowseRequest) return inFlightBrowseRequest;
+
+  const request = loadOpportunities(options);
+  inFlightBrowseRequest = request;
+  // Use both handlers so a network rejection does not create a second,
+  // unhandled promise; callers still receive the original rejection.
+  void request.then(
+    () => { if (inFlightBrowseRequest === request) inFlightBrowseRequest = null; },
+    () => { if (inFlightBrowseRequest === request) inFlightBrowseRequest = null; },
+  );
+  return request;
+}
+
+async function loadOpportunities(
   options: FetchOptions = {},
 ): Promise<Opportunity[]> {
   const { force } = options;
