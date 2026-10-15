@@ -65,6 +65,7 @@ export default function CommunityProductShell({
   const { pathname } = useLocation();
   const showPrimaryNavigation = tabs.some(({ to }) => pathname === to);
   const isExplorePage = pathname === "/app/community/explore";
+  const isFocusedDm = /^\/app\/community\/dm\/[^/]+\/?$/.test(pathname) && pathname !== "/app/community/dm/new";
   const groupRoom =
     /^\/app\/community\/groups\/[^/]+\/?$/.test(pathname) &&
     pathname !== "/app/community/groups/new";
@@ -190,10 +191,11 @@ export default function CommunityProductShell({
 
       <div
         className={cn(
-          "mx-auto w-full max-w-3xl px-4 sm:px-5",
+          "mx-auto w-full max-w-3xl",
+          isFocusedDm ? "px-0 pb-0 sm:px-5" : "px-4 sm:px-5",
           showPrimaryNavigation
             ? "pb-[calc(5rem+env(safe-area-inset-bottom))]"
-            : "pb-[calc(1rem+env(safe-area-inset-bottom))]",
+            : isFocusedDm ? "" : "pb-[calc(1rem+env(safe-area-inset-bottom))]",
         )}
       >
         {children}
@@ -214,7 +216,7 @@ export default function CommunityProductShell({
                   to={to}
                   aria-current={active ? "page" : undefined}
                   className={cn(
-                    "relative flex min-w-0 flex-col items-center justify-center gap-1 text-[11px] font-semibold transition active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#f45b16]/35",
+                    "relative flex min-h-11 min-w-0 flex-col items-center justify-center gap-1 text-[11px] font-semibold transition active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#f45b16]/35",
                     active
                       ? "text-[#f45b16] dark:text-brand"
                       : "text-[#817a76] dark:text-text-muted",
