@@ -81,6 +81,17 @@ describe('web StateView', () => {
     );
   });
 
+  it('provides touch-friendly actions in narrow layouts and announces failures', () => {
+    const action = vi.fn();
+    const { container } = render(
+      <StateView state={{ kind: 'error', cause: 'network' }} flow="saved" onRetry={action} />,
+    );
+    expect(screen.getByRole('alert')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /try again/i }))
+      .toHaveClass('min-h-11', 'w-full', 'sm:w-auto');
+    expect(container.firstElementChild).toHaveClass('max-w-2xl', 'px-4');
+  });
+
   it('lets a screen override the copy', () => {
     render(
       <StateView
