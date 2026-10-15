@@ -72,7 +72,7 @@ export default function CommunityChatsPage() {
         title="Chats"
         description="Private conversations with people you have chosen to connect with."
         action={
-          <Link to="/app/community/dm/new" aria-label="New chat" className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-[#17120f] text-white transition hover:bg-[#f45b16] active:scale-95 dark:bg-text-primary dark:text-surface-body">
+          <Link to="/app/community/explore" aria-label="Find people to message" className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-[#17120f] text-white transition hover:bg-[#f45b16] active:scale-95 dark:bg-text-primary dark:text-surface-body">
             <Plus size={21} />
           </Link>
         }
