@@ -134,7 +134,7 @@ export default function CommunityDmPage() {
     } else if (stickToLatestRef.current) {
       viewport.scrollTop = viewport.scrollHeight;
     }
-  }, [messages]);
+  }, [messages, loading]);
 
   const onMessageScroll = () => {
     const viewport = messageViewportRef.current;
