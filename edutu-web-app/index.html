@@ -127,8 +127,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 
-    <!-- Warm the API + banner-image origins so first data/image requests skip DNS+TLS setup -->
-    <link rel="preconnect" href="https://edutu-platform.onrender.com" crossorigin />
+    <!-- Warm the production API + image origins before the first request -->
+    <link rel="preconnect" href="https://backend.edutu.org" crossorigin />
     <link rel="dns-prefetch" href="https://images.pexels.com" />
     <!-- Loaded here rather than via @import in index.css so the preload
          scanner finds them immediately.
