@@ -1,5 +1,5 @@
 import TextareaAutosize from "react-textarea-autosize";
-import { ArrowUp, Square } from "lucide-react";
+import { ArrowUp, Square, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import Button from "../../components/ui/Button";
 import "./coachComposer.css";
@@ -14,6 +14,7 @@ interface CoachComposerProps {
 
 export default function CoachComposer({ value, onChange, busy, onSend, onStop }: CoachComposerProps) {
   const { t } = useTranslation();
+  const isNearLimit = value.length >= 450;
   return (
     <div className="coach-composer-wrap">
       <form
@@ -24,6 +25,7 @@ export default function CoachComposer({ value, onChange, busy, onSend, onStop }:
         <label className="sr-only" htmlFor="coach-question">{t("workspaceCopy.yourQuestion", { defaultValue: "Your question" })}</label>
         <TextareaAutosize
           id="coach-question"
+          aria-describedby="coach-question-guidance"
           className="coach-input"
           minRows={1}
           maxRows={5}
@@ -32,14 +34,25 @@ export default function CoachComposer({ value, onChange, busy, onSend, onStop }:
           onChange={(event) => onChange(event.target.value)}
           placeholder={t("coachPage.placeholder", { defaultValue: "Message Edutu…" })}
           onKeyDown={(event) => {
-            if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
+            // A software keyboard Enter should insert a new line, not spend an AI message.
+            if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && !window.matchMedia?.("(pointer: coarse)").matches) {
               event.preventDefault();
               if (!busy && value.trim()) onSend();
             }
           }}
         />
         <div className="coach-composer-controls">
-          <span className="coach-composer-count">{value.length}/500</span>
+          {!busy && value.length > 0 && (
+            <button
+              type="button"
+              className="coach-composer-clear"
+              onClick={() => onChange("")}
+              aria-label={t("coachPage.clearDraft", { defaultValue: "Clear message" })}
+            >
+              <X size={16} aria-hidden="true" />
+            </button>
+          )}
+          <span className={`coach-composer-count${isNearLimit ? " is-near-limit" : ""}`} aria-live={isNearLimit ? "polite" : "off"}>{value.length}/500</span>
           <Button
             type={busy ? "button" : "submit"}
             className="coach-composer-submit"
@@ -51,8 +64,9 @@ export default function CoachComposer({ value, onChange, busy, onSend, onStop }:
           </Button>
         </div>
       </form>
-      <p className="coach-composer-caveat">
+      <p id="coach-question-guidance" className="coach-composer-caveat">
         {t("coachPage.aiCanMakeMistakes", { defaultValue: "AI can make mistakes. Check important details." })}
+        <span className="coach-composer-desktop-hint"> · {t("coachPage.keyboardHint", { defaultValue: "Enter to send · Shift+Enter for a new line" })}</span>
       </p>
     </div>
   );
