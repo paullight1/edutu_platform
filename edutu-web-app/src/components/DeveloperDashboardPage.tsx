@@ -21,6 +21,7 @@ import { v4 as uuidv4 } from "uuid";
 import {
   createCheckout,
   getCheckoutIntent,
+  handoffToBachsCheckout,
   type BillingTransaction,
   type CheckoutResponse,
 } from "../services/billing";
@@ -419,14 +420,7 @@ export default function DeveloperDashboardPage() {
     setCheckoutHandoff(handoff);
     setCheckoutToConfirm(null);
 
-    const checkoutWindow = window.open(
-      checkoutToConfirm.checkoutUrl,
-      "_blank",
-      "noopener,noreferrer",
-    );
-    if (!checkoutWindow) {
-      window.location.assign(checkoutToConfirm.checkoutUrl);
-    }
+    handoffToBachsCheckout(checkoutToConfirm.checkoutUrl);
   };
 
   const verifyCreditCheckout = useCallback(async (intentId: string) => {

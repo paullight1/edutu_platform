@@ -275,6 +275,38 @@ export function validateBachsCheckoutUrl(value: unknown): string {
   return url.toString();
 }
 
+interface BachsCheckoutWindow {
+  opener: Window | null;
+  location: Pick<Location, "replace">;
+}
+
+/**
+ * Open a trusted checkout in a user-initiated tab without the noopener return
+ * value trap. Browsers return null from window.open when the `noopener`
+ * feature is supplied, even when the new tab was opened successfully.
+ */
+export function handoffToBachsCheckout(
+  value: unknown,
+  options: {
+    openWindow?: (url: string, target: string) => BachsCheckoutWindow | null;
+    navigateCurrent?: (url: string) => void;
+  } = {},
+): "new-tab" | "same-tab" {
+  const checkoutUrl = validateBachsCheckoutUrl(value);
+  const openWindow = options.openWindow ?? ((url, target) => window.open(url, target));
+  const navigateCurrent = options.navigateCurrent ?? ((url) => window.location.assign(url));
+  const checkoutWindow = openWindow("about:blank", "_blank");
+
+  if (!checkoutWindow) {
+    navigateCurrent(checkoutUrl);
+    return "same-tab";
+  }
+
+  checkoutWindow.opener = null;
+  checkoutWindow.location.replace(checkoutUrl);
+  return "new-tab";
+}
+
 /** Accept only Bachs' first-party portal origin for account management. */
 export function validateBachsPortalUrl(value: unknown): string {
   if (typeof value !== "string") throw new Error("Billing returned an invalid portal URL.");

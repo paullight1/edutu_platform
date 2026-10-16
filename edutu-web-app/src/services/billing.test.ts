@@ -3,6 +3,7 @@ import * as billing from "./billing";
 import {
   checkoutUnavailableMessage,
   createCheckout,
+  handoffToBachsCheckout,
   getCreditProducts,
   BillingRequestError,
 } from "./billing";
@@ -238,6 +239,41 @@ describe("createCheckout", () => {
 
     expect(error).toBeInstanceOf(BillingRequestError);
     expect(error).toMatchObject({ status: 503, code: "billing_unavailable" });
+  });
+});
+
+describe("Bachs checkout handoff", () => {
+  const checkoutUrl = "https://checkout.bachs.io/s/session-123";
+
+  it("opens a blank tab, removes its opener, then navigates to the trusted checkout", () => {
+    const checkoutWindow = {
+      opener: {} as Window | null,
+      location: { replace: vi.fn() },
+    };
+    const openWindow = vi.fn().mockReturnValue(checkoutWindow);
+    const navigateCurrent = vi.fn();
+
+    expect(handoffToBachsCheckout(checkoutUrl, { openWindow, navigateCurrent })).toBe("new-tab");
+    expect(openWindow).toHaveBeenCalledWith("about:blank", "_blank");
+    expect(checkoutWindow.opener).toBeNull();
+    expect(checkoutWindow.location.replace).toHaveBeenCalledWith(checkoutUrl);
+    expect(navigateCurrent).not.toHaveBeenCalled();
+  });
+
+  it("falls back to the current tab if the browser blocks the new tab", () => {
+    const openWindow = vi.fn().mockReturnValue(null);
+    const navigateCurrent = vi.fn();
+
+    expect(handoffToBachsCheckout(checkoutUrl, { openWindow, navigateCurrent })).toBe("same-tab");
+    expect(navigateCurrent).toHaveBeenCalledWith(checkoutUrl);
+  });
+
+  it("rejects untrusted checkout destinations before opening a tab", () => {
+    const openWindow = vi.fn();
+    expect(() => handoffToBachsCheckout("https://attacker.example/pay", { openWindow })).toThrow(
+      "trusted Bachs checkout URL",
+    );
+    expect(openWindow).not.toHaveBeenCalled();
   });
 });
 
