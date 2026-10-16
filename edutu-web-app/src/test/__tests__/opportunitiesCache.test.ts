@@ -158,6 +158,57 @@ describe("opportunities snapshot cache", () => {
     expect(service.getCachedOpportunitiesSync()).toEqual(initialRows);
   });
 
+  it("reports an empty-feed database outage instead of a false empty catalog", async () => {
+    const fetch = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/health/ready")) {
+        return {
+          ok: false,
+          status: 503,
+          json: async () => ({ status: "not_ready" }),
+        } as Response;
+      }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ opportunities: [] }),
+      } as Response;
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    const service = await importOpportunities();
+
+    await expect(service.fetchOpportunities()).rejects.toThrow(
+      "Opportunities are temporarily unavailable. Please try again.",
+    );
+    expect(fetch).toHaveBeenCalledWith(
+      "https://api.example.test/health/ready",
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
+
+  it("keeps a genuinely empty catalog as a normal empty result when readiness is healthy", async () => {
+    const fetch = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      return {
+        ok: true,
+        status: 200,
+        json: async () => url.includes("/health/ready")
+          ? ({ status: "ready" })
+          : ({ opportunities: [] }),
+      } as Response;
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    const service = await importOpportunities();
+
+    await expect(service.fetchOpportunities()).resolves.toEqual([]);
+    expect(fetch).toHaveBeenCalledWith(
+      "https://api.example.test/health/ready",
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
+
   it("normalizes the generated share card when the source has no image", async () => {
     vi.stubGlobal(
       "fetch",

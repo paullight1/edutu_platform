@@ -760,6 +760,17 @@ async function requestStaticOpportunitySnapshot(
   return normaliseOpportunityRows(rows);
 }
 
+async function assertOpportunityServiceReady(signal?: AbortSignal): Promise<void> {
+  const response = await fetch(buildBackendUrl("/health/ready"), {
+    method: "GET",
+    signal,
+    headers: { Accept: "application/json" },
+  });
+  if (!response.ok) {
+    throw new Error("Opportunities are temporarily unavailable. Please try again.");
+  }
+}
+
 // The backend public feed caps each page (PUBLIC_FEED_PAGE_SIZE = 60) and caps
 // offset depth (PUBLIC_FEED_MAX_OFFSET = 480) as an anti-harvest measure. A
 // single request therefore never returns more than 60 rows, so to browse the
@@ -926,6 +937,15 @@ export async function fetchOpportunities(
       normalised.length > 0
         ? normalised
         : await requestStaticOpportunitySnapshot(options);
+
+    // A backend outage can currently fall back to an empty static snapshot
+    // and look identical to a genuinely empty catalog. Probe readiness only
+    // in that ambiguous case so the UI can show a recoverable error instead
+    // of telling learners that no opportunities exist.
+    if (resolvedOpportunities.length === 0) {
+      await assertOpportunityServiceReady(options.signal);
+    }
+
     if (resolvedOpportunities.length > 0) {
       setOpportunityCache(resolvedOpportunities);
     }
