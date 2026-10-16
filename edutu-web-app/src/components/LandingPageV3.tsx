@@ -5,6 +5,7 @@ import {
     Clock,
     User,
     ChevronDown,
+    RefreshCw,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
@@ -195,6 +196,7 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
         data: opportunities,
         loading: opportunitiesLoading,
         error: opportunitiesError,
+        refresh: refreshOpportunities,
     } = useOpportunities();
     const reduceMotion = useReducedMotion();
     const [openFAQ, setOpenFAQ] = useState<number | null>(null);
@@ -355,6 +357,16 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                                         ? "We couldn't load the latest opportunities just now."
                                         : 'No opportunities are listed right now — new ones are added continuously.'}
                                 </p>
+                                {opportunitiesError && (
+                                    <button
+                                        type="button"
+                                        onClick={refreshOpportunities}
+                                        className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-full border border-subtle bg-surface-body px-4 py-2 text-sm font-semibold text-text-primary transition hover:border-brand/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+                                    >
+                                        <RefreshCw size={15} aria-hidden="true" />
+                                        Try again
+                                    </button>
+                                )}
                                 <Link
                                     to="/opportunities"
                                     className="mt-4 inline-flex items-center gap-2 text-base font-semibold text-brand no-underline"

@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import LandingPageV3 from "../../components/LandingPageV3";
@@ -6,6 +6,8 @@ import type { Opportunity } from "../../types/opportunity";
 
 const opportunityState = vi.hoisted(() => ({
   data: [] as Opportunity[],
+  error: null as string | null,
+  refresh: vi.fn(),
 }));
 const opportunityShuffleState = vi.hoisted(() => ({ seed: 42 }));
 
@@ -24,7 +26,8 @@ vi.mock("../../hooks/useOpportunities", () => ({
   useOpportunities: () => ({
     data: opportunityState.data,
     loading: false,
-    error: null,
+    error: opportunityState.error,
+    refresh: opportunityState.refresh,
   }),
 }));
 
@@ -77,11 +80,27 @@ const makeOpportunity = (
 
 afterEach(() => {
   opportunityState.data = [];
+  opportunityState.error = null;
+  opportunityState.refresh.mockReset();
   opportunityShuffleState.seed = 42;
   vi.restoreAllMocks();
 });
 
 describe("LandingPageV3 country reach", () => {
+  it("offers retry when the home opportunity teaser cannot load", () => {
+    opportunityState.error = "Opportunities are temporarily unavailable. Please try again.";
+
+    render(
+      <MemoryRouter>
+        <LandingPageV3 onGetStarted={vi.fn()} />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText("We couldn't load the latest opportunities just now.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(opportunityState.refresh).toHaveBeenCalledTimes(1);
+  });
+
   it("renders two country rows moving in opposite directions", () => {
     const { container } = render(
       <MemoryRouter>
