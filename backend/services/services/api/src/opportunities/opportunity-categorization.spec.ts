@@ -42,6 +42,21 @@ describe("opportunity categorization", () => {
     expect(result.source).toBe("rules");
   });
 
+  it("classifies an ambassador program by its precise title over generic event metadata", () => {
+    const result = classifyOpportunity({
+      category: "Events",
+      type: "competition",
+      title: "HSC Youth Ambassador Program 2027 in Germany",
+      description:
+        "Selected youth ambassadors will contribute to the Hamburg Sustainability Conference.",
+    });
+
+    expect(result.canonicalCategory).toBe("programs");
+    expect(result.matchedSignals).toContain(
+      "title: ambassador development program",
+    );
+  });
+
   it("only preserves a stored category when it is explicitly locked", () => {
     expect(
       categorizeOpportunity({
