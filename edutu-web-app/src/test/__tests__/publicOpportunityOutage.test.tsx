@@ -38,6 +38,8 @@ describe("public opportunities outage state", () => {
     expect(
       screen.getByRole("heading", { name: "Opportunities are temporarily unavailable" }),
     ).toBeInTheDocument();
+    expect(screen.getAllByText("Results temporarily unavailable")).toHaveLength(2);
+    expect(screen.queryByText("0 results")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Try again" }));
     expect(refresh).toHaveBeenCalledTimes(1);
   });

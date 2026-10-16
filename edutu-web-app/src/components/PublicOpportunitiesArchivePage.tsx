@@ -446,6 +446,9 @@ export default function PublicOpportunitiesArchivePage() {
       .filter((opportunity) => matchesSearch(opportunity, searchQuery))
       .sort((left, right) => updatedTime(right) - updatedTime(left));
   }, [category, opportunities, searchQuery]);
+  const resultSummary = error && filtered.length === 0
+    ? "Results temporarily unavailable"
+    : `${filtered.length.toLocaleString()} result${filtered.length === 1 ? "" : "s"}`;
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const page = parsePageParam(String(requestedPage), totalPages);
@@ -655,8 +658,8 @@ export default function PublicOpportunitiesArchivePage() {
               </button>
             </div>
           </div>
-          <p className="mt-3 text-xs font-medium text-text-muted">
-            {filtered.length.toLocaleString()} result{filtered.length === 1 ? "" : "s"}
+          <p className="mt-3 text-xs font-medium text-text-muted" role="status" aria-live="polite">
+            {resultSummary}
           </p>
         </section>
 
@@ -809,9 +812,8 @@ export default function PublicOpportunitiesArchivePage() {
             />
           </div>
           <div className="flex items-center justify-between gap-3 sm:justify-end">
-            <p className="text-sm font-medium text-text-muted">
-              {filtered.length.toLocaleString()} result
-              {filtered.length === 1 ? "" : "s"}
+            <p className="text-sm font-medium text-text-muted" role="status" aria-live="polite">
+              {resultSummary}
             </p>
             <button
               type="button"
@@ -917,7 +919,7 @@ export default function PublicOpportunitiesArchivePage() {
             </div>
           ) : null}
 
-          {!loading && !searchQuery.trim() ? (
+          {!loading && !searchQuery.trim() && (!error || filtered.length > 0) ? (
             <Pagination
               page={page}
               totalPages={totalPages}
