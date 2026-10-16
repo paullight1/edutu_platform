@@ -63,6 +63,16 @@ describe("AI cost policy", () => {
         totalTokens: 1_000_000,
       }),
     ).toBeCloseTo(0.01, 8);
+
+    expect(
+      estimateAiCostUsd({
+        provider: "openai",
+        model: "text-embedding-3-small",
+        promptTokens: null,
+        completionTokens: null,
+        totalTokens: 1_000_000,
+      }),
+    ).toBeCloseTo(0.02, 8);
   });
 
   it("gives compact structured opportunity reranking a smaller output budget", () => {

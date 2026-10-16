@@ -83,4 +83,32 @@ describe("profile-led opportunity discovery", () => {
     expect(result.opportunities[0].id).toBe("unopened");
     expect(result.opportunities[0].match_fit).toBeGreaterThan(20);
   });
+
+  it("passes the profile embedding model through to semantic retrieval", async () => {
+    const ranking = service();
+    (ranking as any).embeddingService.getProfileEmbedding = async () => ({
+      embedding: [0.1, 0.2],
+      model: "text-embedding-3-small",
+    });
+    const fetchSemantic = jest
+      .spyOn(ranking as any, "fetchCandidatesSemantic")
+      .mockResolvedValue([
+        {
+          id: "semantic",
+          title: "Robotics internship",
+          applyUrl: "https://example.org/apply",
+        },
+      ]);
+
+    await ranking.queryRecommendations({
+      userId: "member",
+      profile: { preferences: { interests: ["robotics"] } } as never,
+    });
+
+    expect(fetchSemantic).toHaveBeenCalledWith(
+      [0.1, 0.2],
+      "text-embedding-3-small",
+      [],
+    );
+  });
 });

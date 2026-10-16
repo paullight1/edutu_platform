@@ -8,6 +8,53 @@ const mockedAiFetch = aiFetch as jest.MockedFunction<typeof aiFetch>;
 beforeEach(() => mockedAiFetch.mockClear());
 
 describe("OpenAiAdapter", () => {
+  it("returns embeddings in input order at the requested dimensions", async () => {
+    mockedAiFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        data: [
+          { index: 1, embedding: [0.2, 0.3] },
+          { index: 0, embedding: [0.1, 0.2] },
+        ],
+        usage: { total_tokens: 17 },
+      }),
+    } as Response);
+    const adapter = new OpenAiAdapter();
+
+    await expect(
+      adapter.generateEmbedding(
+        {
+          feature: "embeddings.opportunity",
+          provider: "openai",
+          model: "text-embedding-3-small",
+          apiKey: "test-key",
+          isEnabled: true,
+        },
+        {
+          feature: "embeddings.opportunity",
+          input: ["first opportunity", "second opportunity"],
+          dimensions: 768,
+        },
+      ),
+    ).resolves.toEqual({
+      embeddings: [
+        [0.1, 0.2],
+        [0.2, 0.3],
+      ],
+      provider: "openai",
+      model: "text-embedding-3-small",
+      usage: { totalTokens: 17 },
+    });
+
+    const [url, init] = mockedAiFetch.mock.calls[0];
+    expect(url).toBe("https://api.openai.com/v1/embeddings");
+    expect(JSON.parse(String(init.body))).toMatchObject({
+      model: "text-embedding-3-small",
+      dimensions: 768,
+      encoding_format: "float",
+    });
+  });
+
   it("normalizes nested objects for OpenAI strict JSON schema output", async () => {
     mockedAiFetch.mockResolvedValue({
       ok: true,

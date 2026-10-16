@@ -1,6 +1,7 @@
 import { AiService } from "./ai.service";
 import { GeminiAdapter, DeepSeekAdapter } from "./adapters/gemini.adapter";
 import { OpenRouterAdapter } from "./adapters/openrouter.adapter";
+import { OpenAiAdapter } from "./adapters/openai.adapter";
 import { aiFetch } from "./adapters/ai-http";
 import type { AiEncryptionService } from "./ai-encryption.service";
 import type { AiRouteConfig } from "./ai.types";
@@ -44,6 +45,7 @@ function buildService() {
     new DeepSeekAdapter(),
     new GeminiAdapter(),
     new OpenRouterAdapter(),
+    new OpenAiAdapter(),
   );
 }
 
@@ -52,14 +54,32 @@ function geminiEmbedResponse(count: number) {
     ok: true,
     json: async () => ({
       embeddings: Array.from({ length: count }, (_, i) => ({
-        values: [i, i + 0.5, i + 0.25],
+        values: Array.from({ length: 768 }, (_value, dimension) =>
+          dimension === 0 ? i + 0.5 : 0.25,
+        ),
       })),
+    }),
+  };
+}
+
+function openAiEmbedResponse(count: number) {
+  return {
+    ok: true,
+    json: async () => ({
+      data: Array.from({ length: count }, (_, index) => ({
+        index,
+        embedding: Array.from({ length: 768 }, (_value, dimension) =>
+          dimension === 0 ? index + 0.5 : 0.25,
+        ),
+      })),
+      usage: { total_tokens: 12 },
     }),
   };
 }
 
 describe("AiService.embed", () => {
   const originalGeminiKey = process.env.GEMINI_API_KEY;
+  const originalOpenAiKey = process.env.OPENAI_API_KEY;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -70,6 +90,11 @@ describe("AiService.embed", () => {
       delete process.env.GEMINI_API_KEY;
     } else {
       process.env.GEMINI_API_KEY = originalGeminiKey;
+    }
+    if (originalOpenAiKey === undefined) {
+      delete process.env.OPENAI_API_KEY;
+    } else {
+      process.env.OPENAI_API_KEY = originalOpenAiKey;
     }
   });
 
@@ -96,6 +121,7 @@ describe("AiService.embed", () => {
 
   it("returns null (not throw) when the provider API key is missing", async () => {
     delete process.env.GEMINI_API_KEY;
+    delete process.env.OPENAI_API_KEY;
 
     const service = buildService();
     const result = await service.embed({
@@ -107,8 +133,34 @@ describe("AiService.embed", () => {
     expect(mockedAiFetch).not.toHaveBeenCalled();
   });
 
-  it("reroutes to gemini when the routed provider has no embeddings support", async () => {
+  it("uses OpenAI embeddings when Gemini is not configured", async () => {
+    delete process.env.GEMINI_API_KEY;
+    process.env.OPENAI_API_KEY = "test-openai-key";
+    mockedAiFetch.mockResolvedValue(openAiEmbedResponse(1));
+
+    const result = await buildService().embed({
+      feature: "embeddings.opportunity",
+      input: "Scholarship for engineers",
+    });
+
+    expect(result).toMatchObject({
+      provider: "openai",
+      model: "text-embedding-3-small",
+      embeddings: [expect.arrayContaining([expect.any(Number)])],
+    });
+    expect(result?.embeddings[0]).toHaveLength(768);
+    const [url, init] = mockedAiFetch.mock.calls[0];
+    expect(url).toBe("https://api.openai.com/v1/embeddings");
+    expect(JSON.parse(init.body)).toMatchObject({
+      model: "text-embedding-3-small",
+      dimensions: 768,
+    });
+  });
+
+  it("reroutes to a provider with embedding support", async () => {
     process.env.GEMINI_API_KEY = "test-key";
+    delete process.env.OPENAI_API_KEY;
+    mockedAiFetch.mockResolvedValue(geminiEmbedResponse(1));
     const service = buildService();
     // Force a deepseek route through a feature with no embeddings default.
     const result = await service.embed({
@@ -117,8 +169,7 @@ describe("AiService.embed", () => {
     });
 
     // chat.coach resolves to deepseek, whose adapter lacks generateEmbedding.
-    // Embeddings must stay on gemini, so the service reroutes there instead
-    // of silently dropping the embedding.
+    // The service skips providers without embedding support and uses Gemini.
     expect(result).not.toBeNull();
     expect(result?.provider).toBe("gemini");
     expect(result?.embeddings.length).toBeGreaterThan(0);
@@ -126,6 +177,7 @@ describe("AiService.embed", () => {
 
   it("returns null instead of throwing when the request fails", async () => {
     process.env.GEMINI_API_KEY = "test-key";
+    delete process.env.OPENAI_API_KEY;
     mockedAiFetch.mockResolvedValue({
       ok: false,
       status: 429,

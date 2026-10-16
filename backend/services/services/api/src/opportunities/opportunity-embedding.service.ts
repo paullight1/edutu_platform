@@ -70,6 +70,7 @@ export class OpportunityEmbeddingService {
   private readonly profileEmbeddingCache = new TtlCache<{
     hash: string;
     embedding: number[];
+    model: string;
   }>(PROFILE_EMBEDDING_CACHE_TTL_MS, 500);
   // Avoid issuing the same delete query on every recommendation request after
   // a user opts out. This is only a local purge memo; consent itself is always
@@ -267,7 +268,7 @@ export class OpportunityEmbeddingService {
     userId: string,
     profile: ProfileLike,
     preferences: PreferencesLike,
-  ): Promise<number[] | null> {
+  ): Promise<{ embedding: number[]; model: string } | null> {
     try {
       // Privacy is checked before reading AI memories, rendering profile text,
       // consulting an existing vector, or calling the external provider. The
@@ -310,7 +311,9 @@ export class OpportunityEmbeddingService {
       const hash = createHash("sha256").update(text).digest("hex");
 
       const cached = this.profileEmbeddingCache.get(userId);
-      if (cached && cached.hash === hash) return cached.embedding;
+      if (cached && cached.hash === hash) {
+        return { embedding: cached.embedding, model: cached.model };
+      }
 
       const [stored] = await db
         .select()
@@ -321,9 +324,13 @@ export class OpportunityEmbeddingService {
 
       if (stored && stored.profileHash === hash) {
         const embedding = parseVector(stored.embedding);
-        if (embedding?.length) {
-          this.profileEmbeddingCache.set(userId, { hash, embedding });
-          return embedding;
+        if (embedding?.length && stored.embeddingModel) {
+          this.profileEmbeddingCache.set(userId, {
+            hash,
+            embedding,
+            model: stored.embeddingModel,
+          });
+          return { embedding, model: stored.embeddingModel };
         }
       }
 
@@ -358,8 +365,9 @@ export class OpportunityEmbeddingService {
         })
         .execute();
 
-      this.profileEmbeddingCache.set(userId, { hash, embedding });
-      return embedding;
+      const model = result!.model;
+      this.profileEmbeddingCache.set(userId, { hash, embedding, model });
+      return { embedding, model };
     } catch (error) {
       this.logger.warn(
         `getProfileEmbedding(${userId}) failed: ${

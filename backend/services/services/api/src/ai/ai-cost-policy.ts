@@ -17,6 +17,7 @@ const MODEL_PRICES_PER_MILLION_TOKENS_USD: Readonly<
   "deepseek:deepseek-chat": { input: 0.27, output: 1.1 },
   "openrouter:deepseek/deepseek-chat": { input: 0.27, output: 1.1 },
   "gemini:text-embedding-004": { input: 0.01, output: 0 },
+  "openai:text-embedding-3-small": { input: 0.02, output: 0 },
   "gemini:gemini-2.0-flash": { input: 0.1, output: 0.4 },
 };
 

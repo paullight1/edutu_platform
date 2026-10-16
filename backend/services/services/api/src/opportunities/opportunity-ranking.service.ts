@@ -152,10 +152,10 @@ export class OpportunityRankingService {
   private readonly supabase: SupabaseClient | null = null;
   private readonly weights: BlendWeights = loadWeightsFromEnv();
   // Anonymous-query profile embeddings keyed by profile hash (30 min).
-  private readonly queryEmbeddingCache = new TtlCache<number[]>(
-    30 * 60 * 1000,
-    300,
-  );
+  private readonly queryEmbeddingCache = new TtlCache<{
+    embedding: number[];
+    model: string;
+  }>(30 * 60 * 1000, 300);
   // Short per-user response cache for the authed feed. Keyed by user+params;
   // per-user key tracking lets a dismiss signal invalidate immediately.
   private readonly responseCache = new TtlCache<
@@ -434,7 +434,7 @@ export class OpportunityRankingService {
     // Semantic retrieval needs the profile embedding first; everything else
     // parallelizes behind it. Null embedding = heuristic floor (no key, cold
     // profile, engine flag off) — the request always succeeds.
-    let profileEmbedding: number[] | null = null;
+    let profileEmbedding: { embedding: number[]; model: string } | null = null;
     if (RECS_ENGINE === "hybrid") {
       profileEmbedding = request.userId
         ? await this.embeddingService.getProfileEmbedding(
@@ -448,7 +448,11 @@ export class OpportunityRankingService {
     const [rows, dismissedIds, signalScores, categoryAffinities, engagement] =
       await Promise.all([
         profileEmbedding
-          ? this.fetchCandidatesSemantic(profileEmbedding, excludeIds)
+          ? this.fetchCandidatesSemantic(
+              profileEmbedding.embedding,
+              profileEmbedding.model,
+              excludeIds,
+            )
           : this.fetchCandidateOpportunities(excludeIds),
         request.userId
           ? this.getDismissedOpportunityIds(request.userId)
@@ -595,7 +599,11 @@ export class OpportunityRankingService {
         : null;
 
     const [rows, signalScores, categoryAffinities] = await Promise.all([
-      this.fetchOpportunitiesByIds(ids, profileEmbedding),
+      this.fetchOpportunitiesByIds(
+        ids,
+        profileEmbedding?.embedding ?? null,
+        profileEmbedding?.model ?? null,
+      ),
       this.getUserSignalScores(userId),
       this.getUserCategoryAffinities(userId),
     ]);
@@ -646,7 +654,7 @@ export class OpportunityRankingService {
   private async resolveQueryEmbedding(
     profile: RecommendationQueryDto["profile"],
     preferences: OpportunityPreferenceDto | null,
-  ): Promise<number[] | null> {
+  ): Promise<{ embedding: number[]; model: string } | null> {
     const text = this.embeddingService.buildProfileText(
       profile as Record<string, unknown> | null,
       preferences as Record<string, unknown> | null,
@@ -670,30 +678,34 @@ export class OpportunityRankingService {
         taskType: "RETRIEVAL_QUERY",
         dimensions: 768,
       });
-      return result?.embeddings?.[0] ?? null;
+      const embedding = result?.embeddings?.[0];
+      return embedding?.length && result?.model
+        ? { embedding, model: result.model }
+        : null;
     })();
 
     const embedding = await Promise.race([embed, timeout]);
-    if (embedding?.length) {
+    if (embedding?.embedding.length) {
       this.queryEmbeddingCache.set(hash, embedding);
       return embedding;
     }
 
     // If the provider answers after the race, cache for the next request.
     void embed.then((late) => {
-      if (late?.length) this.queryEmbeddingCache.set(hash, late);
+      if (late?.embedding.length) this.queryEmbeddingCache.set(hash, late);
     });
     return null;
   }
 
   /**
    * Semantic candidate retrieval: ANN top-N by profile-embedding similarity,
-   * UNION'd with recent unembedded rows so brand-new opportunities still
-   * surface before their embedding lands. Raw SQL over the pg pool because
+   * UNION'd with unembedded rows so opportunities remain discoverable while
+   * the corpus is cold or embeddings are backfilled. Raw SQL over the pg pool because
    * supabase-js cannot express the `<=>` operator.
    */
   private async fetchCandidatesSemantic(
     profileEmbedding: number[],
+    embeddingModel: string,
     excludeIds: string[],
   ): Promise<RecommendationOpportunity[]> {
     const vectorLiteral = `[${profileEmbedding.join(",")}]`;
@@ -707,6 +719,7 @@ export class OpportunityRankingService {
           where ${discoverableOpportunitySql("o")}
             and (o.close_date is null or o.close_date >= current_date)
             and o.embedding is not null
+            and o.embedding_model = ${embeddingModel}
             ${exclude ? sql`and not (o.id = any(${exclude}::uuid[]))` : sql``}
           order by o.embedding <=> ${vectorLiteral}::vector
           limit ${RECS_ANN_CANDIDATES}
@@ -720,7 +733,7 @@ export class OpportunityRankingService {
             and o.embedding is null
             ${exclude ? sql`and not (o.id = any(${exclude}::uuid[]))` : sql``}
           order by o.updated_at desc
-          limit 100
+          limit ${RECS_ANN_CANDIDATES}
         )
       `);
 
@@ -742,10 +755,11 @@ export class OpportunityRankingService {
   private async fetchOpportunitiesByIds(
     ids: string[],
     profileEmbedding: number[] | null,
+    embeddingModel: string | null,
   ): Promise<RecommendationOpportunity[]> {
     try {
       const similarity = profileEmbedding
-        ? sql`case when o.embedding is null then null else 1 - (o.embedding <=> ${`[${profileEmbedding.join(",")}]`}::vector) end`
+        ? sql`case when o.embedding is null or o.embedding_model is distinct from ${embeddingModel} then null else 1 - (o.embedding <=> ${`[${profileEmbedding.join(",")}]`}::vector) end`
         : sql`null`;
       const result = await db.execute(sql`
         select o.*, ${similarity} as semantic_similarity

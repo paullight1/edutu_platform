@@ -49,6 +49,12 @@ function isCallerCancellation(error: unknown, signal?: AbortSignal): boolean {
   );
 }
 
+function defaultEmbeddingModel(provider: string): string | null {
+  if (provider === "openai") return "text-embedding-3-small";
+  if (provider === "gemini") return "text-embedding-004";
+  return null;
+}
+
 // Server-side output-token ceiling applied when a route doesn't set one, so a
 // large prompt can't run up an unbounded (and unbudgeted) completion.
 const DEFAULT_MAX_OUTPUT_TOKENS = aiNumberEnv(
@@ -339,22 +345,28 @@ const DEFAULT_ROUTES: Record<
     responseMimeType: "application/json",
     isEnabled: true,
   },
-  // Embeddings power semantic recommendation retrieval. DeepSeek has no
-  // embeddings API, so these route to Gemini; the engine degrades to the
-  // heuristic ranker when the key/route is unavailable (embed() -> null).
+  // Embeddings power semantic recommendation retrieval. Prefer Gemini, then
+  // fall back to OpenAI's compatible 768-dimensional embedding model when the
+  // Gemini key or endpoint is unavailable.
   "embeddings.opportunity": {
     provider: "gemini",
     model: "text-embedding-004",
+    fallbackProvider: "openai",
+    fallbackModel: "text-embedding-3-small",
     isEnabled: true,
   },
   "embeddings.profile": {
     provider: "gemini",
     model: "text-embedding-004",
+    fallbackProvider: "openai",
+    fallbackModel: "text-embedding-3-small",
     isEnabled: true,
   },
   "embeddings.query": {
     provider: "gemini",
     model: "text-embedding-004",
+    fallbackProvider: "openai",
+    fallbackModel: "text-embedding-3-small",
     isEnabled: true,
   },
 };
@@ -773,7 +785,6 @@ export class AiService {
    * as "semantic signal unavailable" and fall back to heuristics.
    */
   async embed(options: AiEmbedOptions): Promise<AiEmbedResult | null> {
-    const startedAt = Date.now();
     let route: AiRouteConfig;
     try {
       route = await this.resolveRoute({ feature: options.feature, prompt: "" });
@@ -791,30 +802,8 @@ export class AiService {
     // honor the resolved model when it plausibly is one; otherwise pin the
     // feature's default. Admins can still override via ai_routes with a real
     // embedding model.
-    if (!/embedding/i.test(route.model)) {
-      route = {
-        ...route,
-        model: DEFAULT_ROUTES[options.feature]?.model || "text-embedding-004",
-      };
-    }
-
     if (!route.isEnabled) {
       this.logger.warn(`Embedding feature ${options.feature} is disabled`);
-      return null;
-    }
-
-    const adapter = this.adapters.get(route.provider);
-    if (!adapter?.generateEmbedding) {
-      this.logger.warn(
-        `Provider ${route.provider} has no embeddings support (feature ${options.feature})`,
-      );
-      return null;
-    }
-
-    if (!route.apiKey) {
-      this.logger.warn(
-        `No API key for embeddings provider ${route.provider} (feature ${options.feature}) — semantic scoring degraded`,
-      );
       return null;
     }
 
@@ -824,38 +813,83 @@ export class AiService {
       metadata: options.metadata,
     };
 
-    try {
-      const result = await adapter.generateEmbedding(route, {
-        dimensions: 768,
-        ...options,
-      });
-      void this.logUsage(
-        logOptions,
-        route,
-        {
-          text: "",
-          provider: result.provider,
-          model: result.model,
-          usage: { totalTokens: result.usage?.totalTokens },
-        },
-        Date.now() - startedAt,
-      );
-      return result;
-    } catch (error) {
-      void this.logUsage(
-        logOptions,
-        route,
-        null,
-        Date.now() - startedAt,
-        error,
-      );
-      this.logger.warn(
-        `Embedding request failed for ${options.feature}: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-      );
-      return null;
+    const routes = [route, ...(await this.resolveFallbackRoutes(route))];
+    for (const candidate of routes) {
+      const model = /embedding/i.test(candidate.model)
+        ? candidate.model
+        : defaultEmbeddingModel(candidate.provider);
+      if (!model) continue;
+      const candidateRoute = { ...candidate, model };
+      const adapter = this.adapters.get(candidateRoute.provider);
+      if (!adapter?.generateEmbedding) {
+        continue;
+      }
+      if (!candidateRoute.apiKey) {
+        this.logger.warn(
+          `No API key for embeddings provider ${candidateRoute.provider} (feature ${options.feature})`,
+        );
+        continue;
+      }
+
+      const startedAt = Date.now();
+      try {
+        const result = await adapter.generateEmbedding(candidateRoute, {
+          dimensions: 768,
+          ...options,
+        });
+        const expectedCount = Array.isArray(options.input)
+          ? options.input.length
+          : 1;
+        if (
+          result.embeddings.length !== expectedCount ||
+          result.embeddings.some(
+            (embedding) =>
+              embedding.length !== 768 ||
+              embedding.some((value) => !Number.isFinite(value)),
+          )
+        ) {
+          throw new Error(
+            `Embedding provider returned vectors incompatible with the 768-dimensional index`,
+          );
+        }
+        void this.logUsage(
+          logOptions,
+          candidateRoute,
+          {
+            text: "",
+            provider: result.provider,
+            model: result.model,
+            usage: { totalTokens: result.usage?.totalTokens },
+          },
+          Date.now() - startedAt,
+        );
+        if (candidateRoute.provider !== route.provider) {
+          this.logger.warn(
+            `AI feature ${options.feature} failed or lacked credentials on ${route.provider}; using ${candidateRoute.provider} embeddings`,
+          );
+        }
+        return result;
+      } catch (error) {
+        void this.logUsage(
+          logOptions,
+          candidateRoute,
+          null,
+          Date.now() - startedAt,
+          error,
+        );
+        if (isCallerCancellation(error, options.signal)) throw error;
+        this.logger.warn(
+          `Embedding request failed for ${options.feature} on ${candidateRoute.provider}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
     }
+
+    this.logger.warn(
+      `No available embeddings provider for ${options.feature} — semantic scoring degraded`,
+    );
+    return null;
   }
 
   // Returns a cache key only for deterministic generations — very low

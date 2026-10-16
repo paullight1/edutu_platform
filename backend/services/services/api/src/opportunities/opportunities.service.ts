@@ -628,7 +628,7 @@ export class OpportunitiesService {
     // provider (hard 1500ms budget, proceed lexically-only on miss).
     const queryEmbedding = await this.resolveSearchEmbedding(trimmed);
     const vectorLiteral = queryEmbedding
-      ? `[${queryEmbedding.join(",")}]`
+      ? `[${queryEmbedding.embedding.join(",")}]`
       : null;
 
     const activeFilter = sql`
@@ -650,6 +650,7 @@ export class OpportunitiesService {
             from opportunities o
             where ${activeFilter}
               and o.embedding is not null
+              and o.embedding_model = ${queryEmbedding?.model ?? ""}
             order by o.embedding <=> ${vectorLiteral}::vector
             limit 100
           )`
@@ -778,7 +779,9 @@ export class OpportunitiesService {
    * Query embedding for the semantic leg, raced against a hard timeout so
    * search never blocks on the LLM provider. Null = skip the semantic leg.
    */
-  private async resolveSearchEmbedding(term: string): Promise<number[] | null> {
+  private async resolveSearchEmbedding(
+    term: string,
+  ): Promise<{ embedding: number[]; model: string } | null> {
     const SEARCH_EMBED_TIMEOUT_MS = 1500;
     try {
       const timeout = new Promise<null>((resolve) =>
@@ -791,11 +794,14 @@ export class OpportunitiesService {
           taskType: "RETRIEVAL_QUERY",
           dimensions: 768,
         });
-        return result?.embeddings?.[0] ?? null;
+        const embedding = result?.embeddings?.[0];
+        return embedding?.length && result?.model
+          ? { embedding, model: result.model }
+          : null;
       })().catch(() => null);
 
       const embedding = await Promise.race([embed, timeout]);
-      return embedding?.length === 768 ? embedding : null;
+      return embedding?.embedding.length === 768 ? embedding : null;
     } catch {
       return null;
     }
