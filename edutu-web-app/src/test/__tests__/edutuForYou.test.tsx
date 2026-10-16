@@ -311,10 +311,13 @@ describe("EdutuForYouBand", () => {
     renderBand();
     const bar = screen.getByRole("progressbar");
     expect(bar).toHaveAttribute("aria-valuemax", "1000000");
+    expect(bar).toHaveAttribute("aria-valuenow", "67000");
     expect(
       within(bar.parentElement as HTMLElement).getByText(
         /of 1,000,000 reached/i,
       ),
     ).toBeInTheDocument();
+    expect(within(bar.parentElement as HTMLElement).getByText("67,000"))
+      .toBeInTheDocument();
   });
 });

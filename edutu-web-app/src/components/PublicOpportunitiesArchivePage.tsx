@@ -24,6 +24,7 @@ import {
   X,
 } from "lucide-react";
 import { useOpportunities } from "../hooks/useOpportunities";
+import { getDeadlineNotice } from "../lib/opportunityDeadlineNotice";
 import type { Opportunity } from "../types/opportunity";
 import {
   isOpportunityExpired,
@@ -273,8 +274,7 @@ function OpportunityCard({ opportunity }: { opportunity: Opportunity }) {
   );
   const image =
     opportunity.image || opportunity.imageFallback || getDefaultSeoImage();
-  const needsDeadlineReview =
-    opportunity.trust?.deadlineNeedsReview === true;
+  const deadlineNotice = getDeadlineNotice(opportunity.trust);
 
   return (
     <>
@@ -304,13 +304,13 @@ function OpportunityCard({ opportunity }: { opportunity: Opportunity }) {
           <p className="mt-auto flex items-center gap-1.5 pt-2 text-xs font-medium text-text-muted">
             <CalendarDays size={13} aria-hidden="true" />
             <span className="truncate">{formatDeadline(opportunity.deadline)}</span>
-            {needsDeadlineReview ? (
+            {deadlineNotice ? (
               <span
                 className="shrink-0 rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-300"
                 role="status"
-                title="The listing contains conflicting deadline details. Confirm the date on the official source."
+                title={deadlineNotice.title}
               >
-                Check date
+                {deadlineNotice.label}
               </span>
             ) : null}
           </p>
@@ -372,13 +372,13 @@ function OpportunityCard({ opportunity }: { opportunity: Opportunity }) {
           <p className="flex items-center gap-2">
             <CalendarDays size={15} aria-hidden="true" />
             <span>{formatDeadline(opportunity.deadline)}</span>
-            {needsDeadlineReview ? (
+            {deadlineNotice ? (
               <span
                 className="rounded-full bg-amber-500/10 px-2 py-0.5 text-xs font-semibold text-amber-700 dark:text-amber-300"
                 role="status"
-                title="The listing contains conflicting deadline details. Confirm the date on the official source."
+                title={deadlineNotice.title}
               >
-                Check date
+                {deadlineNotice.label}
               </span>
             ) : null}
           </p>

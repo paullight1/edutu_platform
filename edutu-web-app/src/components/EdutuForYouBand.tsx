@@ -1,6 +1,6 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { motion, useInView, useReducedMotion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 import { ArrowRight } from 'lucide-react';
 import {
     BAND_BODY,
@@ -23,47 +23,9 @@ import {
 
 const PROGRESS_PERCENT = Math.round((REACH_TODAY / REACH_GOAL) * 100);
 
-/**
- * Counts up to `REACH_TODAY` once the band scrolls into view. Returns the
- * final value immediately when the user prefers reduced motion — the number
- * is information, so it must never depend on an animation to be readable.
- */
-function useCountUp(target: number, active: boolean, enabled: boolean) {
-    const [value, setValue] = useState(enabled ? 0 : target);
-
-    useEffect(() => {
-        if (!enabled) {
-            setValue(target);
-            return;
-        }
-        if (!active) return;
-
-        const durationMs = 1400;
-        let raf = 0;
-        const start = performance.now();
-
-        const tick = (now: number) => {
-            const progress = Math.min((now - start) / durationMs, 1);
-            // Ease-out cubic: fast off the line, settles onto the real number.
-            const eased = 1 - Math.pow(1 - progress, 3);
-            setValue(Math.round(target * eased));
-            if (progress < 1) {
-                raf = requestAnimationFrame(tick);
-            }
-        };
-
-        raf = requestAnimationFrame(tick);
-        return () => cancelAnimationFrame(raf);
-    }, [target, active, enabled]);
-
-    return value;
-}
-
 const EdutuForYouBand: React.FC = () => {
     const reduceMotion = useReducedMotion();
     const sectionRef = useRef<HTMLElement | null>(null);
-    const inView = useInView(sectionRef, { once: true, amount: 0.3 });
-    const reached = useCountUp(REACH_TODAY, inView, !reduceMotion);
 
     const fade = reduceMotion
         ? {}
@@ -113,7 +75,7 @@ const EdutuForYouBand: React.FC = () => {
                     <div className="mt-9 max-w-[30rem]">
                         <div className="flex items-baseline justify-between gap-4">
                             <span className="font-display text-3xl font-bold tabular-nums sm:text-4xl">
-                                {reached.toLocaleString('en-US')}
+                                {REACH_TODAY.toLocaleString('en-US')}
                             </span>
                             <span className="text-sm text-[#94A3B8]">
                                 of {REACH_GOAL.toLocaleString('en-US')} reached
