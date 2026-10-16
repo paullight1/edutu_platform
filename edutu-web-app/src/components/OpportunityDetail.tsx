@@ -330,9 +330,12 @@ export default function OpportunityDetail({
     }
 
     if (!userId) {
-      navigate("/auth?mode=sign-in", {
+      const returnTo = `${embedded ? "/app" : ""}/opportunity/${encodeURIComponent(opportunity.id)}`;
+      navigate(`/auth?mode=sign-in&redirect=${encodeURIComponent(returnTo)}`, {
         state: {
-          from: `${embedded ? "/app" : ""}/opportunity/${opportunity.id}`,
+          // Keep location.state for in-app auth flows; the query fallback also
+          // survives external OAuth redirects that discard router state.
+          from: { pathname: returnTo },
         },
       });
       return;

@@ -1,13 +1,15 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router-dom";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import OpportunityDetail from "../../components/OpportunityDetail";
 import type { Opportunity } from "../../types/opportunity";
 import { createOpportunityJourney } from "../../services/opportunityJourneys";
 
+const mocks = vi.hoisted(() => ({ userId: "user-1" as string | null }));
+
 vi.mock("@clerk/clerk-react", () => ({
   useAuth: () => ({
-    userId: "user-1",
+    userId: mocks.userId,
     getToken: vi.fn().mockResolvedValue("token-1"),
   }),
 }));
@@ -30,7 +32,11 @@ vi.mock("../../hooks/useAnalytics", () => ({
 
 function LocationProbe() {
   const location = useLocation();
-  return <output data-testid="pathname">{location.pathname}</output>;
+  return (
+    <output data-testid="location">
+      {location.pathname}{location.search}
+    </output>
+  );
 }
 
 const opportunity = {
@@ -42,6 +48,10 @@ const opportunity = {
 } as Opportunity;
 
 describe("opportunity plan handoff", () => {
+  afterEach(() => {
+    mocks.userId = "user-1";
+  });
+
   it("keeps deadline facts readable and shows the full opportunity artwork", async () => {
     render(
       <MemoryRouter initialEntries={["/opportunity/opportunity-1"]}>
@@ -84,9 +94,28 @@ describe("opportunity plan handoff", () => {
     fireEvent.click(screen.getByRole("button", { name: /view my plan/i }));
 
     await waitFor(() => {
-      expect(screen.getByTestId("pathname")).toHaveTextContent(
+      expect(screen.getByTestId("location")).toHaveTextContent(
         "/app/my-plan/journey-42",
       );
     });
+  });
+
+  it("preserves the opportunity return path through sign-in and OAuth", async () => {
+    mocks.userId = null;
+    render(
+      <MemoryRouter initialEntries={["/app/opportunity/opportunity-1"]}>
+        <OpportunityDetail opportunity={opportunity} onBack={vi.fn()} embedded />
+        <LocationProbe />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: /add to my plan/i }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("location")).toHaveTextContent(
+        "/auth?mode=sign-in&redirect=%2Fapp%2Fopportunity%2Fopportunity-1",
+      );
+    });
+    mocks.userId = "user-1";
   });
 });
