@@ -181,6 +181,11 @@ export function assertMinimumCount(name, count, minimum) {
   }
 }
 
+export function remoteSitemapFailureAction({ strictRemote, hasSnapshot }) {
+  if (hasSnapshot) return "retain";
+  return strictRemote ? "throw" : "fallback";
+}
+
 export function createSitemapArtifacts({
   siteUrl,
   blogPosts = [],
@@ -434,18 +439,22 @@ async function generate() {
         }),
       ]);
     } catch (error) {
-      if (strictRemote) {
-        const message = error instanceof Error ? error.message : String(error);
-        if (!(await hasLastKnownGoodSitemaps())) {
-          throw new Error(`Configured SEO API could not be read: ${message}`);
-        }
+      const message = error instanceof Error ? error.message : String(error);
+      const action = remoteSitemapFailureAction({
+        strictRemote,
+        hasSnapshot: await hasLastKnownGoodSitemaps(),
+      });
+      if (action === "retain") {
         console.warn(
           `Configured SEO API could not be read (${message}); retaining the checked-in sitemap snapshot for this build.`,
         );
         return;
       }
+      if (action === "throw") {
+        throw new Error(`Configured SEO API could not be read: ${message}`);
+      }
       console.warn(
-        `SEO API unavailable; generating an offline fallback: ${error instanceof Error ? error.message : String(error)}`,
+        `SEO API unavailable; generating an offline fallback: ${message}`,
       );
     }
   }

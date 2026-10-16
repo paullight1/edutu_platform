@@ -69,7 +69,7 @@ const paymentResponseSchema = z.object({
   status: z.string().min(1),
   is_refundable: z.boolean(),
   amount: decimalAmountSchema,
-  amount_paid: decimalAmountSchema,
+  amount_paid: decimalAmountSchema.nullable(),
   amount_remaining: decimalAmountSchema,
   settlement_amount: decimalAmountSchema,
   currency: isoCurrencySchema,
@@ -80,6 +80,39 @@ const paymentResponseSchema = z.object({
   product_id: identifierSchema.nullable().optional(),
   user_id: z.string().min(1).nullable().optional(),
 });
+
+// Bachs' list endpoint intentionally returns a smaller shape than payment
+// detail. Keep this contract separate so reconciliation can read documented
+// list items without weakening validation of GET /payments/:id.
+const paymentListItemSchema = z
+  .object({
+    id: identifierSchema,
+    reference: z.string().nullable().optional(),
+    status: z.string().min(1),
+    amount: decimalAmountSchema,
+    amount_paid: decimalAmountSchema.nullable().optional(),
+    amount_remaining: decimalAmountSchema.nullable().optional(),
+    settlement_amount: decimalAmountSchema.nullable().optional(),
+    currency: isoCurrencySchema,
+    is_refundable: z.boolean().nullable().optional(),
+    created_at: dateTimeSchema.optional(),
+    transaction_date: dateTimeSchema.optional(),
+    completed_at: dateTimeSchema.nullable().optional(),
+    updated_at: dateTimeSchema.optional(),
+    meta: metadataSchema.nullable().optional(),
+    metadata: metadataSchema.nullable().optional(),
+    checkout_id: identifierSchema.nullable().optional(),
+    product_id: identifierSchema.nullable().optional(),
+    user_id: z.string().min(1).nullable().optional(),
+  })
+  .superRefine((value, context) => {
+    if (!value.created_at && !value.transaction_date && !value.completed_at) {
+      context.addIssue({
+        code: "custom",
+        message: "Payment list item must include a provider timestamp.",
+      });
+    }
+  });
 
 const subscriptionResponseSchema = z.object({
   id: identifierSchema,
@@ -121,10 +154,15 @@ const paginationSchema = z.object({
   offset: z.number().int().nonnegative(),
 });
 
-const listQuerySchema = z.object({
-  cursor: z.string().min(1).max(255).optional(),
-  limit: z.number().int().min(1).max(100).optional(),
-});
+const listQuerySchema = z
+  .object({
+    cursor: z.string().min(1).max(255).optional(),
+    offset: z.number().int().nonnegative().optional(),
+    limit: z.number().int().min(1).max(100).optional(),
+  })
+  .refine((value) => value.cursor === undefined || value.offset === undefined, {
+    message: "cursor and offset cannot be used together.",
+  });
 
 export type BachsOperation =
   | "get_product"
@@ -459,8 +497,8 @@ export class BachsClient {
       "list_payments",
       "/v1/payments",
       query,
-      paymentResponseSchema,
-      (value) => this.mapPayment(value),
+      paymentListItemSchema,
+      (value) => this.mapPaymentListItem(value),
     );
   }
 
@@ -646,6 +684,7 @@ export class BachsClient {
     const value = this.validate(operation, listQuerySchema, query);
     const search = new URLSearchParams();
     if (value.cursor) search.set("cursor", value.cursor);
+    if (value.offset !== undefined) search.set("offset", String(value.offset));
     if (value.limit) search.set("limit", String(value.limit));
     const response = await this.request(
       operation,
@@ -736,6 +775,35 @@ export class BachsClient {
       createdAt: value.created_at,
       updatedAt: value.updated_at,
       ...(value.metadata ? { metadata: value.metadata } : {}),
+      ...(value.checkout_id !== undefined
+        ? { checkoutId: value.checkout_id }
+        : {}),
+      ...(value.product_id !== undefined
+        ? { productId: value.product_id }
+        : {}),
+      ...(value.user_id !== undefined ? { userId: value.user_id } : {}),
+    };
+  }
+  private mapPaymentListItem(
+    value: z.infer<typeof paymentListItemSchema>,
+  ): BachsPayment {
+    const timestamp =
+      value.created_at ?? value.transaction_date ?? value.completed_at!;
+    return {
+      id: value.id,
+      reference: value.reference ?? null,
+      status: value.status,
+      isRefundable: value.is_refundable ?? false,
+      amount: value.amount,
+      amountPaid: value.amount_paid ?? null,
+      amountRemaining: value.amount_remaining ?? "0",
+      settlementAmount: value.settlement_amount ?? "0",
+      currency: value.currency,
+      createdAt: timestamp,
+      updatedAt: value.updated_at ?? timestamp,
+      ...((value.metadata ?? value.meta)
+        ? { metadata: value.metadata ?? value.meta! }
+        : {}),
       ...(value.checkout_id !== undefined
         ? { checkoutId: value.checkout_id }
         : {}),

@@ -112,6 +112,7 @@ export interface BachsPagination {
 
 export interface BachsListQuery {
   cursor?: string;
+  offset?: number;
   limit?: number;
 }
 
@@ -121,7 +122,7 @@ export interface BachsPayment {
   status: string;
   isRefundable: boolean;
   amount: BachsDecimalAmount;
-  amountPaid: BachsDecimalAmount;
+  amountPaid: BachsDecimalAmount | null;
   amountRemaining: BachsDecimalAmount;
   settlementAmount: BachsDecimalAmount;
   currency: string;

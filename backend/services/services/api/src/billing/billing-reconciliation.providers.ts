@@ -52,14 +52,26 @@ export class BachsReconciliationAdapter implements ProviderReadAdapter {
   async listPayments(input: {
     cursor?: string;
   }): Promise<ReconciliationPage<ReconciliationPayment>> {
+    const offset = input.cursor?.startsWith("offset:")
+      ? Number(input.cursor.slice("offset:".length))
+      : undefined;
+    if (offset !== undefined && (!Number.isSafeInteger(offset) || offset < 0)) {
+      throw new Error("Invalid Bachs reconciliation offset cursor");
+    }
     const result = await this.client.listPayments({
-      cursor: input.cursor,
+      ...(offset !== undefined ? { offset } : { cursor: input.cursor }),
       limit: 100,
     });
+    const hasMore = result.pagination?.hasMore ?? false;
+    const nextOffset =
+      (result.pagination?.offset ?? offset ?? 0) +
+      (result.pagination?.limit ?? result.items.length);
     return {
       items: result.items.map((payment) => this.mapPayment(payment)),
-      nextCursor: result.pagination?.nextCursor ?? null,
-      hasMore: result.pagination?.hasMore ?? false,
+      nextCursor:
+        result.pagination?.nextCursor ??
+        (hasMore ? `offset:${nextOffset}` : null),
+      hasMore,
     };
   }
 
@@ -84,10 +96,7 @@ export class BachsReconciliationAdapter implements ProviderReadAdapter {
         (typeof metadata.user_id === "string" ? metadata.user_id : null),
       productKey:
         typeof metadata.product_key === "string" ? metadata.product_key : null,
-      amountMinor: decimalToMinorUnits(
-        payment.amountPaid || payment.amount,
-        currency,
-      ),
+      amountMinor: decimalToMinorUnits(payment.amountPaid ?? "0", currency),
       currency,
       organizationId:
         typeof metadata.organization_id === "string"

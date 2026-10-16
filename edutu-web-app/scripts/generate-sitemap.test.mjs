@@ -4,6 +4,7 @@ import {
   assertMinimumCount,
   createSitemapArtifacts,
   normalizeSiteUrl,
+  remoteSitemapFailureAction,
 } from "./generate-sitemap.mjs";
 
 test("normalizes the public hostname to the canonical www host", () => {
@@ -83,4 +84,23 @@ test("fails closed when a required source count is below its release gate", () =
     /minimum required is 1/,
   );
   assert.doesNotThrow(() => assertMinimumCount("events", 0, 0));
+});
+
+test("retains the last known good sitemap snapshot when remote SEO data is unavailable", () => {
+  assert.equal(
+    remoteSitemapFailureAction({ strictRemote: false, hasSnapshot: true }),
+    "retain",
+  );
+  assert.equal(
+    remoteSitemapFailureAction({ strictRemote: true, hasSnapshot: true }),
+    "retain",
+  );
+  assert.equal(
+    remoteSitemapFailureAction({ strictRemote: true, hasSnapshot: false }),
+    "throw",
+  );
+  assert.equal(
+    remoteSitemapFailureAction({ strictRemote: false, hasSnapshot: false }),
+    "fallback",
+  );
 });

@@ -468,4 +468,58 @@ describe("BachsClient", () => {
       "https://sandbox-api.bachs.io/v1/payments?limit=20",
     ]);
   });
+
+  it("accepts the documented list-payment shape and preserves a missing paid amount", async () => {
+    const fetchMock = jest.spyOn(global, "fetch").mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          items: [
+            {
+              id: "pay_123",
+              reference: "checkout_ref",
+              status: "pending",
+              amount: "10.00",
+              amount_paid: null,
+              amount_remaining: null,
+              settlement_amount: null,
+              currency: "USD",
+              is_refundable: null,
+              transaction_date: "2026-10-16T12:00:00.000Z",
+              completed_at: null,
+              meta: { user_id: "user_123" },
+            },
+          ],
+          pagination: {
+            next_cursor: null,
+            prev_cursor: null,
+            has_more: true,
+            limit: 100,
+            offset: 200,
+          },
+        }),
+        { status: 200 },
+      ),
+    );
+
+    await expect(
+      new BachsClient(loadBachsConfig(validApiCreditEnvironment)).listPayments({
+        offset: 200,
+        limit: 100,
+      }),
+    ).resolves.toMatchObject({
+      items: [
+        expect.objectContaining({
+          id: "pay_123",
+          amountPaid: null,
+          createdAt: "2026-10-16T12:00:00.000Z",
+          metadata: { user_id: "user_123" },
+        }),
+      ],
+      pagination: { hasMore: true, offset: 200 },
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://sandbox-api.bachs.io/v1/payments?offset=200&limit=100",
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
 });
