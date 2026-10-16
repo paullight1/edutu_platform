@@ -237,7 +237,8 @@ const RULES: CategoryRule[] = [
     label: "ambassador development program",
     fields: ["title"],
     weight: 96,
-    pattern: /\b(?:youth\s+|student\s+|global\s+)?ambassador\s+program(?:me)?\b/i,
+    pattern:
+      /\b(?:youth\s+|student\s+|global\s+)?ambassador\s+program(?:me)?\b/i,
   },
   {
     category: "programs",
