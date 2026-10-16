@@ -193,6 +193,8 @@ export class BachsProviderError extends Error {
       operation: BachsOperation;
       retryable: boolean;
       status?: number;
+      /** Allowlisted machine-readable provider code; never the raw response body. */
+      providerCode?: string;
     },
   ) {
     super(`Bachs ${details.operation} failed: ${details.code}.`);
@@ -213,6 +215,10 @@ export class BachsProviderError extends Error {
 
   get status() {
     return this.details.status;
+  }
+
+  get providerCode() {
+    return this.details.providerCode;
   }
 }
 
@@ -631,11 +637,13 @@ export class BachsClient {
         if (!response.ok) {
           const retryable =
             retryableRequest && this.isRetryableStatus(response.status);
+          const providerCode = await this.providerErrorCode(response);
           lastError = new BachsProviderError({
             code: "provider_http_error",
             operation,
             retryable,
             status: response.status,
+            ...(providerCode ? { providerCode } : {}),
           });
           if (retryable && attempt < MAX_ATTEMPTS) continue;
           throw lastError;
@@ -672,6 +680,22 @@ export class BachsClient {
         retryable: false,
       })
     );
+  }
+
+  private async providerErrorCode(
+    response: Response,
+  ): Promise<string | undefined> {
+    try {
+      const body: unknown = await response.json();
+      if (typeof body !== "object" || body === null) return undefined;
+      const record = body as Record<string, unknown>;
+      const value = record.error_code ?? record.code;
+      return typeof value === "string" && /^[A-Z0-9_:-]{1,80}$/i.test(value)
+        ? value
+        : undefined;
+    } catch {
+      return undefined;
+    }
   }
 
   private async list<T extends z.ZodType>(

@@ -118,9 +118,7 @@ class FakeRepository implements BillingCheckoutRepositoryPort {
   attached: Array<
     Parameters<BillingCheckoutRepositoryPort["attachProviderCheckout"]>[0]
   > = [];
-  failed: Array<
-    Parameters<BillingCheckoutRepositoryPort["markIntentFailed"]>[0]
-  > = [];
+  failed: Array<{ intentId: string; errorCode: string }> = [];
   nextCreated = true;
   intentCounter = 0;
   currentIntent: BillingCheckoutIntentRecord | null = null;
@@ -176,10 +174,8 @@ class FakeRepository implements BillingCheckoutRepositoryPort {
     }
   }
 
-  async markIntentFailed(
-    input: Parameters<BillingCheckoutRepositoryPort["markIntentFailed"]>[0],
-  ) {
-    this.failed.push(input);
+  async markIntentFailed(intentId: string, errorCode: string) {
+    this.failed.push({ intentId, errorCode });
   }
 }
 
@@ -409,6 +405,32 @@ describe("BillingCheckoutService", () => {
       }),
     ).rejects.toBeInstanceOf(ConflictException);
     expect(fixture.repository.failed).toHaveLength(1);
+  });
+
+  it("reports a safe actionable message when Bachs has no payment method enabled", async () => {
+    const fixture = createFixture();
+    fixture.provider.error = Object.assign(
+      new Error("provider rejected checkout"),
+      {
+        retryable: false,
+        providerCode: "CHECKOUT_RESTRICTION_LEAVES_NO_PAYMENT_METHOD",
+      },
+    );
+
+    const error = await fixture.service
+      .createCheckout("user_123", "no-payment-method", {
+        productKey: product.productKey,
+        returnSurface: "web",
+      })
+      .catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(ConflictException);
+    expect((error as ConflictException).message).toContain(
+      "No payment method is enabled for this plan yet.",
+    );
+    expect(fixture.repository.failed[0]).toMatchObject({
+      errorCode: "CHECKOUT_RESTRICTION_LEAVES_NO_PAYMENT_METHOD",
+    });
   });
 
   it("rejects a Bachs URL outside the exact hosted checkout origin", async () => {

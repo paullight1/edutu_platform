@@ -358,14 +358,15 @@ describe("BachsClient", () => {
   });
 
   it("does not retry a non-retryable provider response or expose its body", async () => {
-    const fetchMock = jest
-      .spyOn(global, "fetch")
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({ detail: "buyer@example.test test-api-key" }),
-          { status: 400 },
-        ),
-      );
+    const fetchMock = jest.spyOn(global, "fetch").mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          error_code: "CHECKOUT_RESTRICTION_LEAVES_NO_PAYMENT_METHOD",
+          detail: "buyer@example.test test-api-key",
+        }),
+        { status: 400 },
+      ),
+    );
 
     const error = await createClient()
       .createCustomer({
@@ -381,9 +382,29 @@ describe("BachsClient", () => {
       status: 400,
       retryable: false,
       operation: "create_customer",
+      providerCode: "CHECKOUT_RESTRICTION_LEAVES_NO_PAYMENT_METHOD",
     });
     expect(String(error)).not.toContain("buyer@example.test");
     expect(String(error)).not.toContain("test-api-key");
+  });
+
+  it("ignores provider error values that are not safe machine-readable codes", async () => {
+    jest.spyOn(global, "fetch").mockResolvedValueOnce(
+      new Response(JSON.stringify({ error_code: "buyer@example.test" }), {
+        status: 400,
+      }),
+    );
+
+    const error = await createClient()
+      .createCustomer({
+        email: "buyer@example.test",
+        idempotencyKey: "customer_invalid_error_code",
+      })
+      .catch((caught: unknown) => caught);
+
+    expect(error).toMatchObject({ code: "provider_http_error", status: 400 });
+    expect(error).toHaveProperty("providerCode", undefined);
+    expect(String(error)).not.toContain("buyer@example.test");
   });
 
   it("creates portal sessions only when Bachs returns a portal origin URL", async () => {

@@ -53,6 +53,7 @@ type VerifiedCustomer = Extract<
 type ProviderFailure = {
   code?: unknown;
   retryable?: unknown;
+  providerCode?: unknown;
 };
 
 class ProductVerificationUnavailableException extends ServiceUnavailableException {
@@ -385,7 +386,18 @@ export class BillingCheckoutService {
           "Bachs checkout is temporarily unavailable. Retry with the same idempotency key.",
         );
       }
-      await this.repository.markIntentFailed(intent.id, this.errorCode(error));
+      await this.repository.markIntentFailed(
+        intent.id,
+        this.failureCode(error),
+      );
+      if (
+        (error as ProviderFailure | undefined)?.providerCode ===
+        "CHECKOUT_RESTRICTION_LEAVES_NO_PAYMENT_METHOD"
+      ) {
+        throw new ConflictException(
+          "No payment method is enabled for this plan yet. Please contact support.",
+        );
+      }
       throw new ConflictException(
         "Bachs could not create this checkout session.",
       );
@@ -698,7 +710,14 @@ export class BillingCheckoutService {
     return Boolean((error as ProviderFailure | undefined)?.retryable);
   }
 
-  private errorCode(error: unknown): string {
+  private failureCode(error: unknown): string {
+    const providerCode = (error as ProviderFailure | undefined)?.providerCode;
+    if (
+      typeof providerCode === "string" &&
+      /^[a-z0-9_:-]{1,80}$/i.test(providerCode)
+    ) {
+      return providerCode;
+    }
     const code = (error as ProviderFailure | undefined)?.code;
     return typeof code === "string" && /^[a-z0-9_:-]{1,80}$/i.test(code)
       ? code
