@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { ArrowUpRight, Loader2 } from "lucide-react";
 import {
+  ProductApiError,
   productApiRequest,
   isUpgradeRequiredError,
 } from "../../services/productApi";
@@ -19,11 +20,11 @@ export function useProductSession() {
     return () =>
       active.abort(new DOMException("Workspace session changed", "AbortError"));
   }, [userId]);
-  const token = useCallback(async () => {
+  const token = useCallback(async (options: { forceRefresh?: boolean } = {}) => {
     const active = lifetime.current;
     if (!userId) throw new Error("Sign in to open your workspace.");
     active.signal.throwIfAborted();
-    const value = await getToken();
+    const value = await (options.forceRefresh ? getToken({ skipCache: true }) : getToken());
     active.signal.throwIfAborted();
     if (!value) throw new Error("Your session expired. Sign in again.");
     return value;
@@ -42,10 +43,22 @@ export function useProductSession() {
       active.signal.addEventListener("abort", abortSession, { once: true });
       options.signal?.addEventListener("abort", abortCaller, { once: true });
       try {
-        return await productApiRequest<T>(paidToolPath(path), await token(), {
-          ...options,
-          signal: controller.signal,
-        });
+        const requestOptions = { ...options, signal: controller.signal };
+        try {
+          return await productApiRequest<T>(paidToolPath(path), await token(), requestOptions);
+        } catch (error) {
+          const method = (options.method || "GET").toUpperCase();
+          if (!(error instanceof ProductApiError) || error.status !== 401 || !["GET", "HEAD"].includes(method)) {
+            throw error;
+          }
+
+          // Clerk can keep returning a cached JWT after the API has rejected
+          // it. Retry safe reads once with a fresh token; never replay writes
+          // such as checkout creation or payment-status mutations.
+          active.signal.throwIfAborted();
+          options.signal?.throwIfAborted();
+          return await productApiRequest<T>(paidToolPath(path), await token({ forceRefresh: true }), requestOptions);
+        }
       } finally {
         active.signal.removeEventListener("abort", abortSession);
         options.signal?.removeEventListener("abort", abortCaller);
