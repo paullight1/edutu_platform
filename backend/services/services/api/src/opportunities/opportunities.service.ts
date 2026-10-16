@@ -59,6 +59,7 @@ import {
   publicOpportunityDetailConditions,
 } from "./opportunity-visibility";
 import { readOpportunityQualityScorecard } from "./opportunity-quality-scorecard";
+import { getPublicAppBaseUrl as resolvePublicAppBaseUrl } from "./opportunity-public-app-url";
 import { sanitizeOpportunityDeadlineCopy } from "./deadline-description.util";
 import {
   normalizeOpportunityDescription,
@@ -3927,6 +3928,10 @@ ${sourceText || "No source page text was available. Still write a complete summa
     }
   }
 
+  getPublicAppBaseUrl(): string {
+    return resolvePublicAppBaseUrl();
+  }
+
   private buildSharePdfFileName(opportunity: { id?: string; title?: string }) {
     const title = (opportunity.title || "edutu-opportunity")
       .toLowerCase()
@@ -3935,23 +3940,5 @@ ${sourceText || "No source page text was available. Still write a complete summa
 
     const suffix = opportunity.id ? `-${opportunity.id}` : "";
     return `${title || "edutu-opportunity"}${suffix}.pdf`;
-  }
-
-  getPublicAppBaseUrl(): string {
-    const configured = (
-      process.env.EDUTU_PUBLIC_APP_URL ||
-      process.env.PUBLIC_WEB_APP_URL ||
-      process.env.WEB_APP_URL ||
-      process.env.FRONTEND_URL ||
-      process.env.APP_URL ||
-      "https://www.edutu.org"
-    ).replace(/\/$/, "");
-
-    // Keep public SEO/share URLs on the canonical host. Preserve explicit
-    // subdomains such as app.edutu.org for staging or app-specific flows.
-    return configured.replace(
-      /^https?:\/\/edutu\.org(?=\/|$)/i,
-      "https://www.edutu.org",
-    );
   }
 }
