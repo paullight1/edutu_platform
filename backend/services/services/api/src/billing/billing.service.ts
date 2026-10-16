@@ -356,6 +356,10 @@ export class BillingService {
     const nativeSubscription = this.mapNativeSubscription(nativeRow);
 
     let planTier: SubscriptionTier = "none";
+    // `profiles.is_pro` is a compatibility projection, not proof of a paid
+    // entitlement. Monetization guards require canonical grants, so the
+    // learner wallet must use the same authority or it can advertise access
+    // that paid tools will reject.
     if (hasCanonicalData) {
       planTier = canonicalGrants.has("scholar")
         ? "scholar"
@@ -366,18 +370,9 @@ export class BillingService {
             : "none";
     }
 
-    const legacyProExpiresAt = profile?.pro_expires_at ?? null;
-    const profileProActive =
-      Boolean(profile?.is_pro) &&
-      (!legacyProExpiresAt ||
-        new Date(legacyProExpiresAt).getTime() > Date.now());
-    if (!hasCanonicalData && profileProActive) planTier = "pro";
     const isPro = planTier !== "none";
 
-    const entitlements = hasCanonicalData
-      ? new Set(canonicalGrants)
-      : new Set<string>();
-    if (!hasCanonicalData && profileProActive) entitlements.add("pro");
+    const entitlements = new Set(canonicalGrants);
     if (planTier === "scholar") {
       entitlements.add("scholar");
       entitlements.add("pro");
@@ -398,9 +393,7 @@ export class BillingService {
       isPro,
       planTier,
       proSince: profile?.pro_since ?? null,
-      proExpiresAt: hasCanonicalData
-        ? nativeSubscription.accessUntil
-        : legacyProExpiresAt,
+      proExpiresAt: hasCanonicalData ? nativeSubscription.accessUntil : null,
       credits: Number(canonicalRow?.credits ?? profile?.credits ?? 0),
       subscriptionStatus:
         nativeSubscription.state !== "none"

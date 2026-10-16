@@ -540,7 +540,7 @@ describe("BillingService", () => {
     expect(fulfill).not.toHaveBeenCalled();
   });
 
-  it("includes recent billing transactions on billing status responses", async () => {
+  it("keeps profile-only Pro access inactive while still returning billing history", async () => {
     jest.spyOn(db, "execute").mockResolvedValue({ rows: [] } as never);
     const service = new BillingService(settingsStub);
     (service as any).supabase = createSupabaseMock();
@@ -548,11 +548,13 @@ describe("BillingService", () => {
     const status = await service.getStatus("user-1");
 
     expect(status).toMatchObject({
-      isPro: true,
+      isPro: false,
+      planTier: "none",
       proSince: PRO_SINCE_ISO,
-      proExpiresAt: PRO_EXPIRES_ISO,
+      proExpiresAt: null,
       credits: 1200,
-      subscriptionStatus: "active",
+      subscriptionStatus: null,
+      entitlements: [],
     });
     expect(status.transactions).toHaveLength(1);
     expect(status.transactions[0]).toMatchObject({
