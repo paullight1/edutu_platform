@@ -896,7 +896,16 @@ export default function PublicOpportunitiesArchivePage() {
                     ? "Try fewer words, a broader field or another category."
                     : "Return to the first page or explore another opportunity category."}
               </p>
-              {searchQuery ? (
+              {error ? (
+                <button
+                  type="button"
+                  onClick={refresh}
+                  className="mt-6 inline-flex items-center gap-2 rounded-full bg-brand px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-brand/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+                >
+                  <RefreshCw size={15} aria-hidden="true" />
+                  Try again
+                </button>
+              ) : searchQuery ? (
                 <button
                   type="button"
                   onClick={() => handleSearchChange("")}
