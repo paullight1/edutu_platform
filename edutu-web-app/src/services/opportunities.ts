@@ -101,14 +101,18 @@ function setOpportunityCache(rows: Opportunity[], persistedAt = Date.now()) {
  */
 export function getCachedOpportunitiesSync(): Opportunity[] | null {
   if (cachedOpportunities) {
+    cachedOpportunities = deduplicateOpportunities(cachedOpportunities);
     return cachedOpportunities;
   }
 
   const snapshot = readSnapshot();
   if (snapshot && Date.now() - snapshot.savedAt <= SNAPSHOT_FRESH_MS) {
-    cachedOpportunities = snapshot.rows;
+    // A snapshot may have been saved by an older app build before duplicate
+    // imports were collapsed. Clean it before the first paint so a fresh local
+    // cache never brings duplicate opportunities back after an app update.
+    cachedOpportunities = deduplicateOpportunities(snapshot.rows);
     cachedOpportunitiesAt = snapshot.savedAt;
-    return snapshot.rows;
+    return cachedOpportunities;
   }
 
   return null;

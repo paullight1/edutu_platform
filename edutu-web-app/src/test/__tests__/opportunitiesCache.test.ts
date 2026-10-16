@@ -70,6 +70,24 @@ describe("opportunities snapshot cache", () => {
     );
   });
 
+  it("deduplicates an existing fresh snapshot before returning it to the UI", async () => {
+    const duplicate = {
+      ...backendRow,
+      title: "Shared Opportunity",
+      sourceUrl: "https://www.example.org/opportunity/one/?utm_source=feed",
+    };
+    window.localStorage.setItem(
+      SNAPSHOT_KEY,
+      JSON.stringify({ savedAt: Date.now(), rows: [duplicate, { ...duplicate, id: "opp-2" }] }),
+    );
+
+    const service = await importOpportunities();
+    const cached = service.getCachedOpportunitiesSync();
+
+    expect(cached).toHaveLength(1);
+    expect(cached?.[0]?.id).toBe("opp-1");
+  });
+
   it.each(["v2", "v3"])(
     "replaces a %s snapshot that may contain unsanitized deadline copy",
     async (version) => {
