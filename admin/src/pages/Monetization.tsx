@@ -40,6 +40,7 @@ import {
   type PlanPricing,
   type VoiceUsageSummary,
 } from '../lib/monetizationApi';
+import { formatBillingTerm } from '../lib/billingCatalogDisplay';
 
 const PAGE_SIZE = 20;
 const MAX_CREDIT_PACKS = 8;
@@ -1100,7 +1101,7 @@ export default function Monetization() {
                         <tr key={product.productKey}>
                           <td>
                             <strong style={{ textTransform: 'capitalize' }}>{product.productKey.replace(/_/g, ' ').replace(/ pass$/, '')}</strong>
-                            <div style={{ color: 'var(--text-tertiary)', fontSize: 11 }}>{product.renewalMode === 'one_time' ? 'One-time pass' : product.renewalMode} · {product.validityDays ?? '—'} days</div>
+                            <div style={{ color: 'var(--text-tertiary)', fontSize: 11 }}>{formatBillingTerm(product)}</div>
                           </td>
                           <td>
                             <input
