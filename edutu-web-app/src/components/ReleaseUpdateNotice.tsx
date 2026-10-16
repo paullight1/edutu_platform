@@ -6,14 +6,19 @@ import { deployedRelease, refreshRelease } from '../lib/releaseUpdate';
 
 const DISMISSED_RELEASE_KEY = 'edutu.dismissed-release-update';
 
-function wasDismissed(release: string) {
-  try { return window.localStorage.getItem(DISMISSED_RELEASE_KEY) === release; }
+function wasDismissed(userId: string, release: string) {
+  try { return window.localStorage.getItem(`${DISMISSED_RELEASE_KEY}:${encodeURIComponent(userId)}`) === release; }
   catch { return false; }
 }
 
-export default function ReleaseUpdateNotice() {
+interface ReleaseUpdateNoticeProps {
+  /** Release prompts belong to an authenticated learner's dashboard only. */
+  userId?: string | null;
+}
+
+export default function ReleaseUpdateNotice({ userId }: ReleaseUpdateNoticeProps) {
   const { pathname } = useLocation();
-  const isUserDashboard = pathname === '/dashboard' || pathname === '/app/home';
+  const isUserDashboard = Boolean(userId) && (pathname === '/dashboard' || pathname === '/app/home');
   const [available, setAvailable] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
@@ -29,7 +34,7 @@ export default function ReleaseUpdateNotice() {
         const latest = await deployedRelease();
         if (!disposed) {
           setRelease(latest);
-          setAvailable(latest !== __APP_RELEASE__ && !wasDismissed(latest));
+          setAvailable(latest !== __APP_RELEASE__ && !wasDismissed(userId!, latest));
         }
         if ('serviceWorker' in navigator) await (await navigator.serviceWorker.getRegistration())?.update();
       } catch { /* Offline or deployment in progress: try again on the next resume. */ }
@@ -39,7 +44,7 @@ export default function ReleaseUpdateNotice() {
       void deployedRelease().then(latest => {
         if (disposed) return;
         setRelease(latest);
-        setAvailable(latest !== __APP_RELEASE__ && !wasDismissed(latest));
+        setAvailable(latest !== __APP_RELEASE__ && !wasDismissed(userId!, latest));
       }).catch(() => {});
     };
     void check();
@@ -56,7 +61,7 @@ export default function ReleaseUpdateNotice() {
       window.removeEventListener('online', check);
       window.removeEventListener('release-refresh-request', requested);
     };
-  }, [isUserDashboard]);
+  }, [isUserDashboard, userId]);
   const refresh = async () => {
     setBusy(true);
     setMessage('');
@@ -68,7 +73,7 @@ export default function ReleaseUpdateNotice() {
   };
   const dismiss = () => {
     if (release) {
-      try { window.localStorage.setItem(DISMISSED_RELEASE_KEY, release); } catch { /* dismissal still applies for this visit */ }
+      try { window.localStorage.setItem(`${DISMISSED_RELEASE_KEY}:${encodeURIComponent(userId!)}`, release); } catch { /* dismissal still applies for this visit */ }
     }
     setAvailable(false);
   };

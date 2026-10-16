@@ -30,6 +30,7 @@ import { getCachedOpportunitiesSnapshot } from '@edutu/core/src/services/opportu
 import {
   getOfferings,
   initRevenueCat,
+  isRevenueCatAvailableForBuild,
   manageSubscriptions,
   purchasePackage,
   restorePurchases,
@@ -120,6 +121,7 @@ export default function PaywallScreen() {
   // setState-ing them in the offerings effect.
   const [iapLoadingRaw, setIapLoading] = useState(USE_NATIVE_IAP);
   const [iapUnavailableRaw, setIapUnavailable] = useState(false);
+  const iapBuildConfigured = isRevenueCatAvailableForBuild();
   const iapLoading = userId ? iapLoadingRaw : false;
   // Purchases need an identity, so IAP is unavailable for guests on device.
   const iapUnavailable = userId ? iapUnavailableRaw : USE_NATIVE_IAP;
@@ -198,7 +200,11 @@ export default function PaywallScreen() {
   // Two different failures deserve two different sentences: the store never
   // came up at all, vs it came up without a product for THIS plan — in which
   // case the other plan cards may well still be buyable.
-  const iapBlockedMessage = iapUnavailable
+  const iapBlockedMessage = !iapBuildConfigured
+    ? t('paywall.iapNotConfigured', {
+        defaultValue: 'In-app purchases are not set up for this app version yet. Please check back after an update.',
+      })
+    : iapUnavailable
     ? t('paywall.iapUnavailable', {
         defaultValue: 'Subscriptions are temporarily unavailable. Please try again in a moment.',
       })
@@ -365,17 +371,19 @@ export default function PaywallScreen() {
     if (!selectedPackage) {
       // Store policy forbids an external checkout here, so this branch can't
       // route anywhere — but it must not be a dead end either. The CTA stays
-      // TAPPABLE (see the disabled prop below) so pressing it lands on this
-      // dialog, which offers the two things that can actually resolve it:
-      // reload the store products, or restore an existing subscription.
+      // tappable (see the disabled prop below) so the user gets a useful
+      // explanation. When this build has a store key, offer retry and restore;
+      // when it does not, don't imply either action can fix the build.
       Alert.alert(
         t('paywall.iapUnavailableTitle', { defaultValue: 'Subscriptions unavailable right now' }),
         iapBlockedMessage,
-        [
-          { text: t('common:actions.cancel'), style: 'cancel' },
-          { text: t('paywall.restore'), onPress: () => { void handleRestore(); } },
-          { text: t('common:actions.tryAgain'), onPress: retryIapOfferings },
-        ],
+        iapBuildConfigured
+          ? [
+              { text: t('common:actions.cancel'), style: 'cancel' },
+              { text: t('paywall.restore'), onPress: () => { void handleRestore(); } },
+              { text: t('common:actions.tryAgain'), onPress: retryIapOfferings },
+            ]
+          : [{ text: t('common:actions.gotIt', { defaultValue: 'Got it' }), style: 'cancel' }],
       );
       return;
     }
@@ -396,7 +404,7 @@ export default function PaywallScreen() {
     } finally {
       setPurchasing(false);
     }
-  }, [selectedPackage, userId, selectedTier, waitForProFulfillment, handleRestore, retryIapOfferings, iapBlockedMessage, t]);
+  }, [selectedPackage, userId, selectedTier, waitForProFulfillment, handleRestore, retryIapOfferings, iapBlockedMessage, iapBuildConfigured, t]);
 
   // Season Pass purchase — native buys the RC product; web asks the authenticated
   // backend to create the Bachs checkout for its server-owned product key.
@@ -881,28 +889,29 @@ export default function PaywallScreen() {
               ))}
             </View>
 
-            {/* On device we only sell via the store. If products can't load we
-                say so rather than dead-ending — one short line, not a paragraph.
-                Keyed off canPurchase (not iapUnavailable) so the case where
-                offerings loaded but THIS plan has no matching product explains
-                itself too, instead of a silently unbuyable card. Tapping the
-                line reloads the products; so does tapping the CTA. */}
+            {/* Distinguish a permanent build configuration gap from a
+                transient store/network failure. Only the latter can recover
+                through retry and restore actions. */}
             {USE_NATIVE_IAP && !iapLoading && !canPurchase && (
-              <TouchableOpacity
-                activeOpacity={0.7}
-                onPress={retryIapOfferings}
-                accessibilityRole="button"
-                hitSlop={{ top: 6, bottom: 6 }}
-              >
+              iapBuildConfigured ? (
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  onPress={retryIapOfferings}
+                  accessibilityRole="button"
+                  hitSlop={{ top: 6, bottom: 6 }}
+                >
+                  <Text style={styles.secureNote} numberOfLines={2}>
+                    {iapBlockedMessage}
+                  </Text>
+                  <Text style={styles.retryLink} numberOfLines={1}>
+                    {t('common:actions.tryAgain')}
+                  </Text>
+                </TouchableOpacity>
+              ) : (
                 <Text style={styles.secureNote} numberOfLines={2}>
                   {iapBlockedMessage}
                 </Text>
-                {/* The action is its own line, not appended to the sentence:
-                    it has to read as something you can press. */}
-                <Text style={styles.retryLink} numberOfLines={1}>
-                  {t('common:actions.tryAgain')}
-                </Text>
-              </TouchableOpacity>
+              )
             )}
 
             {/* Apple REQUIRES the auto-renew disclosure when charging via
@@ -974,7 +983,7 @@ export default function PaywallScreen() {
         >
           <X size={19} color="rgba(255,255,255,0.85)" />
         </TouchableOpacity>
-        {USE_NATIVE_IAP && canUpgrade ? (
+        {USE_NATIVE_IAP && canUpgrade && iapBuildConfigured ? (
           <TouchableOpacity
             onPress={handleRestore}
             disabled={restoring}
