@@ -34,6 +34,8 @@ const clerk = vi.hoisted(() => ({
   user: { user: null },
 }));
 
+let checkoutPopup: { opener: Window | null; location: { replace: ReturnType<typeof vi.fn> } };
+
 vi.mock('@clerk/clerk-react', () => ({
   useAuth: () => clerk.auth,
   useUser: () => clerk.user,
@@ -143,7 +145,8 @@ describe('developer dashboard credit top-ups', () => {
     };
     sessionStorage.clear();
     window.history.replaceState({}, '', '/');
-    vi.stubGlobal('open', vi.fn().mockReturnValue(window));
+    checkoutPopup = { opener: window, location: { replace: vi.fn() } };
+    vi.stubGlobal('open', vi.fn().mockReturnValue(checkoutPopup));
   });
 
   afterEach(() => {
@@ -205,10 +208,10 @@ describe('developer dashboard credit top-ups', () => {
 
     const firstInput = mocks.createCheckout.mock.calls[0][1];
     fireEvent.click(screen.getByRole('button', { name: /continue to secure checkout/i }));
-    expect(window.open).toHaveBeenCalledWith(
+    expect(window.open).toHaveBeenCalledWith('about:blank', '_blank');
+    expect(checkoutPopup.opener).toBeNull();
+    expect(checkoutPopup.location.replace).toHaveBeenCalledWith(
       'https://checkout.bachs.io/session/1',
-      '_blank',
-      'noopener,noreferrer',
     );
     expect(firstInput).not.toHaveProperty('price');
     expect(firstInput).not.toHaveProperty('credits');
