@@ -185,4 +185,36 @@ describe("PlanPicker unavailable catalog recovery", () => {
       .toHaveAttribute("href", "/app/wallet");
   });
 
+  it("reuses the same idempotency key after a checkout network failure", async () => {
+    mocks.request.mockResolvedValueOnce({
+      checkoutEnabled: true,
+      products: [
+        { productKey: "pro_monthly_pass", amountMinor: 1500, currency: "USD", cadence: "monthly", renewalMode: "one_time", validityDays: 30 },
+      ],
+    });
+    mocks.checkout
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockResolvedValueOnce({
+        intentId: "11111111-1111-4111-8111-111111111111",
+        checkoutUrl: "https://checkout.bachs.io/s/session-1",
+        expiresAt: "2026-12-01T00:00:00.000Z",
+        renewalMode: "one_time",
+      });
+    render(<MemoryRouter><PlanPicker compact docked /></MemoryRouter>);
+
+    fireEvent.click(await screen.findByRole("button", { name: /continue to checkout/i }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "We couldn’t reach Edutu just now. Check your connection and try again.",
+    );
+    expect(screen.getByRole("link", { name: "Open wallet and check pending payments" }))
+      .toHaveAttribute("href", "/app/wallet");
+    const firstKey = mocks.checkout.mock.calls[0][1].idempotencyKey;
+
+    fireEvent.click(screen.getByRole("button", { name: /continue to checkout/i }));
+    await screen.findByRole("button", { name: /continue to secure checkout/i });
+
+    expect(mocks.checkout).toHaveBeenCalledTimes(2);
+    expect(mocks.checkout.mock.calls[1][1].idempotencyKey).toBe(firstKey);
+  });
+
 });
