@@ -3,6 +3,7 @@ import { useAuth as useClerkAuth } from "@clerk/clerk-react";
 import { useNavigate } from "react-router-dom";
 import {
   Bookmark,
+  BookmarkX,
   ChevronLeft,
   ChevronRight,
   Loader2,
@@ -11,7 +12,7 @@ import {
 import { useAuth as useAppAuth } from "../hooks/useAuth";
 import PullToRefresh from "./ui/PullToRefresh";
 import { StateView, showsContent, useScreenState } from "./state";
-import { getBookmarks, type BookmarkRecord } from "../services/bookmarks";
+import { getBookmarks, removeBookmark as removeSavedBookmark, type BookmarkRecord } from "../services/bookmarks";
 import UrgencyPill from "./opportunity/UrgencyPill";
 import WebPushPrompt from "./WebPushPrompt";
 
@@ -33,6 +34,9 @@ export default function SavedPage() {
   const [bookmarks, setBookmarks] = useState<BookmarkRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [actionNotice, setActionNotice] = useState<string | null>(null);
+  const [removingId, setRemovingId] = useState<string | null>(null);
   // The raw failure, kept alongside the message so classifyError() can tell a
   // 401 from a 500. `error` stays a string because other copy still reads it.
   const [loadError, setLoadError] = useState<unknown>(null);
@@ -87,6 +91,29 @@ export default function SavedPage() {
   const openOpportunity = (opportunityId: string) => {
     if (opportunityId) {
       navigate(`/opportunity/${encodeURIComponent(opportunityId)}`);
+    }
+  };
+
+  const removeBookmark = async (opportunityId: string, title: string) => {
+    if (!user?.id || removingId) return;
+    const previous = bookmarks;
+    setRemovingId(opportunityId);
+    setActionError(null);
+    setActionNotice(null);
+    setBookmarks((current) => current.filter((bookmark) => bookmark.opportunity_id !== opportunityId));
+    try {
+      const token = await resolveToken();
+      await removeSavedBookmark(user.id, opportunityId, token);
+      setActionNotice(`Removed “${title}” from your saved opportunities.`);
+    } catch (caught) {
+      setBookmarks(previous);
+      setActionError(
+        (caught as { status?: number })?.status === 401
+          ? "Your session expired. Sign in again, then try removing this saved opportunity."
+          : `We couldn’t remove “${title}” from your saved opportunities. Please try again.`,
+      );
+    } finally {
+      setRemovingId(null);
     }
   };
 
@@ -157,6 +184,9 @@ export default function SavedPage() {
             />
           ) : null}
 
+          {actionNotice ? <p className="mt-5 rounded-xl border border-green-600/20 bg-green-600/5 p-4 text-sm text-green-800" role="status" aria-live="polite">{actionNotice}</p> : null}
+          {actionError ? <p className="mt-5 rounded-xl border border-red-500/20 bg-red-500/5 p-4 text-sm text-red-700" role="alert">{actionError}</p> : null}
+
           {loading ? (
             <div className="mt-5 grid gap-4 sm:grid-cols-2">
               {Array.from({ length: 4 }).map((_, index) => (
@@ -176,43 +206,61 @@ export default function SavedPage() {
               />
             </div>
           ) : (
+            <>
             <div className="mt-5 grid gap-4 sm:grid-cols-2">
               {bookmarks.map((bookmark) => (
-                <button
+                <article
                   key={bookmark.id}
-                  type="button"
-                  onClick={() => openOpportunity(bookmark.opportunity_id)}
-                  className={`opportunity-cinematic-card flex w-full items-center gap-3 border p-4 text-left transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${surfaceClass}`}
+                  className={`opportunity-cinematic-card flex min-w-0 items-center gap-3 border p-3 transition sm:p-4 ${surfaceClass}`}
                 >
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-brand/10 text-brand">
-                    <Bookmark size={20} />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-brand">
-                      {bookmark.opportunity_category || "Opportunity"}
-                    </p>
-                    <h3 className="mt-1 line-clamp-2 text-sm font-semibold text-text-primary">
-                      {bookmark.opportunity_title}
-                    </h3>
-                    <div className="mt-1.5 flex flex-wrap items-center gap-2">
-                      <p className="text-xs font-medium text-text-muted">
-                        {bookmark.opportunity_location || "Worldwide"} ·{" "}
-                        {formatDeadline(bookmark.opportunity_deadline)}
-                      </p>
-                      <UrgencyPill
-                        deadline={bookmark.opportunity_deadline}
-                        compact
-                        className="!py-0.5"
-                      />
+                  <button
+                    type="button"
+                    onClick={() => openOpportunity(bookmark.opportunity_id)}
+                    className="flex min-w-0 flex-1 items-center gap-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+                  >
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-brand/10 text-brand">
+                      <Bookmark size={20} />
                     </div>
-                  </div>
-                  <ChevronRight
-                    size={18}
-                    className="shrink-0 text-text-muted"
-                  />
-                </button>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-brand">
+                        {bookmark.opportunity_category || "Opportunity"}
+                      </p>
+                      <h3 className="mt-1 line-clamp-2 text-sm font-semibold text-text-primary">
+                        {bookmark.opportunity_title}
+                      </h3>
+                      <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                        <p className="text-xs font-medium text-text-muted">
+                          {bookmark.opportunity_location || "Worldwide"} ·{" "}
+                          {formatDeadline(bookmark.opportunity_deadline)}
+                        </p>
+                        <UrgencyPill
+                          deadline={bookmark.opportunity_deadline}
+                          compact
+                          className="!py-0.5"
+                        />
+                      </div>
+                    </div>
+                    <ChevronRight
+                      size={18}
+                      className="shrink-0 text-text-muted"
+                    />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={`Remove ${bookmark.opportunity_title} from saved opportunities`}
+                    title="Remove from saved opportunities"
+                    disabled={removingId !== null}
+                    onClick={() => void removeBookmark(bookmark.opportunity_id, bookmark.opportunity_title)}
+                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-text-muted transition hover:bg-red-500/10 hover:text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 disabled:cursor-wait disabled:opacity-50"
+                  >
+                    {removingId === bookmark.opportunity_id
+                      ? <Loader2 size={18} className="animate-spin" aria-hidden="true" />
+                      : <BookmarkX size={18} aria-hidden="true" />}
+                  </button>
+                </article>
               ))}
             </div>
+            </>
           )}
         </main>
       </PullToRefresh>

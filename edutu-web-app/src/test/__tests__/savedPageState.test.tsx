@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { classifyError } from '@edutu/ux-state/state';
 import { StateView } from '@/components/state';
 
-// SavedPage itself needs Clerk, a router and a live fetch, so its wiring is
-// asserted through the contract it now delegates to rather than by mounting it.
+// Keep state-copy coverage focused; the mounted screen behavior lives in
+// components/SavedPage.test.tsx.
 describe('SavedPage states', () => {
   it('shows the saved first-run scene, not a generic one', () => {
     const { container } = render(
