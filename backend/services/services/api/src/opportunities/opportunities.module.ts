@@ -20,8 +20,10 @@ import { OpportunitySourceImageService } from "./opportunity-source-image.servic
 @Module({
   imports: [AiModule, SavedSearchesModule],
   controllers: [
-    OpportunitiesController,
+    // Register literal subpaths before OpportunitiesController's `:id` route;
+    // otherwise `/opportunities/catalog` is captured as an opportunity ID.
     OpportunityCatalogController,
+    OpportunitiesController,
     OgController,
   ],
   providers: [
