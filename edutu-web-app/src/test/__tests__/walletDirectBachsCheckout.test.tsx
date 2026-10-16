@@ -85,4 +85,30 @@ describe("wallet Bachs checkout return", () => {
     expect(mocks.request).not.toHaveBeenCalledWith(expect.stringContaining("/billing/intents/"));
     expect(screen.queryByText(/payment confirmed/i)).not.toBeInTheDocument();
   });
+
+  it("clears a terminal checkout reminder so the learner can start a new purchase", async () => {
+    const storageKey = "edutu.checkout.user_wallet_test";
+    localStorage.setItem(storageKey, JSON.stringify({
+      productKey: "pro_monthly_pass",
+      idempotencyKey: "11111111-1111-4111-8111-111111111112",
+      intentId,
+      expiresAt: "2026-10-15T12:00:00.000Z",
+    }));
+    mocks.request.mockImplementation(async (path: string) => {
+      if (path === "/billing/status") {
+        return { planTier: "none", subscriptionStatus: null, entitlements: [], credits: 0, proExpiresAt: null, transactions: [] };
+      }
+      if (path === "/billing/user-catalog") return { products: [], checkoutEnabled: true };
+      if (path === `/billing/intents/${intentId}`) {
+        return { intentId, productKey: "pro_monthly_pass", status: "expired", fulfilled: false, expiresAt: "2026-10-15T12:00:00.000Z" };
+      }
+      throw new Error(`Unexpected billing request: ${path}`);
+    });
+
+    render(<MemoryRouter initialEntries={["/app/wallet"]}><WalletPage /></MemoryRouter>);
+
+    expect(await screen.findByText(/reports this checkout as expired/i)).toBeInTheDocument();
+    await waitFor(() => expect(localStorage.getItem(storageKey)).toBeNull());
+    expect(screen.queryByRole("region", { name: "Pending payment" })).not.toBeInTheDocument();
+  });
 });

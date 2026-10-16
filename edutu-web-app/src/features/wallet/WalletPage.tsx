@@ -158,6 +158,10 @@ export default function WalletPage() {
           await refresh();
         } else if (["failed", "cancelled", "canceled", "expired"].includes(value.status)) {
           setReturnedIntentId(null);
+          // A terminal provider result can no longer be resumed. Keeping it in
+          // local storage makes PlanPicker reject every later checkout, so
+          // clear only this local recovery reminder after server verification.
+          persist(null);
           setNotice(`Bachs reports this checkout as ${friendlyStatus(value.status)}. No access or credits were applied.`);
         } else {
           setNotice("Payment is still processing. Don’t pay again; Edutu will apply access after Bachs confirms it.");
