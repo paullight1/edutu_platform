@@ -1,0 +1,34 @@
+# The repository is the Dokploy/Nixpacks build context. Keep local and Git
+# metadata out of the image layers so builds use less transfer and disk space.
+**/.git
+**/node_modules
+**/dist
+**/build
+**/coverage
+**/.next
+**/.vite
+**/.turbo
+**/.expo
+**/.cache
+**/.npm
+**/.pnpm-store
+**/.yarn
+**/*.tsbuildinfo
+**/*.log
+**/*.tmp.*
+**/.DS_Store
+
+# Never copy developer or deployment secrets into the image build context.
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.sample
+!**/.env.local.example
+
+# Local tooling state is not required by any production build.
+/.claude
+/.codex*
+/.mcp.json
+/.playwright-cli
+/.worktrees
+render.backend.env

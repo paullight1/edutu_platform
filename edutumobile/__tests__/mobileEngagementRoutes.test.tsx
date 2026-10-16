@@ -13,6 +13,7 @@ const mockRefreshCredits = jest.fn().mockResolvedValue(undefined);
 const mockUpdateGoal = jest.fn().mockResolvedValue(undefined);
 const mockDeleteGoal = jest.fn().mockResolvedValue(undefined);
 const mockInitRevenueCat = jest.fn().mockResolvedValue(false);
+let mockRevenueCatBuildConfigured = true;
 const mockGetOfferings = jest.fn();
 const mockPurchasePackage = jest.fn();
 const mockCreatePurchaseFulfillmentCheck = jest.fn();
@@ -319,6 +320,7 @@ jest.mock('@edutu/core/src/services/billingFulfillment', () => ({
 
 jest.mock('@edutu/core/src/services/payments', () => ({
   waitForServerFulfillment: (check: () => Promise<boolean>) => check(),
+  isRevenueCatAvailableForBuild: () => mockRevenueCatBuildConfigured,
   initRevenueCat: (...args: unknown[]) => mockInitRevenueCat(...args),
   getOfferings: (...args: unknown[]) => mockGetOfferings(...args),
   purchasePackage: (...args: unknown[]) => mockPurchasePackage(...args),
@@ -371,6 +373,7 @@ describe('mobile engagement routes', () => {
     mockUpdateGoal.mockClear();
     mockDeleteGoal.mockClear();
     mockInitRevenueCat.mockClear();
+    mockRevenueCatBuildConfigured = true;
     mockGetOfferings.mockClear();
     mockPurchasePackage.mockClear();
     mockCreatePurchaseFulfillmentCheck.mockReset().mockResolvedValue(mockConfirmPurchase);
@@ -641,5 +644,28 @@ describe('mobile engagement routes', () => {
     // Restore is wired to the RevenueCat restore flow.
     fireEvent.press(getByText('Restore purchases'));
     await waitFor(() => expect(mockRestorePurchases).toHaveBeenCalled());
+  });
+
+  it('explains a missing store key as a build setup issue without offering futile retries', async () => {
+    mockRevenueCatBuildConfigured = false;
+    mockInitRevenueCat.mockResolvedValue(false);
+    mockGetOfferings.mockResolvedValue(null);
+    const alert = jest.spyOn(Alert, 'alert');
+    try {
+      const { getByText, queryByText } = render(<PaywallScreen />);
+
+      await waitFor(() => expect(getByText('In-app purchases are not set up for this app version yet. Please check back after an update.')).toBeTruthy());
+      expect(queryByText('Try again')).toBeNull();
+      expect(queryByText('Restore purchases')).toBeNull();
+
+      fireEvent.press(getByText(/^Start /));
+      expect(alert).toHaveBeenCalledWith(
+        'Subscriptions unavailable right now',
+        'In-app purchases are not set up for this app version yet. Please check back after an update.',
+        [{ text: 'Got it', style: 'cancel' }],
+      );
+    } finally {
+      alert.mockRestore();
+    }
   });
 });

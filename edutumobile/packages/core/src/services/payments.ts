@@ -31,6 +31,11 @@ const RAW_REVENUECAT_API_KEY = Platform.select({
 const REVENUECAT_API_KEY =
   RAW_REVENUECAT_API_KEY.startsWith('test_') && !__DEV__ ? '' : RAW_REVENUECAT_API_KEY;
 
+/** True when this build contains a store-safe RevenueCat public SDK key. */
+export function isRevenueCatAvailableForBuild(): boolean {
+  return Boolean(REVENUECAT_API_KEY);
+}
+
 let isRevenueCatConfigured = false;
 let configuredUserId: string | null = null;
 
@@ -127,7 +132,7 @@ export async function initRevenueCat(userId: string): Promise<boolean> {
     // Expected state until the RevenueCat key ships — warn once, not per call.
     if (__DEV__ && !warnedMissingApiKey) {
       warnedMissingApiKey = true;
-      console.warn('RevenueCat API key not configured (IAP disabled; web checkout is used instead)');
+      console.warn('RevenueCat API key not configured (native purchases are unavailable; Bachs checkout is web-only)');
     }
     isRevenueCatConfigured = false;
     configuredUserId = null;

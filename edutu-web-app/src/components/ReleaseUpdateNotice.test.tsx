@@ -4,8 +4,8 @@ import { MemoryRouter } from 'react-router-dom';
 import ReleaseUpdateNotice from './ReleaseUpdateNotice';
 import { registerReleaseDraftSaver } from '../lib/releaseSafety';
 
-function renderNotice(path = '/dashboard') {
-  return render(<MemoryRouter initialEntries={[path]}><ReleaseUpdateNotice /></MemoryRouter>);
+function renderNotice(path = '/dashboard', userId: string | null = 'learner-1') {
+  return render(<MemoryRouter initialEntries={[path]}><ReleaseUpdateNotice userId={userId} /></MemoryRouter>);
 }
 
 vi.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: () => false } }));
@@ -60,6 +60,20 @@ it('lets users dismiss an update until a different release is deployed', async (
   await screen.findByText('Top100 has been updated');
 });
 
+it('keeps dismissal scoped to the signed-in learner', async () => {
+  vi.stubEnv('PROD', true);
+  vi.stubGlobal('__APP_RELEASE__', 'release-a');
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ version: 'release-b' }) }));
+
+  const first = renderNotice('/dashboard', 'learner-1');
+  await screen.findByText('Top100 has been updated');
+  fireEvent.click(screen.getByRole('button', { name: 'Dismiss update notice' }));
+  first.unmount();
+
+  renderNotice('/dashboard', 'learner-2');
+  await screen.findByText('Top100 has been updated');
+});
+
 it('keeps the release notice inside the light dashboard flow', async () => {
   vi.stubEnv('PROD', true);
   vi.stubGlobal('__APP_RELEASE__', 'release-a');
@@ -92,6 +106,17 @@ it.each([
   vi.stubGlobal('fetch', fetch);
 
   renderNotice(path);
+  await waitFor(() => expect(fetch).not.toHaveBeenCalled());
+  expect(screen.queryByText('Top100 has been updated')).toBeNull();
+});
+
+it('does not check or show updates without a signed-in user', async () => {
+  vi.stubEnv('PROD', true);
+  vi.stubGlobal('__APP_RELEASE__', 'release-a');
+  const fetch = vi.fn();
+  vi.stubGlobal('fetch', fetch);
+
+  renderNotice('/dashboard', null);
   await waitFor(() => expect(fetch).not.toHaveBeenCalled());
   expect(screen.queryByText('Top100 has been updated')).toBeNull();
 });
