@@ -37,7 +37,7 @@ describe("TrustSignal", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("warns when the listing has conflicting deadline claims", () => {
+  it("clarifies that a checked source does not confirm a deadline that needs review", () => {
     render(
       <TrustSignal
         trust={{
@@ -51,6 +51,12 @@ describe("TrustSignal", () => {
       />,
     );
 
+    expect(screen.getByText("Source checked")).toBeVisible();
+    expect(screen.queryByText("Verified")).toBeNull();
     expect(screen.getByText("Check deadline")).toBeVisible();
+    expect(screen.getByText("Source checked").closest("span")).toHaveAttribute(
+      "title",
+      "Edutu checked this opportunity's source page, but the deadline still needs review.",
+    );
   });
 });
