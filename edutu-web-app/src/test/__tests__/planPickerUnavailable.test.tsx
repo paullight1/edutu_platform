@@ -160,4 +160,29 @@ describe("PlanPicker unavailable catalog recovery", () => {
     expect(mocks.checkout).not.toHaveBeenCalled();
   });
 
+  it("links to the wallet when a secure checkout link expires", async () => {
+    mocks.request.mockResolvedValueOnce({
+      checkoutEnabled: true,
+      products: [
+        { productKey: "pro_monthly_pass", amountMinor: 1500, currency: "USD", cadence: "monthly", renewalMode: "one_time", validityDays: 30 },
+      ],
+    });
+    mocks.checkout.mockResolvedValueOnce({
+      intentId: "11111111-1111-4111-8111-111111111111",
+      checkoutUrl: "https://checkout.bachs.io/s/session-1",
+      expiresAt: new Date(Date.now() - 60_000).toISOString(),
+      renewalMode: "one_time",
+    });
+    render(<MemoryRouter><PlanPicker compact docked /></MemoryRouter>);
+
+    fireEvent.click(await screen.findByRole("button", { name: /continue to checkout/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /continue to secure checkout/i }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "The secure link expired. Open your wallet to check this pending payment and resume checkout.",
+    );
+    expect(screen.getByRole("link", { name: "Open wallet and check pending payments" }))
+      .toHaveAttribute("href", "/app/wallet");
+  });
+
 });

@@ -423,6 +423,7 @@ export default function PlanPicker({
                 Date.parse(checkout.expiresAt) <= Date.now()
               ) {
                 setCheckout(null);
+                setShowWalletLink(true);
                 setError(
                   "The secure link expired. Open your wallet to check this pending payment and resume checkout.",
                 );
