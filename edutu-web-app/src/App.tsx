@@ -21,6 +21,7 @@ import {
 import { useAuth as useClerkAuth } from "@clerk/clerk-react";
 import { ArrowLeft, ShieldAlert } from "lucide-react";
 import AppWorkspaceShell from "./components/AppWorkspaceShell";
+import ReleaseUpdateNotice from "./components/ReleaseUpdateNotice";
 import PublicEditorialShell from "./components/PublicEditorialShell";
 import GoogleOneTapGate from "./components/GoogleOneTapGate";
 import ScrollToTop from "./components/ScrollToTop";
@@ -527,6 +528,7 @@ function UserDashboardPage() {
     <>
       <Dashboard
         user={user}
+        releaseUpdateNotice={user?.id ? <ReleaseUpdateNotice userId={user.id} /> : null}
         onOpportunityClick={openOpportunity}
         onViewAllOpportunities={() => navigate("/app/opportunities")}
         onNavigate={openAppRoute}
