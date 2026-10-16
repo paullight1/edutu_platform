@@ -155,12 +155,13 @@ export function evaluateMatch(
     userProfile.courseOfStudy &&
       category.includes(userProfile.courseOfStudy.toLowerCase())
   );
-  const matchedInterest = userProfile.interests.find(
-    (interest) =>
-      category.includes(interest.toLowerCase()) ||
-      title.includes(interest.toLowerCase()) ||
-      description.includes(interest.toLowerCase())
-  );
+  const matchedInterest = userProfile.interests.find((interest) => {
+    const term = interest.trim().toLowerCase();
+    return (
+      term.length > 0 &&
+      (category.includes(term) || title.includes(term) || description.includes(term))
+    );
+  });
 
   if (courseMatch) {
     add("field", `Fits your field, ${userProfile.courseOfStudy}`, 25);
@@ -177,14 +178,15 @@ export function evaluateMatch(
     if (locationMatch) {
       add("location", `Open to your region, ${userProfile.location}`, 15);
     } else if (isRemote) {
-      add("remote", "Remote — open to applicants anywhere", 10);
+      add("remote", "Listed as remote; check location eligibility", 10);
     }
   }
 
   // Match preferred categories (20 points max)
-  const matchedCategory = userProfile.preferredCategories.find((cat) =>
-    category.includes(cat.toLowerCase())
-  );
+  const matchedCategory = userProfile.preferredCategories.find((cat) => {
+    const term = cat.trim().toLowerCase();
+    return term.length > 0 && category.includes(term);
+  });
   if (matchedCategory) {
     add("category", `In a category you follow, ${opportunity.category}`, 20);
   }
@@ -221,14 +223,14 @@ export function evaluateMatch(
 
   // Match career goals (15 points max)
   if (userProfile.careerGoals.length > 0) {
-    const opportunityText = `${title} ${description} ${opportunity.benefits.join(
+    const opportunityText = `${title} ${description} ${(opportunity.benefits || []).join(
       " "
     )}`.toLowerCase();
     let goalPoints = 0;
     const matchedGoals: string[] = [];
 
     userProfile.careerGoals.forEach((goal) => {
-      if (opportunityText.includes(goal.toLowerCase())) {
+      if (goal.trim() && opportunityText.includes(goal.trim().toLowerCase())) {
         goalPoints += 5;
         matchedGoals.push(goal);
       }
@@ -247,7 +249,7 @@ export function evaluateMatch(
 
   // Bonus: Match education level for opportunities that mention education (5 points)
   if (userProfile.educationLevel) {
-    const opportunityText = `${title} ${description}`;
+    const opportunityText = `${title} ${description}`.toLowerCase();
     const educationTerms: Record<string, string[]> = {
       "high-school": ["high school", "secondary"],
       undergraduate: ["undergraduate", "bachelor", "college"],
@@ -318,9 +320,10 @@ export async function fetchPersonalizedOpportunities(
     const onboardingState = extractOnboardingState(profile);
 
     if (!onboardingState?.data) {
-      // User hasn't completed onboarding, return all opportunities without filtering
+      // Without onboarding there is no evidence to calculate profile fit.
+      // Keep discovery available, but never fabricate a 50-point match.
       const opportunities = await fetchOpportunities({ force: forceRefresh, userId });
-      return opportunities.map(opportunity => ({ opportunity, matchScore: 50 }));
+      return opportunities.slice(0, limit).map(opportunity => ({ opportunity, matchScore: 0 }));
     }
 
     // Convert onboarding data to recommendation profile
@@ -335,7 +338,7 @@ export async function fetchPersonalizedOpportunities(
     console.error('Failed to fetch personalized opportunities:', error);
     // Fallback: return all opportunities without filtering
     const opportunities = await fetchOpportunities({ force: forceRefresh });
-    return opportunities.map(opportunity => ({ opportunity, matchScore: 0 }));
+    return opportunities.slice(0, limit).map(opportunity => ({ opportunity, matchScore: 0 }));
   }
 }
 

@@ -146,6 +146,25 @@ describe("agent persona — untrusted content rule", () => {
   });
 });
 
+describe("agent factual grounding", () => {
+  it("adds source and uncertainty rules after the editable persona", async () => {
+    const { aiService, runTurn } = makeService();
+    aiService.generateChat.mockResolvedValue(proseRound("I cannot confirm this deadline."));
+
+    await runTurn();
+
+    const system = aiService.generateChat.mock.calls[0][0].messages[0]
+      .content as string;
+    expect(system).toContain("FACTUAL RELIABILITY RULES");
+    expect(system).toContain("Missing, unverified, or potentially outdated details");
+    expect(system).toContain("Never promise a user they qualify");
+    expect(system).toContain("Do not state an action was completed unless");
+    expect(system.indexOf("FACTUAL RELIABILITY RULES")).toBeGreaterThan(
+      system.indexOf("You are Edutu Coach"),
+    );
+  });
+});
+
 describe("turn id", () => {
   it("stamps every LLM call of one turn with the same turn id", async () => {
     const { aiService, runTurn } = makeService();

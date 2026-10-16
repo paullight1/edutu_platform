@@ -22,9 +22,12 @@ export interface CoachTurn {
   userMessage: CoachMessage;
   assistantMessage: CoachMessage;
 }
+export type CoachProgress = "thinking" | "checking" | "writing";
+
 export async function consumeCoachStream<T = CoachTurn>(
   body: ReadableStream<Uint8Array>,
   onText: (text: string) => void,
+  onProgress?: (progress: CoachProgress) => void,
 ): Promise<T> {
   const reader = body.getReader();
   const decoder = new TextDecoder();
@@ -43,12 +46,17 @@ export async function consumeCoachStream<T = CoachTurn>(
       .join("\n");
     if (!data) return;
     const value = JSON.parse(data);
+    if (event === "turn.start") onProgress?.("thinking");
     if (event === "tool.start") {
+      // The preceding tokens were a preamble, not the final answer.
       text = "";
       onText(text);
+      onProgress?.("checking");
     }
+    if (event === "tool.result") onProgress?.("thinking");
     if (event === "token") {
-      text += value.content || "";
+      onProgress?.("writing");
+      text += typeof value.content === "string" ? value.content : "";
       onText(text);
     }
     if (event === "turn.final") {
@@ -99,6 +107,7 @@ export async function sendCoachTurn(
   },
   signal: AbortSignal,
   onText: (text: string) => void,
+  onProgress?: (progress: CoachProgress) => void,
 ): Promise<CoachTurn> {
   signal.throwIfAborted();
   const controller = new AbortController();
@@ -148,7 +157,7 @@ export async function sendCoachTurn(
     }
     if (!response.body)
       throw new Error("Streaming is unavailable in this browser");
-    return await consumeCoachStream(response.body, onText);
+    return await consumeCoachStream(response.body, onText, onProgress);
   } finally {
     clearTimeout(timer);
     signal.removeEventListener("abort", abort);

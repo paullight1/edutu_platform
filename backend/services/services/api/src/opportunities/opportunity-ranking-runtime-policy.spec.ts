@@ -40,12 +40,65 @@ describe("installOpportunityRankingRuntimePolicy", () => {
       id: "opp-1",
       match: 62,
       description: candidates[0].description,
-      matchReasons: ["Weak semantic fit.", "Strong heuristic fit."],
+      matchReasons: ["Strong heuristic fit."],
     });
     const prompt = generateJson.mock.calls[0][0].prompt as string;
     expect(prompt).not.toContain(hiddenTail);
     expect(prompt.length).toBeLessThan(5000);
     restore();
+  });
+
+  it("rejects fabricated IDs, bad scores, and unsupported AI explanations", async () => {
+    const generateJson = jest.fn().mockResolvedValue({
+      matches: [
+        { id: "unknown-opp", score: 100, reason: "Guaranteed scholarship." },
+        { id: "one", score: "100", reason: "Guaranteed admission." },
+        { id: "one", score: Number.NaN, reason: "Guaranteed admission." },
+        { id: "two", score: -5, reason: "Guaranteed admission." },
+        { id: "one", score: 20, reason: "Guaranteed admission." },
+      ],
+    });
+    const service = {
+      aiService: { generateJson },
+      logger: { warn: jest.fn() },
+      rerankWithDeepSeek: jest.fn(),
+    } as any;
+    const candidates = [
+      { id: "one", title: "Scholarship", match: 90, matchReasons: ["Matches your subject."] },
+      { id: "two", title: "Fellowship", match: 70, matchReasons: ["Matches your country."] },
+    ];
+    const restore = installOpportunityRankingRuntimePolicy(service);
+    try {
+      const result = await service.rerankWithDeepSeek(candidates, {}, null, [], "", 5);
+      expect(result).toHaveLength(2);
+      expect(result.find((entry: any) => entry.id === "one")).toMatchObject({
+        match: 62,
+        matchReasons: ["Matches your subject."],
+      });
+      expect(result.find((entry: any) => entry.id === "two")).toMatchObject({
+        match: 70,
+        matchReasons: ["Matches your country."],
+      });
+      expect(JSON.stringify(result)).not.toContain("Guaranteed");
+    } finally {
+      restore();
+    }
+  });
+
+  it("fails soft when the model returns an invalid matches envelope", async () => {
+    const service = {
+      aiService: { generateJson: jest.fn().mockResolvedValue({ matches: "bad output" }) },
+      logger: { warn: jest.fn() },
+      rerankWithDeepSeek: jest.fn(),
+    } as any;
+    const candidates = [{ id: "one", title: "One", match: 80, matchReasons: [] }];
+    const restore = installOpportunityRankingRuntimePolicy(service);
+    try {
+      await expect(service.rerankWithDeepSeek(candidates, {}, null, [], "", 5))
+        .resolves.toEqual(candidates);
+    } finally {
+      restore();
+    }
   });
 
   it("fails soft to the deterministic shortlist when AI reranking is unavailable", async () => {
