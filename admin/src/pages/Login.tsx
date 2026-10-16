@@ -2,6 +2,7 @@ import { useState, type FC, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { Mail, Lock, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { getLoginErrorMessage } from './loginErrors';
 
 const Login: FC = () => {
   const [email, setEmail] = useState('');
@@ -39,10 +40,10 @@ const Login: FC = () => {
       const { error } = result;
 
       if (error) {
-        setError(error.message);
+        setError(getLoginErrorMessage(error));
       }
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'An unexpected error occurred');
+      setError(getLoginErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -100,14 +101,14 @@ const Login: FC = () => {
               borderRadius: '8px',
               marginBottom: '20px',
               fontSize: '14px'
-            }}>
+            }} role="alert">
               {error}
             </div>
           )}
 
           <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
             <div>
-              <label style={{
+              <label htmlFor="admin-login-email" style={{
                 display: 'block',
                 marginBottom: '8px',
                 fontSize: '14px',
@@ -125,10 +126,12 @@ const Login: FC = () => {
                   color: 'var(--text-tertiary)'
                 }} />
                 <input
+                  id="admin-login-email"
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="admin@edutu.org"
+                  autoComplete="username"
                   required
                   style={{
                     width: '100%',
@@ -146,7 +149,7 @@ const Login: FC = () => {
             </div>
 
             <div>
-              <label style={{
+              <label htmlFor="admin-login-password" style={{
                 display: 'block',
                 marginBottom: '8px',
                 fontSize: '14px',
@@ -164,10 +167,12 @@ const Login: FC = () => {
                   color: 'var(--text-tertiary)'
                 }} />
                 <input
+                  id="admin-login-password"
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
+                  autoComplete="current-password"
                   required
                   style={{
                     width: '100%',
@@ -184,6 +189,8 @@ const Login: FC = () => {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  aria-pressed={showPassword}
                   style={{
                     position: 'absolute',
                     right: '14px',
