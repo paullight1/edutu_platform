@@ -42,6 +42,8 @@ export interface Opportunity {
   applicants?: string;
   successRate?: string;
   applyUrl?: string;
+  /** Canonical public source article URL, used to identify duplicate imports. */
+  sourceUrl?: string;
   lastUpdated?: string;
 
   // Admin-relevant fields

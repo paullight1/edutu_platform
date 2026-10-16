@@ -20,6 +20,7 @@ import { productApiRequest, isProductApiUnavailableError } from "./productApi";
 import { paidToolPath } from "../features/workspace/paidRoutes";
 import { toMatchReasons } from "./serverMatchStore";
 import type { MatchReason } from "./personalizedRecommendations";
+import { deduplicateOpportunities } from "./opportunityDeduplication";
 
 let cachedOpportunities: Opportunity[] | null = null;
 let cachedOpportunitiesAt = 0;
@@ -676,6 +677,16 @@ function normaliseOpportunity(row: BackendOpportunityRow): Opportunity {
       metadata.canonicalUrl,
       metadata.url,
     ),
+    sourceUrl: pickOpportunityUrl(
+      row.source_url,
+      row.sourceUrl,
+      row.canonical_url,
+      row.canonicalUrl,
+      metadata.source_url,
+      metadata.sourceUrl,
+      metadata.canonical_url,
+      metadata.canonicalUrl,
+    ),
     lastUpdated,
     source: isOpportunitySource(row.source) ? row.source : undefined,
     externalId: pickOptionalString(row.external_id),
@@ -866,7 +877,7 @@ async function requestOpportunityList(
     }
   }
 
-  return aggregated;
+  return deduplicateOpportunities(aggregated);
 }
 
 function revalidateOpportunitiesInBackground(options: FetchOptions) {
