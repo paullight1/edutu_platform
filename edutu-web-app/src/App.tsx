@@ -43,7 +43,6 @@ const ApplicationsPage = lazy(() => import("./components/ApplicationsPage"));
 const MyPlanPage = lazy(() => import("./components/MyPlanPage"));
 const MyPlanDetailPage = lazy(() => import("./components/MyPlanDetailPage"));
 const Dashboard = lazy(() => import("./components/Dashboard"));
-const ReleaseUpdateNotice = lazy(() => import("./components/ReleaseUpdateNotice"));
 const PersonalizationScreen = lazy(
   () => import("./components/PersonalizationScreen"),
 );
@@ -526,7 +525,6 @@ function UserDashboardPage() {
 
   return (
     <>
-      <ReleaseUpdateNotice />
       <Dashboard
         user={user}
         onOpportunityClick={openOpportunity}

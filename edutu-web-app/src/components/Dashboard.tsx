@@ -78,6 +78,7 @@ import NextStepCard from "./dashboard/NextStepCard";
 import { isInternalDestination } from "../lib/googleSignupWelcome";
 import { consumePremiumWelcome } from "../lib/premiumWelcome";
 import { PremiumWelcomeDialog } from "./dashboard/PremiumWelcomeDialog";
+import ReleaseUpdateNotice from "./ReleaseUpdateNotice";
 
 // The home feed is a fixed shortlist, not an endless scroll: six picks at a
 // time, with opened items advancing to the next unseen opportunity this session.
@@ -1379,6 +1380,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
         >
           <main className="min-w-0 space-y-4 px-0 pt-2 pb-5 lg:grid lg:grid-cols-12 lg:items-start lg:gap-x-8 lg:gap-y-8 lg:space-y-0 lg:py-5">
             <div className="space-y-4 lg:col-span-12 lg:col-start-1 lg:row-start-1">
+              <ReleaseUpdateNotice />
               <header className="hidden lg:block">
                 <h1 className="mt-2 font-display text-3xl font-bold tracking-tight text-text-primary xl:text-4xl">
                   {t("workspace.greeting", {
