@@ -217,4 +217,39 @@ describe("PlanPicker unavailable catalog recovery", () => {
     expect(mocks.checkout.mock.calls[1][1].idempotencyKey).toBe(firstKey);
   });
 
+  it("retries once with a fresh key when the saved checkout intent is terminal", async () => {
+    mocks.request.mockResolvedValueOnce({
+      checkoutEnabled: true,
+      products: [
+        { productKey: "pro_monthly_pass", amountMinor: 1500, currency: "USD", cadence: "monthly", renewalMode: "one_time", validityDays: 30 },
+      ],
+    });
+    localStorage.setItem(
+      "edutu.checkout.user-1",
+      JSON.stringify({
+        productKey: "pro_monthly_pass",
+        idempotencyKey: "11111111-1111-4111-8111-111111111111",
+      }),
+    );
+    mocks.checkout
+      .mockRejectedValueOnce(new Error("The existing checkout intent cannot be resumed."))
+      .mockResolvedValueOnce({
+        intentId: "22222222-2222-4222-8222-222222222222",
+        checkoutUrl: "https://checkout.bachs.io/s/session-2",
+        expiresAt: "2026-12-01T00:00:00.000Z",
+        renewalMode: "one_time",
+      });
+
+    render(<MemoryRouter><PlanPicker compact docked /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole("button", { name: /continue to checkout/i }));
+
+    expect(await screen.findByRole("button", { name: /continue to secure checkout/i }))
+      .toBeInTheDocument();
+    expect(mocks.checkout).toHaveBeenCalledTimes(2);
+    expect(mocks.checkout.mock.calls[0][1].idempotencyKey)
+      .toBe("11111111-1111-4111-8111-111111111111");
+    expect(mocks.checkout.mock.calls[1][1].idempotencyKey)
+      .not.toBe(mocks.checkout.mock.calls[0][1].idempotencyKey);
+  });
+
 });

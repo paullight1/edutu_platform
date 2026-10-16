@@ -162,7 +162,7 @@ export default function PlanPicker({
         /^[a-f0-9-]{36}$/i.test(recovered.idempotencyKey)
           ? recovered.idempotencyKey
           : undefined;
-      const key = (keys.current[product.productKey] ||=
+      let key = (keys.current[product.productKey] ||=
         recoveredKey || crypto.randomUUID());
       try {
         localStorage.setItem(
@@ -175,15 +175,48 @@ export default function PlanPicker({
       } catch {
         /* keep the action key in memory */
       }
-      const result = await createCheckout(
-        token,
-        {
-          productKey: product.productKey,
-          returnSurface: "web",
-          idempotencyKey: key,
-        },
-        "consumer",
-      );
+      let result: CheckoutResponse;
+      try {
+        result = await createCheckout(
+          token,
+          {
+            productKey: product.productKey,
+            returnSurface: "web",
+            idempotencyKey: key,
+          },
+          "consumer",
+        );
+      } catch (error) {
+        // A saved idempotency key can outlive its provider session (for
+        // example, after a user cancels checkout and returns later). The API
+        // rejects terminal intents; retry once with a fresh key so the user
+        // can resume purchasing without clearing browser storage manually.
+        if (
+          !(error instanceof Error) ||
+          !/existing checkout intent cannot be resumed/i.test(error.message)
+        ) {
+          throw error;
+        }
+        key = crypto.randomUUID();
+        keys.current[product.productKey] = key;
+        try {
+          localStorage.setItem(
+            `edutu.checkout.${account}`,
+            JSON.stringify({ productKey: product.productKey, idempotencyKey: key }),
+          );
+        } catch {
+          /* retain the fresh key in memory */
+        }
+        result = await createCheckout(
+          token,
+          {
+            productKey: product.productKey,
+            returnSurface: "web",
+            idempotencyKey: key,
+          },
+          "consumer",
+        );
+      }
       if (owner.current !== account) return;
       // Only reconciliation metadata is retained. The single-use code stays in memory.
       try {
