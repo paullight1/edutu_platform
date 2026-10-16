@@ -1818,6 +1818,7 @@ export default function OpportunityDetailScreen() {
             >
               {showAiSummary ? (
                 <View
+                  key="ai-summary"
                   style={[
                     styles.summaryBlock,
                     { borderLeftColor: colors.accent, backgroundColor: `${colors.accent}0A` },
@@ -1834,7 +1835,7 @@ export default function OpportunityDetailScreen() {
                   </Text>
                 </View>
               ) : null}
-              <Text style={[styles.description, { color: textSecondary }]}>
+              <Text key="description" style={[styles.description, { color: textSecondary }]}>
                 {description && description !== "No description provided."
                   ? description
                   : t("detail.descriptionUnavailable")}

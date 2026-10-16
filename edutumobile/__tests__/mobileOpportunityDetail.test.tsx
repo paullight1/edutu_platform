@@ -364,6 +364,30 @@ describe('mobile opportunity detail route', () => {
     expect(mockBack).toHaveBeenCalled();
   });
 
+  it('renders the AI summary without missing-key React warnings', async () => {
+    mockOpportunity = makeOpportunity();
+    mockGetOpportunity.mockResolvedValue(mockOpportunity);
+    const keyWarnings: unknown[][] = [];
+    const originalError = console.error;
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation((...args) => {
+      if (String(args[0]).includes('Each child in a list should have a unique "key" prop')) {
+        keyWarnings.push(args);
+        return;
+      }
+      originalError(...args);
+    });
+
+    try {
+      const { getByText } = render(<OpportunityDetailScreen />);
+      await waitFor(() => expect(getByText('Global Fellowship')).toBeTruthy());
+      expect(getByText('Short summary')).toBeTruthy();
+      expect(getByText('A leadership opportunity for emerging scholars.')).toBeTruthy();
+      expect(keyWarnings).toHaveLength(0);
+    } finally {
+      errorSpy.mockRestore();
+    }
+  });
+
   it('sends the user to chat with the question prefilled, never auto-sent', async () => {
     mockIsSignedIn = true;
     mockOpportunity = makeOpportunity();
