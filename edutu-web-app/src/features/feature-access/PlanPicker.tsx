@@ -3,6 +3,7 @@ import { useAuth } from "@clerk/clerk-react";
 import { Link } from "react-router-dom";
 import { ArrowRight, Check, Loader2 } from "lucide-react";
 import {
+  BillingRequestError,
   checkoutUnavailableMessage,
   createCheckout,
   type CheckoutResponse,
@@ -53,6 +54,16 @@ function readableBillingError(error: unknown, fallback: string): string {
 
   if (error instanceof Error && error.message.trim()) return error.message;
   return fallback;
+}
+
+function isTerminalProviderRejection(error: unknown): error is BillingRequestError {
+  return (
+    error instanceof BillingRequestError &&
+    error.status === 409 &&
+    /Bachs could not create this checkout session|No payment method is enabled for this plan/i.test(
+      error.message,
+    )
+  );
 }
 
 function PlanAvailabilityIllustration() {
@@ -236,6 +247,21 @@ export default function PlanPicker({
       delete keys.current[product.productKey];
     } catch (e) {
       if (owner.current === account) {
+        if (isTerminalProviderRejection(e)) {
+          delete keys.current[product.productKey];
+          try {
+            const raw = localStorage.getItem(`edutu.checkout.${account}`);
+            const stored = raw ? JSON.parse(raw) : null;
+            if (
+              stored?.productKey === product.productKey &&
+              !stored?.intentId
+            ) {
+              localStorage.removeItem(`edutu.checkout.${account}`);
+            }
+          } catch {
+            /* Leave any unreadable recovery state untouched. */
+          }
+        }
         setError(readableBillingError(e, "Checkout could not start."));
         setShowWalletLink(
           e instanceof Error &&

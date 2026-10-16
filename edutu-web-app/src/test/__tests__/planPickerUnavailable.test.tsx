@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import PlanPicker from "../../features/feature-access/PlanPicker";
+import { BillingRequestError } from "../../services/billing";
 import { ProductApiUnavailableError } from "../../services/productApi";
 
 const mocks = vi.hoisted(() => ({
@@ -250,6 +251,34 @@ describe("PlanPicker unavailable catalog recovery", () => {
       .toBe("11111111-1111-4111-8111-111111111111");
     expect(mocks.checkout.mock.calls[1][1].idempotencyKey)
       .not.toBe(mocks.checkout.mock.calls[0][1].idempotencyKey);
+  });
+
+  it("shows Bachs setup failures and clears only the terminal checkout attempt", async () => {
+    mocks.request.mockResolvedValueOnce({
+      checkoutEnabled: true,
+      products: [
+        { productKey: "pro_monthly_pass", amountMinor: 1500, currency: "USD", cadence: "monthly", renewalMode: "one_time", validityDays: 30 },
+      ],
+    });
+    mocks.checkout.mockRejectedValue(
+      new BillingRequestError(
+        409,
+        "billing_request_failed",
+        "No payment method is enabled for this plan yet. Please contact support.",
+      ),
+    );
+    render(<MemoryRouter><PlanPicker compact docked /></MemoryRouter>);
+
+    fireEvent.click(await screen.findByRole("button", { name: /continue to checkout/i }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "No payment method is enabled for this plan yet. Please contact support.",
+    );
+    expect(localStorage.getItem("edutu.checkout.user-1")).toBeNull();
+    const failedAttemptKey = mocks.checkout.mock.calls[0][1].idempotencyKey;
+
+    fireEvent.click(screen.getByRole("button", { name: /continue to checkout/i }));
+    await waitFor(() => expect(mocks.checkout).toHaveBeenCalledTimes(2));
+    expect(mocks.checkout.mock.calls[1][1].idempotencyKey).not.toBe(failedAttemptKey);
   });
 
 });
