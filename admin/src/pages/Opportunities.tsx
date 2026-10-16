@@ -75,6 +75,7 @@ import {
   ChevronRight,
   Share2,
   Image as ImageIcon,
+  Save,
 } from "lucide-react";
 
 interface Opportunity {
@@ -5168,7 +5169,7 @@ export default function Opportunities() {
             >
               <div>
                 <h2 style={{ margin: 0, fontSize: "22px", fontWeight: 600 }}>
-                  Add Opportunity
+                  {editingId ? "Edit Opportunity" : "Add Opportunity"}
                 </h2>
                 <p
                   style={{
@@ -5177,7 +5178,9 @@ export default function Opportunities() {
                     color: "var(--text-tertiary)",
                   }}
                 >
-                  Create a new scholarship, internship, or program
+                  {editingId
+                    ? "Update the opportunity details"
+                    : "Create a new scholarship, internship, or program"}
                 </p>
               </div>
               <button
@@ -5982,10 +5985,12 @@ export default function Opportunities() {
                     className="btn btn-primary"
                     style={{ height: "48px", padding: "0 32px" }}
                   >
-                    <Plus size={18} />
-                    {creationMode === "url"
-                      ? "Create from URL"
-                      : "Create Opportunity"}
+                    {editingId ? <Save size={18} /> : <Plus size={18} />}
+                    {editingId
+                      ? "Save changes"
+                      : creationMode === "url"
+                        ? "Create from URL"
+                        : "Create Opportunity"}
                   </button>
                 </div>
               </form>
