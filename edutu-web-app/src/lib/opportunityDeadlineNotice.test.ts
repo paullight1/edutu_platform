@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getDeadlineNotice } from "./opportunityDeadlineNotice";
+import { deadlineDisplayLabel, getDeadlineNotice } from "./opportunityDeadlineNotice";
 import type { OpportunityTrust } from "../types/opportunity";
 
 const baseTrust: OpportunityTrust = {
@@ -37,9 +37,15 @@ describe("getDeadlineNotice", () => {
     });
   });
 
-  it("retains the conflict warning for explicit or unspecified dates", () => {
+  it("uses review wording for explicit or unspecified dates without claiming a conflict", () => {
     expect(getDeadlineNotice({ ...baseTrust, deadlineConfidence: "explicit" })?.label)
       .toBe("Check date");
-    expect(getDeadlineNotice(baseTrust)?.title).toContain("conflicting deadline details");
+    expect(getDeadlineNotice(baseTrust)?.title).toContain("marked for review");
+    expect(getDeadlineNotice(baseTrust)?.title).not.toContain("conflicting");
+  });
+
+  it("labels unconfirmed dates separately from confirmed deadlines", () => {
+    expect(deadlineDisplayLabel(baseTrust)).toBe("Date to verify");
+    expect(deadlineDisplayLabel({ ...baseTrust, deadlineNeedsReview: false })).toBe("Deadline");
   });
 });

@@ -22,6 +22,7 @@ import { prepareOpportunityDescription } from "../lib/opportunityDetailPresentat
 import ImageWithFallback from "./ImageWithFallback";
 import OpportunityDetailLegacy from "./OpportunityDetailLegacy";
 import TrustSignal from "./opportunity/TrustSignal";
+import { deadlineDisplayLabel } from "../lib/opportunityDeadlineNotice";
 import { useToast } from "./ui/ToastProvider";
 import { useAnalytics } from "../hooks/useAnalytics";
 
@@ -92,7 +93,7 @@ function OpportunityHero({
   const facts = useMemo<FactItem[]>(() => {
     const next: FactItem[] = [];
     if (deadline) {
-      next.push({ label: "Deadline", value: deadline, icon: CalendarDays });
+      next.push({ label: deadlineDisplayLabel(opportunity.trust), value: deadline, icon: CalendarDays });
     }
     if (opportunity.location) {
       next.push({ label: "Location", value: opportunity.location, icon: MapPin });
@@ -101,7 +102,7 @@ function OpportunityHero({
       next.push({ label: "Funding", value: funding, icon: Banknote });
     }
     return next;
-  }, [deadline, funding, opportunity.location]);
+  }, [deadline, funding, opportunity.location, opportunity.trust]);
   const factColumns =
     facts.length <= 1 ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-2";
 

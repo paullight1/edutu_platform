@@ -59,10 +59,10 @@ export default function TrustSignal({
       {deadlineNeedsReview ? (
         <span
           className="inline-flex items-center gap-1 font-medium text-amber-700 dark:text-amber-300"
-          title="The deadline details conflict across this listing. Check the source page before relying on the date."
+          title="This date has not been confirmed against the official source. Check the source before applying."
           role="status"
         >
-          <Info size={11} /> Check deadline
+          <Info size={11} /> Verify deadline
         </span>
       ) : null}
     </div>

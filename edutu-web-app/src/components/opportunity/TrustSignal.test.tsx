@@ -53,7 +53,7 @@ describe("TrustSignal", () => {
 
     expect(screen.getByText("Source checked")).toBeVisible();
     expect(screen.queryByText("Verified")).toBeNull();
-    expect(screen.getByText("Check deadline")).toBeVisible();
+    expect(screen.getByText("Verify deadline")).toBeVisible();
     expect(screen.getByText("Source checked").closest("span")).toHaveAttribute(
       "title",
       "Edutu checked this opportunity's source page, but the deadline still needs review.",

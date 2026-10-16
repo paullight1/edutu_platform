@@ -24,7 +24,7 @@ import {
   X,
 } from "lucide-react";
 import { useOpportunities } from "../hooks/useOpportunities";
-import { getDeadlineNotice } from "../lib/opportunityDeadlineNotice";
+import { deadlineDisplayLabel, getDeadlineNotice } from "../lib/opportunityDeadlineNotice";
 import type { Opportunity } from "../types/opportunity";
 import {
   isOpportunityExpired,
@@ -256,16 +256,16 @@ function titleForPage(title: string, page: number): string {
   return `${base}${page > 1 ? ` — Page ${page}` : ""} | Edutu`;
 }
 
-function formatDeadline(value: string | null | undefined): string {
+function formatDeadline(value: string | null | undefined, dateLabel: string): string {
   if (!value) return "Confirm with provider";
   if (/rolling/i.test(value)) return "Rolling deadline";
   const date = parseOpportunityDeadline(value);
-  if (!date) return value;
-  return new Intl.DateTimeFormat("en", {
+  const formattedDate = date ? new Intl.DateTimeFormat("en", {
     day: "numeric",
     month: "short",
     year: "numeric",
-  }).format(date);
+  }).format(date) : value;
+  return `${dateLabel}: ${formattedDate}`;
 }
 
 function OpportunityCard({ opportunity }: { opportunity: Opportunity }) {
@@ -275,6 +275,7 @@ function OpportunityCard({ opportunity }: { opportunity: Opportunity }) {
   const image =
     opportunity.image || opportunity.imageFallback || getDefaultSeoImage();
   const deadlineNotice = getDeadlineNotice(opportunity.trust);
+  const dateLabel = deadlineDisplayLabel(opportunity.trust);
 
   return (
     <>
@@ -303,7 +304,7 @@ function OpportunityCard({ opportunity }: { opportunity: Opportunity }) {
           ) : null}
           <p className="mt-auto flex items-center gap-1.5 pt-2 text-xs font-medium text-text-muted">
             <CalendarDays size={13} aria-hidden="true" />
-            <span className="truncate">{formatDeadline(opportunity.deadline)}</span>
+            <span className="truncate">{formatDeadline(opportunity.deadline, dateLabel)}</span>
             {deadlineNotice ? (
               <span
                 className="shrink-0 rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-300"
@@ -371,7 +372,7 @@ function OpportunityCard({ opportunity }: { opportunity: Opportunity }) {
           ) : null}
           <p className="flex items-center gap-2">
             <CalendarDays size={15} aria-hidden="true" />
-            <span>{formatDeadline(opportunity.deadline)}</span>
+            <span>{formatDeadline(opportunity.deadline, dateLabel)}</span>
             {deadlineNotice ? (
               <span
                 className="rounded-full bg-amber-500/10 px-2 py-0.5 text-xs font-semibold text-amber-700 dark:text-amber-300"

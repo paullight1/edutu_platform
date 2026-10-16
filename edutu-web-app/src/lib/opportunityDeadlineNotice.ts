@@ -36,7 +36,14 @@ export function getDeadlineNotice(
       return {
         label: "Check date",
         title:
-          "The listing contains conflicting deadline details. Confirm the date on the official source.",
+          "This date is marked for review. Confirm it against the official source before applying.",
       };
   }
+}
+
+/** Avoid presenting an unconfirmed candidate as a verified deadline. */
+export function deadlineDisplayLabel(
+  trust?: OpportunityTrust | null,
+): "Deadline" | "Date to verify" {
+  return trust?.deadlineNeedsReview === true ? "Date to verify" : "Deadline";
 }
