@@ -2,7 +2,7 @@ import * as cheerio from "cheerio";
 import { ROUNDUP_TITLE_RE, SOURCE_BRAND_RE } from "./scraper.config";
 
 const GENERIC_OPPORTUNITY_TITLE_RE =
-  /^(?:(?:browse|find|discover|latest)\s+)?(?:scholarships?|internships?|fellowships?|grants?|opportunities|programs?|programmes?|jobs?|careers?)(?:\s+(?:and|&|or)\s+(?:scholarships?|internships?|fellowships?|grants?|opportunities|programs?|programmes?|jobs?|careers?))*$/i;
+  /^(?:(?:browse|find|discover|latest)\s+)?(?:(?:all|latest|new)\s+)?(?:scholarships?|internships?|fellowships?|grants?|opportunities|programs?|programmes?|jobs?|careers?)(?:\s+(?:and|&|or)\s+(?:(?:all|latest|new)\s+)?(?:scholarships?|internships?|fellowships?|grants?|opportunities|programs?|programmes?|jobs?|careers?))*$/i;
 
 export function cleanOpportunityTitle(raw: string | null | undefined): string {
   if (!raw) return "";

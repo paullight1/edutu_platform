@@ -76,6 +76,7 @@ import { categorizeOpportunityTitle } from "./scraper-classification";
 import { createTitleFingerprint } from "./scraper-title-fingerprint";
 import {
   cleanOpportunityTitle,
+  isGenericOpportunityTitle,
   selectOpportunityTitle,
 } from "./scraper-opportunity-title";
 const SOURCE_CONTENT_FORMAT_VERSION = "source-content-v2";
@@ -3224,9 +3225,7 @@ ${text}`;
 
     // Publish only real core content; inferred organizer names are unreliable.
     const hasCoreContent =
-      !/^(?:browse|view|all|latest)\s+(?:(?:undergraduate|postgraduate|graduate|international)\s+)?(?:internships?|scholarships?|opportunities|jobs|grants|fellowships?)$/i.test(
-        item.title.trim(),
-      ) &&
+      !isGenericOpportunityTitle(item.title) &&
       !quality.missingFields.includes("title") &&
       !quality.missingFields.includes("description") &&
       copy.summary.length >= 60;

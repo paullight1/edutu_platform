@@ -760,6 +760,8 @@ describe("ScraperService", () => {
       );
 
       expect(isGenericOpportunityTitle("Browse Internships")).toBe(true);
+      expect(isGenericOpportunityTitle("Browse All Opportunities")).toBe(true);
+      expect(isGenericOpportunityTitle("Find Scholarships")).toBe(true);
       expect(title).toBe("FCMB Technology Graduate Trainee Program 2026");
       expect(isGenericOpportunityTitle(title)).toBe(false);
       expect(
@@ -797,6 +799,36 @@ describe("ScraperService", () => {
       );
       expect(futureRecord.close_date).toBe(`${nextYear}-03-05`);
       expect(futureRecord.status).toBe("active");
+    });
+
+    it("keeps generic opportunity-directory pages out of the learner feed", () => {
+      const record = (service as any).transformToOpportunity(
+        {
+          title: "Browse All Opportunities",
+          apply_url:
+            "https://scholarsworld.ng/find-scholarships-on-scholars-worldng/",
+          direct_apply_url:
+            "https://scholarsworld.ng/find-scholarships-on-scholars-worldng/",
+          image_url: "https://scholarsworld.ng/directory.jpg",
+          summary:
+            "Browse All Opportunities is a comprehensive scholarship finder tool that helps students explore scholarships by study level, country, or field of interest.",
+          description:
+            "This platform offers a user-friendly scholarship finder that allows students to filter opportunities based on their level of study, preferred country, or academic field. It encourages users to start with what matters most to them and provides popular pathways to explore scholarships. The tool emphasizes verifying scholarship details at the official provider's website before applying.",
+          requirements: ["Choose a study level"],
+          benefits: ["Explore scholarships"],
+          application_process: ["Search the directory"],
+          deadline: "January 4, 2027",
+          location: ".origin);",
+          source: "Scholars World",
+          source_url:
+            "https://scholarsworld.ng/find-scholarships-on-scholars-worldng/",
+        },
+        null,
+      );
+
+      expect(record.metadata.has_core_content).toBe(false);
+      expect(record.validation_status).toBe("needs_review");
+      expect(record.status).toBe("pending_review");
     });
 
     it("holds a record with prose that contradicts its deadline for review", () => {
