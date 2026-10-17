@@ -58,4 +58,37 @@ describe("Pagination", () => {
     fireEvent.click(screen.getByRole("button", { name: "Next page" }));
     expect(onPageChange).toHaveBeenCalledWith(2);
   });
+
+  it("clamps stale or malformed page numbers to valid navigation", () => {
+    const onPageChange = vi.fn();
+    const { rerender } = render(
+      <Pagination
+        page={999}
+        totalPages={3}
+        onPageChange={onPageChange}
+        getPageHref={(page) => `/blog?page=${page}`}
+      />,
+    );
+
+    expect(screen.getByRole("link", { name: "Page 3" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(screen.getByRole("button", { name: "Next page" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("link", { name: "Previous page" }));
+    expect(onPageChange).toHaveBeenCalledWith(2);
+
+    rerender(
+      <Pagination
+        page={0}
+        totalPages={3}
+        onPageChange={onPageChange}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Previous page" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Page 1" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+  });
 });

@@ -52,23 +52,22 @@ export function useNetworkStatus(): NetworkStatus & {
 
     const [status, setStatus] = useState<NetworkStatus>(getInitialState);
 
-    // Check actual connectivity by pinging a reliable endpoint
+    // Check this app's own origin. External Google probes may be blocked
+    // by regional networks, and no-cors responses cannot report HTTP errors.
     const checkConnection = useCallback(async (): Promise<boolean> => {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
         try {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 5000);
-
-            await fetch('https://www.google.com/favicon.ico', {
+            const response = await fetch('/favicon.ico', {
                 method: 'HEAD',
-                mode: 'no-cors',
                 cache: 'no-store',
                 signal: controller.signal
             });
-
-            clearTimeout(timeoutId);
-            return true;
+            return response.ok;
         } catch {
             return false;
+        } finally {
+            clearTimeout(timeoutId);
         }
     }, []);
 
