@@ -210,27 +210,27 @@ export function StateView({
 
     return (
         <div
-            className={`flex min-h-[280px] flex-col items-center justify-center px-6 py-10 text-center ${className}`}
-            role="status"
+            className={`mx-auto flex min-h-[240px] w-full max-w-2xl flex-col items-center justify-center px-4 py-8 text-center sm:min-h-[280px] sm:px-8 sm:py-12 ${className}`}
+            role={state.kind === "error" || state.kind === "offline" ? "alert" : "status"}
             aria-live="polite"
         >
-            <SceneRenderer scene={scene} size={sceneSize} className="mb-6 max-w-full" />
+            <SceneRenderer scene={scene} size={sceneSize} className="mb-4 max-w-full sm:mb-6" />
 
-            <h3 className="text-lg font-semibold text-text-primary">{title ?? copy.title}</h3>
+            <h3 className="font-display text-xl font-semibold text-text-primary">{title ?? copy.title}</h3>
 
-            <p className="mt-2 max-w-sm text-sm leading-6 text-text-secondary">
+            <p className="mt-2 max-w-md text-sm leading-6 text-text-secondary">
                 {body ?? copy.body}
             </p>
 
             {(showAction || showSecondary) && (
-                <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
+                <div className="mt-6 flex w-full flex-col items-stretch justify-center gap-2 sm:w-auto sm:flex-row sm:items-center">
                     {showAction && (
-                        <Button onClick={handler} variant="primary" size="sm">
+                        <Button onClick={handler} variant="primary" size="sm" className="min-h-11 w-full sm:w-auto">
                             {label}
                         </Button>
                     )}
                     {showSecondary && (
-                        <Button onClick={onSecondaryAction} variant="secondary" size="sm">
+                        <Button onClick={onSecondaryAction} variant="secondary" size="sm" className="min-h-11 w-full sm:w-auto">
                             {secondaryActionLabel}
                         </Button>
                     )}

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@clerk/clerk-react";
-import { Link } from "react-router-dom";
-import { Plus, RefreshCw, Search, Trash2 } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { CheckCheck, MessageCircle, Plus, RefreshCw, Search, Trash2, X } from "lucide-react";
 import Seo from "../../components/Seo";
 import { CommunityDmApi, type DmConversationSummary } from "./dmApi";
 import CommunityProductShell from "./components/CommunityProductShell";
@@ -10,6 +10,7 @@ import { formatCommunityTime } from "./format";
 import CommunityActionSheet from "./components/CommunityActionSheet";
 
 export default function CommunityChatsPage() {
+  const navigate = useNavigate();
   const { getToken } = useAuth();
   const api = useMemo(() => new CommunityDmApi(getToken), [getToken]);
   const [conversations, setConversations] = useState<DmConversationSummary[]>([]);
@@ -18,6 +19,7 @@ export default function CommunityChatsPage() {
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  const [unreadOnly, setUnreadOnly] = useState(false);
   const [hideTarget, setHideTarget] = useState<DmConversationSummary | null>(null);
 
   const load = useCallback(async () => {
@@ -47,15 +49,16 @@ export default function CommunityChatsPage() {
     }
   };
 
+  const unreadCount = conversations.filter((conversation) => conversation.unreadCount > 0).length;
   const visibleConversations = useMemo(() => {
     const normalized = query.trim().toLowerCase();
-    if (!normalized) return conversations;
     return conversations.filter((conversation) =>
-      `${conversation.otherUser.displayName} ${conversation.lastMessage.body}`
+      (!unreadOnly || conversation.unreadCount > 0) &&
+      (!normalized || `${conversation.otherUser.displayName} ${conversation.lastMessage.body}`
         .toLowerCase()
-        .includes(normalized),
+        .includes(normalized)),
     );
-  }, [conversations, query]);
+  }, [conversations, query, unreadOnly]);
 
   return (
     <>
@@ -69,7 +72,7 @@ export default function CommunityChatsPage() {
         title="Chats"
         description="Private conversations with people you have chosen to connect with."
         action={
-          <Link to="/app/community/dm/new" aria-label="New chat" className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-[#17120f] text-white transition hover:bg-[#f45b16] active:scale-95 dark:bg-text-primary dark:text-surface-body">
+          <Link to="/app/community/explore" aria-label="Find people to message" className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-[#17120f] text-white transition hover:bg-[#f45b16] active:scale-95 dark:bg-text-primary dark:text-surface-body">
             <Plus size={21} />
           </Link>
         }
@@ -82,11 +85,22 @@ export default function CommunityChatsPage() {
               type="search"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search"
+              placeholder="Search people or messages"
               aria-label="Search chats"
-              className="min-h-[52px] w-full rounded-full border border-transparent bg-[#f3f1ef] ps-12 pe-4 text-base text-[#17120f] outline-none transition placeholder:text-[#817a76] focus:border-[#f45b16]/35 focus:bg-white focus:ring-2 focus:ring-[#f45b16]/12 dark:bg-surface-elevated dark:text-text-primary dark:focus:bg-surface-layer"
+              className="min-h-[48px] w-full rounded-2xl border border-[#eae3dd] bg-[#f3f1ef] ps-12 pe-4 text-base text-[#17120f] outline-none transition placeholder:text-[#817a76] focus:border-[#f45b16]/35 focus:bg-white focus:ring-2 focus:ring-[#f45b16]/12 dark:bg-surface-elevated dark:text-text-primary dark:focus:bg-surface-layer"
             />
           </label>
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+            <div role="group" aria-label="Filter conversations" className="inline-flex rounded-full bg-[#f3f1ef] p-1 dark:bg-surface-elevated">
+              <button type="button" aria-pressed={!unreadOnly} onClick={() => setUnreadOnly(false)} className={`min-h-10 rounded-full px-4 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f45b16]/50 ${!unreadOnly ? "bg-white text-[#17120f] shadow-sm dark:bg-surface-layer dark:text-text-primary" : "text-[#796f6b] dark:text-text-secondary"}`}>
+                All <span className="tabular-nums">{conversations.length}</span>
+              </button>
+              <button type="button" aria-pressed={unreadOnly} onClick={() => setUnreadOnly(true)} className={`min-h-10 rounded-full px-4 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f45b16]/50 ${unreadOnly ? "bg-white text-[#17120f] shadow-sm dark:bg-surface-layer dark:text-text-primary" : "text-[#796f6b] dark:text-text-secondary"}`}>
+                Unread <span className="tabular-nums">{unreadCount}</span>
+              </button>
+            </div>
+            {query ? <button type="button" onClick={() => setQuery("")} className="inline-flex min-h-10 items-center gap-1 rounded-lg px-2 text-sm font-semibold text-[#796f6b] hover:text-[#f45b16] dark:text-text-secondary"><X size={15} /> Clear search</button> : null}
+          </div>
         </div>
         {error && conversations.length > 0 ? (
           <div role="status" className="mb-4 flex items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-200">
@@ -105,15 +119,19 @@ export default function CommunityChatsPage() {
             title="No private conversations yet"
             body="Community groups are the best place to meet people first. When you both choose to connect, your conversation appears here."
             actionLabel="Explore communities"
-            onAction={() => window.location.assign("/app/community/explore")}
+            icon={MessageCircle}
+            onAction={() => navigate("/app/community/explore")}
           />
+        ) : unreadOnly && unreadCount === 0 && !query ? (
+          <CommunityState kind="empty" icon={CheckCheck} title="All caught up" body="You have no unread chats. Your conversations are still here whenever you need them." actionLabel="View all chats" onAction={() => setUnreadOnly(false)} />
         ) : visibleConversations.length === 0 ? (
           <CommunityState
             kind="empty"
-            title="No chats match that search"
-            body="Try a member name or a word from the conversation preview."
-            actionLabel="Clear search"
-            onAction={() => setQuery("")}
+            icon={Search}
+            title="No conversations found"
+            body="Try another name or message, or remove your filters to see all chats."
+            actionLabel="Clear filters"
+            onAction={() => { setQuery(""); setUnreadOnly(false); }}
           />
         ) : (
           <section aria-label="Chat conversations" className="-mx-4 divide-y divide-[#ece8e5] border-y border-[#ece8e5] bg-white sm:mx-0 dark:divide-subtle dark:border-subtle dark:bg-surface-layer">
@@ -142,7 +160,7 @@ export default function CommunityChatsPage() {
                   disabled={busyId === conversation.id}
                   onClick={() => setHideTarget(conversation)}
                   aria-label={`Remove conversation with ${conversation.otherUser.displayName}`}
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[#9a918c] opacity-0 transition hover:bg-red-50 hover:text-red-600 focus-visible:opacity-100 group-focus-within:opacity-100 group-hover:opacity-100 disabled:opacity-40 dark:hover:bg-red-500/10"
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[#796f6b] opacity-100 transition hover:bg-red-50 hover:text-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/35 sm:opacity-0 sm:group-focus-within:opacity-100 sm:group-hover:opacity-100 disabled:opacity-40 dark:text-text-secondary dark:hover:bg-red-500/10"
                 >
                   <Trash2 size={17} />
                 </button>

@@ -6,7 +6,7 @@ import {
   useState,
 } from "react";
 import { useAuth } from "@clerk/clerk-react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { CheckCircle2, Clock3, Plus, RefreshCw, X } from "lucide-react";
 import Seo from "../../components/Seo";
 import { CommunityApi, isCommunityApiError } from "./api";
@@ -22,6 +22,7 @@ import GroupCard from "./components/GroupCard";
 import CommunityActionSheet from "./components/CommunityActionSheet";
 
 export default function CommunityGroupsPage() {
+  const navigate = useNavigate();
   const { getToken, userId } = useAuth();
   const api = useMemo(() => new CommunityApi(getToken), [getToken]);
   const [rows, setRows] = useState<GroupWithMembership[]>([]);
@@ -117,9 +118,9 @@ export default function CommunityGroupsPage() {
             title="You have not joined a community yet"
             body="Explore communities around scholarships, applications and career goals — or create one for people working toward the same next step."
             actionLabel="Explore communities"
-            onAction={() => {
-              window.location.assign("/app/community/explore");
-            }}
+            onAction={() => navigate("/app/community/explore")}
+            secondaryActionLabel="Create a group"
+            onSecondaryAction={() => navigate("/app/community/groups/new")}
           />
         ) : (
           <div className="space-y-9 pb-16">
@@ -200,7 +201,7 @@ export default function CommunityGroupsPage() {
       </CommunityProductShell>
       <aside
         aria-label="Create a community"
-        className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-30 border-t border-subtle bg-surface-layer"
+        className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-30 border-t border-subtle bg-surface-layer/95 backdrop-blur-lg"
       >
         <div className="mx-auto flex h-16 max-w-3xl items-center justify-between gap-4 px-4 sm:px-5">
           <p className="font-display text-base font-semibold tracking-[-0.015em] text-text-primary">

@@ -299,7 +299,9 @@ export default function CoachPage() {
   const [speakingId, setSpeakingId] = useState<string | null>(null);
   const abort = useRef<AbortController | null>(null);
   const streamText = useRef("");
-  const bottom = useRef<HTMLDivElement>(null);
+  const messagesViewportRef = useRef<HTMLDivElement>(null);
+  const followLatestRef = useRef(true);
+  const [showLatest, setShowLatest] = useState(false);
   const historyDialog = useRef<HTMLDivElement>(null);
   const historyButton = useRef<HTMLButtonElement>(null);
   const reportDialog = useRef<HTMLDivElement>(null);
@@ -315,6 +317,8 @@ export default function CoachPage() {
   useEffect(() => {
     const controller = new AbortController();
     const version = ++loadVersion.current;
+    followLatestRef.current = true;
+    setShowLatest(false);
     setMessages([]);
     setThread(null);
     setDraft(params.get("prompt") || "");
@@ -353,9 +357,27 @@ export default function CoachPage() {
     };
   }, [request, userId, params]);
 
+  // Streaming replies should not hijack scrolling when a learner is reading
+  // earlier advice. Follow the newest turn only while they are near the bottom.
   useEffect(() => {
-    bottom.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
-  }, [messages, stream]);
+    const viewport = messagesViewportRef.current;
+    if (viewport && followLatestRef.current) viewport.scrollTop = viewport.scrollHeight;
+  }, [messages, stream, loading]);
+
+  const handleConversationScroll = () => {
+    const viewport = messagesViewportRef.current;
+    if (!viewport) return;
+    const nearBottom = viewport.scrollHeight - viewport.clientHeight - viewport.scrollTop < 96;
+    followLatestRef.current = nearBottom;
+    setShowLatest(!nearBottom && (messages.length > 0 || !!stream));
+  };
+
+  const scrollCoachToLatest = () => {
+    followLatestRef.current = true;
+    const viewport = messagesViewportRef.current;
+    if (viewport) viewport.scrollTop = viewport.scrollHeight;
+    setShowLatest(false);
+  };
 
   useEffect(() => {
     if (!historyOpen) return;
@@ -446,6 +468,8 @@ export default function CoachPage() {
         `/chat/threads/${id}/messages`,
       );
       if (version !== loadVersion.current) return;
+      followLatestRef.current = true;
+      setShowLatest(false);
       setThread(id);
       setMessages(result.messages);
     } catch (e) {
@@ -457,6 +481,8 @@ export default function CoachPage() {
 
   function startNewConversation() {
     loadVersion.current++;
+    followLatestRef.current = true;
+    setShowLatest(false);
     abort.current?.abort();
     setThread(null);
     setMessages([]);
@@ -469,6 +495,8 @@ export default function CoachPage() {
   async function send(value = draft) {
     const input = value.trim();
     if (!input || busy) return;
+    followLatestRef.current = true;
+    setShowLatest(false);
     const controller = new AbortController();
     abort.current = controller;
     const pendingId = `pending-${crypto.randomUUID()}`;
@@ -755,10 +783,12 @@ export default function CoachPage() {
         </div>
       )}
       <section
-        className="coach-conversation feature-panel"
+        className="coach-conversation feature-panel relative"
         aria-label={t("navigation.coach", { defaultValue: "AI Coach" })}
       >
         <div
+          ref={messagesViewportRef}
+          onScroll={handleConversationScroll}
           className="coach-messages"
           aria-label={t("coachPage.conversation", {
             defaultValue: "Conversation",
@@ -1147,10 +1177,20 @@ export default function CoachPage() {
                   </div>
                 </article>
               )}
-              <div ref={bottom} />
+              <div aria-hidden="true" />
             </div>
           )}
         </div>
+        {showLatest ? (
+          <button
+            type="button"
+            onClick={scrollCoachToLatest}
+            className="absolute bottom-28 end-5 z-10 inline-flex min-h-11 items-center gap-2 rounded-full border border-subtle bg-surface-layer px-4 text-sm font-semibold text-text-primary shadow-elevated transition hover:bg-surface-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+          >
+            <ChevronRight size={16} className="rotate-90" aria-hidden="true" />
+            {t("coachPage.latestMessages", { defaultValue: "Latest reply" })}
+          </button>
+        ) : null}
 
         <CoachComposer
           value={draft}

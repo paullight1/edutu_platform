@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@clerk/clerk-react";
 import { useParams } from "react-router-dom";
-import { Loader2, Send } from "lucide-react";
+import { ArrowDown, Loader2, MessageCircle, Send } from "lucide-react";
 import Seo from "../../components/Seo";
 import {
   CommunityDmApi,
@@ -72,6 +72,10 @@ export default function CommunityDmPage() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const conversationRef = useRef<DmConversationDetail | null>(null);
+  const messageViewportRef = useRef<HTMLDivElement>(null);
+  const stickToLatestRef = useRef(true);
+  const prependPositionRef = useRef<{ height: number; top: number } | null>(null);
+  const [showLatestButton, setShowLatestButton] = useState(false);
 
   const load = useCallback(
     async (silent = false) => {
@@ -103,6 +107,9 @@ export default function CommunityDmPage() {
 
   useEffect(() => {
     conversationRef.current = null;
+    stickToLatestRef.current = true;
+    prependPositionRef.current = null;
+    setShowLatestButton(false);
     setConversation(null);
     setMessages([]);
     setHasMore(true);
@@ -115,6 +122,35 @@ export default function CommunityDmPage() {
     conversationRef.current = conversation;
   }, [conversation]);
 
+  // Keep the latest message visible without pulling readers away from older ones.
+  // Restore the viewport position when an earlier page is prepended.
+  useLayoutEffect(() => {
+    const viewport = messageViewportRef.current;
+    if (!viewport) return;
+    const previous = prependPositionRef.current;
+    if (previous) {
+      viewport.scrollTop = previous.top + viewport.scrollHeight - previous.height;
+      prependPositionRef.current = null;
+    } else if (stickToLatestRef.current) {
+      viewport.scrollTop = viewport.scrollHeight;
+    }
+  }, [messages, loading]);
+
+  const onMessageScroll = () => {
+    const viewport = messageViewportRef.current;
+    if (!viewport) return;
+    const nearLatest = viewport.scrollHeight - viewport.clientHeight - viewport.scrollTop < 96;
+    stickToLatestRef.current = nearLatest;
+    setShowLatestButton(!nearLatest && messages.length > 0);
+  };
+
+  const scrollToLatest = () => {
+    const viewport = messageViewportRef.current;
+    if (viewport) viewport.scrollTop = viewport.scrollHeight;
+    stickToLatestRef.current = true;
+    setShowLatestButton(false);
+  };
+
   useEffect(() => {
     const unsubscribe = subscribeToDmMessages(id, (event) => {
       const hydrated = hydrateRealtimeMessage(
@@ -123,6 +159,7 @@ export default function CommunityDmPage() {
         conversationRef.current,
       );
       setMessages((current) => mergeMessages(current, [hydrated]));
+      if (!stickToLatestRef.current) setShowLatestButton(true);
       setConversation((current) =>
         current ? { ...current, lastMessageAt: event.createdAt } : current,
       );
@@ -151,6 +188,10 @@ export default function CommunityDmPage() {
         beforeId: oldest.id,
         limit: PAGE_SIZE,
       });
+      const viewport = messageViewportRef.current;
+      if (viewport && page.length > 0) {
+        prependPositionRef.current = { height: viewport.scrollHeight, top: viewport.scrollTop };
+      }
       setMessages((current) => mergeMessages(current, page));
       setHasMore(page.length >= PAGE_SIZE);
     } catch (caught) {
@@ -171,6 +212,8 @@ export default function CommunityDmPage() {
     setError(null);
     try {
       const message = await api.sendMessage(id, body);
+      stickToLatestRef.current = true;
+      setShowLatestButton(false);
       setMessages((current) => mergeMessages(current, [message]));
       setDraft("");
     } catch (caught) {
@@ -208,8 +251,8 @@ export default function CommunityDmPage() {
             onAction={() => void load(false)}
           />
         ) : (
-          <section className="mx-auto flex min-h-[600px] max-w-3xl flex-col overflow-hidden rounded-[24px] border border-[#f4dcc9] bg-[#fffdf9] shadow-sm dark:border-subtle dark:bg-surface-body">
-            <div className="flex-1 px-3 py-4 sm:px-5">
+          <section className="relative mx-auto flex h-[calc(100dvh-5rem-env(safe-area-inset-top))] min-h-[320px] max-w-3xl flex-col overflow-hidden border-y border-[#f4dcc9] bg-[#fffdf9] dark:border-subtle dark:bg-surface-body sm:my-4 sm:h-[min(760px,calc(100dvh-8rem))] sm:rounded-[24px] sm:border sm:shadow-sm">
+            <div ref={messageViewportRef} onScroll={onMessageScroll} role="log" aria-label="Conversation messages" aria-live="polite" aria-relevant="additions" className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-4 sm:px-5">
               {error ? (
                 <p
                   role="alert"
@@ -229,11 +272,10 @@ export default function CommunityDmPage() {
                 </button>
               ) : null}
               {messages.length === 0 ? (
-                <div className="flex min-h-[360px] items-center justify-center text-center">
-                  <p className="max-w-sm text-sm leading-6 text-[#796f6b] dark:text-text-secondary">
-                    This conversation is accepted, but no messages are visible
-                    yet.
-                  </p>
+                <div className="flex min-h-full flex-col items-center justify-center px-4 py-10 text-center">
+                  <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#fff0e8] text-[#d94b0f] dark:bg-brand/10 dark:text-brand"><MessageCircle size={27} /></span>
+                  <h2 className="mt-4 font-display text-xl font-semibold text-[#4a170d] dark:text-text-primary">Start the conversation</h2>
+                  <p className="mt-2 max-w-xs text-sm leading-6 text-[#796f6b] dark:text-text-secondary">Say hello to {name}. Your first message will appear here once you send it.</p>
                 </div>
               ) : (
                 messages.map((message) => {
@@ -243,7 +285,7 @@ export default function CommunityDmPage() {
                       key={message.id}
                       className={`flex py-2 ${mine ? "justify-end" : "justify-start"}`}
                     >
-                      <div className={`max-w-[82%] ${mine ? "text-end" : ""}`}>
+                      <div className={`min-w-0 max-w-[88%] sm:max-w-[76%] ${mine ? "text-end" : ""}`}>
                         <div
                           className={`mb-1 flex items-baseline gap-2 text-[11px] ${mine ? "justify-end" : ""}`}
                         >
@@ -265,6 +307,11 @@ export default function CommunityDmPage() {
                 })
               )}
             </div>
+            {showLatestButton ? (
+              <button type="button" onClick={scrollToLatest} className="absolute bottom-28 right-4 z-10 inline-flex min-h-11 items-center gap-2 rounded-full border border-[#f4dcc9] bg-white px-4 text-sm font-semibold text-[#4a170d] shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f45b16]/40 dark:border-subtle dark:bg-surface-elevated dark:text-text-primary">
+                <ArrowDown size={16} /> Latest messages
+              </button>
+            ) : null}
             <form
               aria-label="Private message composer"
               data-keyboard-avoid
@@ -273,17 +320,18 @@ export default function CommunityDmPage() {
                 event.preventDefault();
                 void send();
               }}
-              className="sticky bottom-0 border-t border-[#f4dcc9] bg-white/95 p-3 backdrop-blur dark:border-subtle dark:bg-surface-layer sm:p-4"
+              className="shrink-0 border-t border-[#f4dcc9] bg-white/95 px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 backdrop-blur dark:border-subtle dark:bg-surface-layer sm:p-4"
             >
               <div className="flex items-end gap-2">
                 <textarea
                   value={draft}
                   onChange={(event) => setDraft(event.target.value)}
+                  aria-label={`Message ${name}`}
                   maxLength={DM_MESSAGE_MAX_LENGTH}
                   rows={2}
                   placeholder={`Message ${name}`}
                   onKeyDown={(event) => {
-                    if (event.key === "Enter" && !event.shiftKey) {
+                    if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
                       event.preventDefault();
                       event.currentTarget.form?.requestSubmit();
                     }
@@ -295,7 +343,7 @@ export default function CommunityDmPage() {
                 <button
                   type="submit"
                   disabled={!draft.trim() || sending}
-                  className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#f45b16] text-white disabled:opacity-50"
+                  className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#f45b16] text-white transition active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f45b16]/45 disabled:opacity-50"
                   aria-label="Send private message"
                 >
                   {sending ? (
