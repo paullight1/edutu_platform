@@ -1603,7 +1603,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                   </section>
                 )}
 
-              <section className="sm:hidden mb-6">
+              <section className="sm:hidden">
                 <BannerCarousel banners={heroBanners} mobileHeight="150px" />
               </section>
 
@@ -1620,7 +1620,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                 {/* Free browsing remains visible; the paid feature is profile
                     based ranking and insight, not access to the opportunity feed. */}
                   <section aria-labelledby="recommended-picks-heading">
-                  <div className="mb-5">
+                  <div className="mb-3 sm:mb-5">
                     <div className="flex items-center justify-between gap-3 lg:items-end">
                       <div className="flex min-w-0 items-center gap-3">
                         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-brand-500/10 text-brand-600 lg:h-11 lg:w-11">
@@ -1711,7 +1711,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                         {Array.from({ length: 3 }).map((_, i) => (
                           <div
                             key={i}
-                            className={`h-44 w-[62vw] max-w-[250px] shrink-0 animate-pulse rounded-[18px] bg-surface-elevated`}
+                            className={`h-40 w-[62vw] max-w-[250px] shrink-0 animate-pulse rounded-[18px] bg-surface-elevated`}
                           />
                         ))}
                       </div>
@@ -1770,7 +1770,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                                   ? () => setActiveDiscoveryCategory(null)
                                   : onViewAllOpportunities
                               }
-                              className="mobile-personalized-card flex h-44 w-28 shrink-0 snap-start flex-col items-center justify-center gap-2 rounded-[18px] border border-subtle bg-surface-elevated px-3 text-center text-xs font-semibold text-text-secondary transition active:scale-[0.98]"
+                              className="mobile-personalized-card flex w-28 shrink-0 snap-start flex-col items-center justify-center gap-2 rounded-[18px] border border-subtle bg-surface-elevated px-3 text-center text-xs font-semibold text-text-secondary transition active:scale-[0.98]"
                             >
                               {selectedDiscoveryCategory ? t("dashboard.empty.showAll") : t("dashboard.viewAll")}
                               <ChevronRight size={16} />

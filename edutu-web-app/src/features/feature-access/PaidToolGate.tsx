@@ -48,8 +48,9 @@ const previews: Record<
   },
   "AI Coach": {
     title: "Ask Edutu",
-    description: "Get help choosing and preparing for your next opportunity.",
-    action: "Unlock AI Coach",
+    description:
+      "Get personal guidance to find the right opportunity, strengthen your application and plan your next move.",
+    action: "Unlock AI Coach for personalized guidance",
     Icon: Sparkles,
   },
   "AI opportunity preparation": {
@@ -187,14 +188,46 @@ function LockedFeature({
   const info = previewFor(feature);
   const { Icon } = info;
 
+  if (feature === "AI opportunity preparation") {
+    return (
+      <section className="tool-page rounded-2xl border border-subtle bg-surface-layer p-4">
+        <div className="flex items-center gap-2.5">
+          <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-500/10 text-brand-600">
+            <Sparkles size={19} aria-hidden="true" />
+          </span>
+          <h2 className="text-base font-semibold text-text-primary">{info.title}</h2>
+        </div>
+        <p className="mb-4 mt-2 text-sm leading-5 text-text-muted">
+          {message || "Check your fit and build a clear application plan."}
+        </p>
+        <div className="flex flex-col gap-2 [&>.feature-button]:w-full [&>.feature-button]:justify-center">
+          {children}
+        </div>
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-text-muted">
+          <span className="inline-flex items-center gap-1.5">
+            <LockKeyhole size={12} aria-hidden="true" />
+            {message ? "Check back later" : "Included with a paid plan"}
+          </span>
+          {!message && <Link className="font-medium text-text-link" to="/app/wallet">View my plan</Link>}
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className="feature-workspace tool-page">
       <div
-        className={`tool-locked${feature === "AI opportunity preparation" ? " tool-locked--compact" : ""}`}
+        className={`tool-locked${feature === "AI opportunity preparation" ? " tool-locked--compact" : ""}${feature === "AI Coach" ? " tool-locked--coach" : ""}`}
       >
         <span className="tool-icon paid-tool-icon">
-          <PaidFeatureIllustration />
-          <span className="paid-tool-icon-symbol"><Icon size={24} strokeWidth={1.9} /></span>
+          {feature === "AI Coach" ? (
+            <img className="coach-mascot" src="/illustrations/ai-coach-mascot.svg" alt="" />
+          ) : (
+            <>
+              <PaidFeatureIllustration />
+              <span className="paid-tool-icon-symbol"><Icon size={24} strokeWidth={1.9} /></span>
+            </>
+          )}
         </span>
         <h2>{info.title}</h2>
         <p>{message || info.description}</p>
@@ -215,26 +248,27 @@ function LockedFeature({
 
 /** Small, original vector scene for a locked tool: clear at phone scale and
  * crisp at any density, without shipping a bitmap or a stock icon tile. */
-function PaidFeatureIllustration() {
+function PaidFeatureIllustration({ coach = false }: { coach?: boolean }) {
   return (
     <svg
       aria-hidden="true"
-      className="paid-feature-illustration"
+      className={`paid-feature-illustration${coach ? " paid-feature-illustration--coach" : ""}`}
       viewBox="0 0 96 96"
       fill="none"
     >
       <defs>
         <linearGradient id="paid-feature-glow" x1="17" y1="15" x2="79" y2="84" gradientUnits="userSpaceOnUse">
-          <stop stopColor="currentColor" stopOpacity=".2" />
-          <stop offset="1" stopColor="currentColor" stopOpacity=".04" />
+          <stop stopColor="currentColor" stopOpacity={coach ? ".36" : ".2"} />
+          <stop offset="1" stopColor="currentColor" stopOpacity={coach ? ".12" : ".04"} />
         </linearGradient>
       </defs>
       <path d="M48 4 56 10 66 9 70 18 80 22 80 32 88 39 84 49 88 59 80 66 80 76 70 80 66 89 56 88 48 94 40 88 30 89 26 80 16 76 16 66 8 59 12 49 8 39 16 32 16 22 26 18 30 9 40 10 48 4Z" fill="url(#paid-feature-glow)" />
-      <circle cx="48" cy="48" r="27" stroke="currentColor" strokeOpacity=".22" strokeWidth="1.5" />
-      <circle cx="48" cy="48" r="20" stroke="currentColor" strokeOpacity=".28" strokeWidth="1.5" strokeDasharray="3 4" />
-      <rect x="27" y="27" width="42" height="42" rx="14" fill="currentColor" fillOpacity=".12" />
-      <circle cx="73" cy="26" r="7" fill="currentColor" fillOpacity=".18" />
-      <path d="m70 26 2 2 4-5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="48" cy="48" r="27" stroke="currentColor" strokeOpacity={coach ? ".62" : ".22"} strokeWidth={coach ? "3" : "1.5"} />
+      <circle cx="48" cy="48" r="20" stroke="currentColor" strokeOpacity={coach ? ".48" : ".28"} strokeWidth={coach ? "2.5" : "1.5"} strokeDasharray="3 4" />
+      <rect x="27" y="27" width="42" height="42" rx="14" fill="currentColor" fillOpacity={coach ? ".2" : ".12"} />
+      {coach && <path d="m48 33 4.3 10.7L63 48l-10.7 4.3L48 63l-4.3-10.7L33 48l10.7-4.3L48 33Z" fill="currentColor" />}
+      <circle cx="73" cy="26" r="7" fill="currentColor" fillOpacity={coach ? ".34" : ".18"} />
+      <path d="m70 26 2 2 4-5" stroke="currentColor" strokeWidth={coach ? "2.4" : "1.6"} strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

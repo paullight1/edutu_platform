@@ -1,4 +1,4 @@
-import { Bookmark, Calendar, ChevronRight, Clock, Send, X } from "lucide-react";
+import { Bookmark, Calendar, ChevronRight, Clock, Send, Target, X } from "lucide-react";
 import {
   getDeadlineBadge,
   urgencyBadgeClasses,
@@ -150,11 +150,11 @@ export default function CalendarStrip({
         ) : null}
       </div>
       <div
-        className={`-mx-1 flex gap-2 overflow-x-auto px-1 ${compact ? "pb-0.5" : "pb-1"}`}
+        className="-mx-1 flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain px-1 pb-2 pt-1"
       >
         {sorted.map((event) => {
           const badge = event.isDeadline ? getDeadlineBadge(event.date) : null;
-          const TypeIcon = event.type === "application" ? Send : Bookmark;
+          const TypeIcon = event.type === "application" ? Send : event.type === "goal" ? Target : Bookmark;
 
           return (
             <button
@@ -169,34 +169,33 @@ export default function CalendarStrip({
                 }
                 onEventClick?.(event);
               }}
-              className={`opportunity-cinematic-card group flex min-w-[164px] max-w-[210px] flex-col items-start gap-1.5 border border-subtle text-left transition hover:border-brand/40 ${
-                compact ? "p-2.5" : "p-3"
-              }`}
+              className="group flex w-[280px] shrink-0 snap-start flex-col items-start rounded-[20px] border border-subtle bg-surface-layer p-4 text-left shadow-sm transition hover:border-brand/40 hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand sm:w-[300px]"
             >
+              <span className="mb-4 flex w-full items-center justify-between gap-3">
+                <span className="inline-flex items-center gap-2 text-xs font-semibold text-text-secondary">
+                  <Calendar size={15} className="shrink-0 text-brand" />
+                  {formatEventDate(event.date)}
+                </span>
               {badge ? (
                 <span
-                  className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-2xs font-semibold ${urgencyBadgeClasses(badge.level)}`}
+                  className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-1 text-2xs font-semibold ${urgencyBadgeClasses(badge.level)}`}
                 >
                   <Clock size={11} />
                   {badge.label}
                 </span>
-              ) : (
-                <span className="inline-flex items-center gap-1 rounded-full border border-subtle bg-surface-layer px-2 py-0.5 text-2xs font-semibold text-text-muted">
-                  <Clock size={11} />
-                  {formatEventDate(event.date)}
-                </span>
-              )}
-              <span className="line-clamp-2 block text-xs font-semibold leading-[1.15rem] text-text-primary">
+              ) : null}
+              </span>
+              <span className="mb-4 line-clamp-3 min-h-[66px] text-sm font-semibold leading-[22px] tracking-[-0.015em] text-text-primary">
                 {event.title}
               </span>
-              <span className="flex w-full items-center justify-between gap-1 text-2xs font-semibold uppercase tracking-wide text-text-muted">
-                <span className="inline-flex items-center gap-1">
-                  <TypeIcon size={11} />
+              <span className="mt-auto flex w-full items-center justify-between gap-2 border-t border-subtle pt-3 text-xs font-medium text-text-secondary">
+                <span className="inline-flex items-center gap-1.5">
+                  <TypeIcon size={14} />
                   {TYPE_LABELS[event.type]}
                 </span>
                 <ChevronRight
-                  size={12}
-                  className="shrink-0 transition group-hover:translate-x-0.5 group-hover:text-brand"
+                  size={16}
+                  className="shrink-0 text-brand transition group-hover:translate-x-0.5 motion-reduce:transform-none"
                 />
               </span>
             </button>

@@ -118,7 +118,7 @@ const DashboardOpportunityCard = React.memo(function DashboardOpportunityCard({
     return (
       <article
         data-density="compact"
-        className="opportunity-cinematic-card mobile-personalized-card relative flex h-[200px] w-[60vw] max-w-[238px] shrink-0 snap-start flex-col overflow-hidden border border-subtle text-left transition active:scale-[0.98]"
+        className="opportunity-cinematic-card mobile-personalized-card relative flex w-[60vw] max-w-[238px] shrink-0 snap-start flex-col overflow-hidden border border-subtle text-left transition active:scale-[0.98]"
       >
         <button
           type="button"
@@ -153,13 +153,13 @@ const DashboardOpportunityCard = React.memo(function DashboardOpportunityCard({
           />
         </div>
         <div className="pointer-events-none relative z-10 flex min-h-0 flex-1 flex-col p-2.5">
-          <h4 className="text-sm font-semibold leading-snug text-text-primary line-clamp-3">
+          <h4 className="min-h-[38px] text-sm font-semibold leading-snug text-text-primary line-clamp-2">
             {opportunity.title}
           </h4>
           {match && match.score >= 40 ? (
             <TopMatchReason reason={match.reasons[0]} />
           ) : null}
-          <div className="mt-auto flex items-center justify-between gap-2 pt-2 text-2xs font-semibold text-text-muted">
+          <div className="mt-2 flex items-center justify-between gap-2 text-2xs font-semibold text-text-muted">
             {opportunity.location ? (
               <span className="truncate">{opportunity.location}</span>
             ) : (
