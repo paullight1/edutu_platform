@@ -33,3 +33,27 @@ it("uploads a supported file and starts document ingestion", async () => {
   await waitFor(() => expect(request).toHaveBeenCalledWith("/uploads/upload-1/ingest", expect.objectContaining({ method: "POST" })));
   expect(request.mock.calls.find(([path]) => path === "/uploads/file")?.[1]).toEqual(expect.objectContaining({ method: "POST", body: expect.any(FormData) }));
 });
+
+it("shows failed extraction as a recoverable upload instead of success", async () => {
+  const original = request.getMockImplementation()!;
+  request.mockImplementation((path: string, ...args: unknown[]) => {
+    if (path === "/uploads/upload-1/ingest") return Promise.resolve({ parseStatus: "failed", chars: 0 });
+    if (path === "/uploads") return Promise.resolve([{ id: "upload-1", kind: "cv", fileName: "cv.pdf", parseStatus: "failed", createdAt: "2026-10-31" }]);
+    return original(path, ...args);
+  });
+  const { container } = render(<MemoryRouter><DocumentsPage /></MemoryRouter>);
+  fireEvent.click(await screen.findByRole("button", { name: "Upload file" }));
+  fireEvent.change(container.querySelector('input[type="file"]')!, { target: { files: [new File(["scan"], "cv.pdf", { type: "application/pdf" })] } });
+  fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Upload document" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent(/uploaded.*reading.*failed/i);
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
+});
+
+it("clears a previous list failure after a successful retry", async () => {
+  request.mockRejectedValueOnce(new Error("Document service unavailable"));
+  render(<MemoryRouter><DocumentsPage /></MemoryRouter>);
+  expect(await screen.findByRole("alert")).toHaveTextContent("Document service unavailable");
+  fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+  await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+});

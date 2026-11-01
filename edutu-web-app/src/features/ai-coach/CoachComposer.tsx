@@ -8,18 +8,19 @@ interface CoachComposerProps {
   value: string;
   onChange: (value: string) => void;
   busy: boolean;
+  disabled?: boolean;
   onSend: () => void;
   onStop: () => void;
 }
 
-export default function CoachComposer({ value, onChange, busy, onSend, onStop }: CoachComposerProps) {
+export default function CoachComposer({ value, onChange, busy, disabled = false, onSend, onStop }: CoachComposerProps) {
   const { t } = useTranslation();
   return (
     <div className="coach-composer-wrap">
       <form
         className={`coach-composer coach-composer-refined${value.trim() ? "" : " is-empty"}`}
         data-keyboard-scope
-        onSubmit={(event) => { event.preventDefault(); if (!busy && value.trim()) onSend(); }}
+        onSubmit={(event) => { event.preventDefault(); if (!disabled && !busy && value.trim()) onSend(); }}
       >
         <label className="sr-only" htmlFor="coach-question">{t("workspaceCopy.yourQuestion", { defaultValue: "Your question" })}</label>
         <TextareaAutosize
@@ -34,7 +35,7 @@ export default function CoachComposer({ value, onChange, busy, onSend, onStop }:
           onKeyDown={(event) => {
             if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
               event.preventDefault();
-              if (!busy && value.trim()) onSend();
+              if (!disabled && !busy && value.trim()) onSend();
             }
           }}
         />
@@ -43,7 +44,7 @@ export default function CoachComposer({ value, onChange, busy, onSend, onStop }:
           <Button
             type={busy ? "button" : "submit"}
             className="coach-composer-submit"
-            disabled={!busy && !value.trim()}
+            disabled={disabled || (!busy && !value.trim())}
             onClick={busy ? onStop : undefined}
             aria-label={busy ? t("workspaceCopy.stop", { defaultValue: "Stop" }) : t("coachPage.send", { defaultValue: "Send message" })}
           >

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   CalendarDays,
   ChevronRight,
+  Copy,
   FileText,
   Flag,
   GraduationCap,
@@ -20,6 +21,7 @@ import CoachComposer from "./CoachComposer";
 import { usePaywall } from "../../hooks/usePaywall";
 import { errorMessage, useProductSession } from "../workspace/shared";
 import { sendCoachTurn, type CoachMessage } from "./stream";
+import { safeCoachUrl } from "./safeCoachUrl";
 import {
   COACH_NEW_CONVERSATION_EVENT,
   COACH_OPEN_HISTORY_EVENT,
@@ -308,13 +310,20 @@ export default function CoachPage() {
   const utteranceId = useRef(0);
 
   const refreshThreads = useCallback(async () => {
+    const version = loadVersion.current;
     const result = await request<{ threads: CoachThread[] }>("/chat/threads");
-    setThreads(result.threads);
+    if (version === loadVersion.current) setThreads(result.threads);
   }, [request]);
 
   useEffect(() => {
     const controller = new AbortController();
     const version = ++loadVersion.current;
+    abort.current?.abort();
+    abort.current = null;
+    streamText.current = "";
+    setStream("");
+    setBusy(false);
+    setPendingResend(null);
     setMessages([]);
     setThread(null);
     setDraft(params.get("prompt") || "");
@@ -341,14 +350,17 @@ export default function CoachPage() {
         }
       })
       .catch((e) => {
-        if (!controller.signal.aborted) setError(errorMessage(e));
+        if (!controller.signal.aborted && version === loadVersion.current)
+          setError(errorMessage(e));
       })
       .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
+        if (!controller.signal.aborted && version === loadVersion.current)
+          setLoading(false);
       });
     return () => {
       controller.abort();
       abort.current?.abort();
+      abort.current = null;
       window.speechSynthesis?.cancel();
     };
   }, [request, userId, params]);
@@ -458,6 +470,13 @@ export default function CoachPage() {
   function startNewConversation() {
     loadVersion.current++;
     abort.current?.abort();
+    abort.current = null;
+    streamText.current = "";
+    setBusy(false);
+    setLoading(false);
+    setPendingResend(null);
+    window.speechSynthesis?.cancel();
+    setSpeakingId(null);
     setThread(null);
     setMessages([]);
     setStream("");
@@ -468,9 +487,12 @@ export default function CoachPage() {
 
   async function send(value = draft) {
     const input = value.trim();
-    if (!input || busy) return;
+    if (!input || busy || loading || abort.current) return;
     const controller = new AbortController();
     abort.current = controller;
+    const version = loadVersion.current;
+    const isCurrent = () =>
+      abort.current === controller && version === loadVersion.current;
     const pendingId = `pending-${crypto.randomUUID()}`;
     const pendingMessage: CoachMessageView = {
       id: pendingId,
@@ -485,8 +507,10 @@ export default function CoachPage() {
     setStream("");
     setMessages((current) => [...current, pendingMessage]);
     try {
+      const authToken = await token();
+      controller.signal.throwIfAborted();
       const result = await sendCoachTurn(
-        await token(),
+        authToken,
         {
           threadId: thread,
           message: input,
@@ -497,10 +521,12 @@ export default function CoachPage() {
         },
         controller.signal,
         (text) => {
+          if (!isCurrent()) return;
           streamText.current = text;
           setStream(text);
         },
       );
+      if (!isCurrent()) return;
       setThread(result.threadId);
       setMessages((current) => [
         ...current.filter((message) => message.id !== pendingId),
@@ -511,6 +537,7 @@ export default function CoachPage() {
       window.dispatchEvent(new Event("edutu:ai-complete"));
       void refreshBilling();
     } catch (e) {
+      if (!isCurrent()) return;
       if (controller.signal.aborted) {
         setMessages((current) => [
           ...current,
@@ -525,17 +552,33 @@ export default function CoachPage() {
           },
         ]);
       } else {
-        setMessages((current) =>
-          current.filter((message) => message.id !== pendingId),
-        );
-        setDraft((current) => current || input);
+        const partial = streamText.current;
+        if (partial.trim()) {
+          setMessages((current) => [
+            ...current,
+            {
+              id: `interrupted-${pendingId}`,
+              role: "assistant",
+              content: partial,
+              metadata: { interrupted: true },
+            },
+          ]);
+        } else {
+          setMessages((current) =>
+            current.filter((message) => message.id !== pendingId),
+          );
+          setDraft((current) => current || input);
+        }
         if (handleUpgradeError(e)) setPendingResend(input);
         setError(errorMessage(e));
       }
     } finally {
-      setBusy(false);
-      streamText.current = "";
-      setStream("");
+      if (isCurrent()) {
+        abort.current = null;
+        setBusy(false);
+        streamText.current = "";
+        setStream("");
+      }
     }
   }
 
@@ -584,6 +627,17 @@ export default function CoachPage() {
       setReportError(errorMessage(e));
     } finally {
       setReportBusy(false);
+    }
+  }
+
+  async function copyResponse(message: CoachMessageView) {
+    try {
+      await navigator.clipboard.writeText(visibleMessage(message.content));
+      setReportStatus(t("coachPage.copied", { defaultValue: "Response copied." }));
+    } catch {
+      setError(t("coachPage.copyUnavailable", {
+        defaultValue: "Copy is unavailable. Select the response text to copy it manually.",
+      }));
     }
   }
 
@@ -888,6 +942,14 @@ export default function CoachPage() {
                             <button
                               type="button"
                               className="coach-icon-action"
+                              onClick={() => void copyResponse(message)}
+                              aria-label={t("coachPage.copyResponse", { defaultValue: "Copy response" })}
+                            >
+                              <Copy size={15} />
+                            </button>
+                            <button
+                              type="button"
+                              className="coach-icon-action"
                               onClick={() => readAloud(message)}
                               aria-label={
                                 speakingId === message.id
@@ -948,10 +1010,10 @@ export default function CoachPage() {
                                   className="coach-opportunity-card"
                                   to={`/app/opportunity/${encodeURIComponent(item.id)}`}
                                 >
-                                  {item.imageUrl ? (
+                                  {safeCoachUrl(item.imageUrl) ? (
                                     <img
                                       className="coach-opportunity-image"
-                                      src={item.imageUrl}
+                                      src={safeCoachUrl(item.imageUrl)}
                                       alt=""
                                       loading="lazy"
                                     />
@@ -1055,9 +1117,9 @@ export default function CoachPage() {
                           <a
                             key={`${document.docId}-${document.version}`}
                             className="coach-document-card"
-                            href={document.url || "/app/documents"}
-                            target={document.url ? "_blank" : undefined}
-                            rel={document.url ? "noreferrer" : undefined}
+                            href={safeCoachUrl(document.url) || "/app/documents"}
+                            target={safeCoachUrl(document.url) ? "_blank" : undefined}
+                            rel="noopener noreferrer"
                           >
                             <span className="coach-prompt-icon">
                               <FileText size={19} />
@@ -1075,7 +1137,7 @@ export default function CoachPage() {
                             <ChevronRight size={16} />
                           </a>
                         ))}
-                        {meta?.images?.map((image) => (
+                        {meta?.images?.filter((image) => safeCoachUrl(image.url)).map((image) => (
                           <button
                             type="button"
                             key={image.url}
@@ -1156,6 +1218,7 @@ export default function CoachPage() {
           value={draft}
           onChange={setDraft}
           busy={busy}
+          disabled={loading}
           onSend={() => { void send(); }}
           onStop={() => abort.current?.abort()}
         />

@@ -22,6 +22,12 @@ export interface CoachTurn {
   userMessage: CoachMessage;
   assistantMessage: CoachMessage;
 }
+function isCoachMessage(value: unknown, role: "user" | "assistant"): value is CoachMessage {
+  if (!value || typeof value !== "object") return false;
+  const message = value as Partial<CoachMessage>;
+  return typeof message.id === "string" && !!message.id &&
+    message.role === role && typeof message.content === "string";
+}
 export async function consumeCoachStream<T = CoachTurn>(
   body: ReadableStream<Uint8Array>,
   onText: (text: string) => void,
@@ -56,12 +62,23 @@ export async function consumeCoachStream<T = CoachTurn>(
       text = value.assistantMessage?.content || value.reply || text;
       onText(text);
     }
-    if (event === "turn.error")
+    if (event === "turn.error") {
+      if (
+        (value.status === 402 && ["insufficient_credits", "paid_plan_required"].includes(value.code)) ||
+        (value.status === 429 && value.code === "limit")
+      )
+        throw new UpgradeRequiredError(
+          value.message || "Your AI allowance is exhausted",
+          value.code,
+          value.status,
+          value.required,
+        );
       throw new ProductApiError(
         value.message || value.error || "Coach could not complete this turn",
         value.status || 500,
         value.code,
       );
+    }
   }
   try {
     let ended = false;
@@ -73,6 +90,7 @@ export async function consumeCoachStream<T = CoachTurn>(
       while ((pos = buffer.indexOf("\n\n")) >= 0) {
         frame(buffer.slice(0, pos));
         buffer = buffer.slice(pos + 2);
+        if (final !== undefined) return final;
       }
       if (chunk.done) ended = true;
     }
@@ -148,7 +166,13 @@ export async function sendCoachTurn(
     }
     if (!response.body)
       throw new Error("Streaming is unavailable in this browser");
-    return await consumeCoachStream(response.body, onText);
+    const turn = await consumeCoachStream<Partial<CoachTurn> | null>(response.body, onText);
+    if (
+      !turn || typeof turn.threadId !== "string" || !turn.threadId ||
+      !isCoachMessage(turn.userMessage, "user") ||
+      !isCoachMessage(turn.assistantMessage, "assistant")
+    ) throw new Error("Coach returned an invalid reply. Check conversation history before sending again.");
+    return turn as CoachTurn;
   } finally {
     clearTimeout(timer);
     signal.removeEventListener("abort", abort);

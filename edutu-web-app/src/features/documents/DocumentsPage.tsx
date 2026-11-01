@@ -8,6 +8,7 @@ import { downloadText } from "../cv/export";
 import "../workspace/tools.css";
 interface UploadRecord { id: string; kind: string; fileName: string; parseStatus: string; createdAt: string }
 interface LegacyCv { id: string; title: string; textContent?: string; text_content?: string }
+interface IngestResult { parseStatus: string }
 const icons = { cv: FileText, transcript: GraduationCap, essay: PenLine, other: FolderOpen };
 const date = (value: string) => { const parsed = new Date(value); return Number.isNaN(parsed.getTime()) ? "" : parsed.toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"}); };
 export default function DocumentsPage() {
@@ -23,8 +24,10 @@ export default function DocumentsPage() {
   const [kind, setKind] = useState("other");
   const [selected, setSelected] = useState<File | null>(null);
   const [stage, setStage] = useState("");
+  const [notice, setNotice] = useState("");
   const file = useRef<HTMLInputElement>(null);
-  const load = useCallback(async (signal?: AbortSignal) => {
+  const load = useCallback(async (signal?: AbortSignal, clearError = true) => {
+    if (clearError) setError(null);
     const results = await Promise.allSettled([request<UploadRecord[]>("/uploads",{signal}),request<EditorCv[]>("/cv/editor",{signal}),request<LegacyCv[]|{records:LegacyCv[]}>("/cv",{signal})]);
     if (signal?.aborted) return;
     const [u,c,l]=results;
@@ -37,11 +40,22 @@ export default function DocumentsPage() {
   async function upload() {
     if (!selected) return;
     if (selected.size>10*1024*1024){setError("Choose a file up to 10 MB.");return;}
-    setBusy(true);setError(null);setStage("Uploading…");
+    setBusy(true);setError(null);setNotice("");setStage("Uploading…");
     let uploadId:string|undefined;
-    try{const form=new FormData();form.append("file",selected);form.append("kind",kind);const result=await request<{uploadId:string}>("/uploads/file",{method:"POST",body:form,timeoutMs:120000});uploadId=result.uploadId;setStage("Reading your document…");await request(`/uploads/${uploadId}/ingest`,{method:"POST",timeoutMs:90000});setStage("Document ready");setUploadOpen(false);setSelected(null);}
-    catch(e){setError(uploadId?`Your file was uploaded, but reading it failed. ${errorMessage(e)}`:errorMessage(e));}
-    finally{await load();setBusy(false);}
+    try {
+      const form=new FormData();form.append("file",selected);form.append("kind",kind);
+      const result=await request<{uploadId:string}>("/uploads/file",{method:"POST",body:form,timeoutMs:120000});
+      uploadId=result.uploadId;setStage("Reading your document…");
+      const parsed=await request<IngestResult>(`/uploads/${uploadId}/ingest`,{method:"POST",timeoutMs:90000});
+      if (parsed.parseStatus === "failed") throw new Error("Use Retry next to the file to read it again.");
+      setNotice(parsed.parseStatus === "done" ? "Document ready for AI review." : "Your document is uploaded. Reading is still in progress.");
+      setUploadOpen(false);setSelected(null);
+    }
+    catch(e){
+      setError(uploadId?`Your file was uploaded, but reading it failed. ${errorMessage(e)}`:errorMessage(e));
+      if (uploadId) { setUploadOpen(false);setSelected(null); }
+    }
+    finally{await load(undefined,false);setBusy(false);}
   }
   async function download(id:string) {
     setError(null);
@@ -49,15 +63,20 @@ export default function DocumentsPage() {
     catch(e){setError(errorMessage(e));}
   }
   async function retry(id:string) {
-    setBusy(true);setError(null);
-    try{await request(`/uploads/${id}/ingest`,{method:"POST",timeoutMs:90000});await load();}
-    catch(e){setError(errorMessage(e));}finally{setBusy(false);}
+    setBusy(true);setError(null);setNotice("");
+    try{
+      const result=await request<IngestResult>(`/uploads/${id}/ingest`,{method:"POST",timeoutMs:90000});
+      if (result.parseStatus === "failed") throw new Error("Reading this document failed. Try a text-based PDF, Word or text file.");
+      setNotice(result.parseStatus === "done" ? "Document ready for AI review." : "Reading your document is still in progress.");
+    }
+    catch(e){setError(errorMessage(e));}finally{await load(undefined,false);setBusy(false);}
   }
   const showUploads=tab!=="cv",showCv=tab!=="uploaded";
   const cvCount=cvs.length+legacy.length;
   const total=uploads.length+cvCount;
   return <FeaturePage className="tool-page" eyebrow="" title="documentsTitle" description="" actions={<button className="feature-button" data-workspace-primary-action disabled={busy} onClick={()=>{setStage("");setError(null);setUploadOpen(true);}}><Upload size={16}/> Upload file</button>}>
     {!uploadOpen&&<ToolError error={error} onRetry={()=>void load()}/>}
+    {notice&&<p className="feature-notice" role="status">{notice}</p>}
     <div className="tool-tabs" aria-label="Document views">{(["all","uploaded","cv"] as const).map(value=><button key={value} aria-pressed={tab===value} onClick={()=>setTab(value)}>{value==="all"?`All (${total})`:value==="uploaded"?`Files (${uploads.length})`:`CVs (${cvCount})`}</button>)}</div>
     {loading?<Loading/>:<>
       {showCv&&<section><div className="tool-section-label"><span>CVs</span><Link to="/app/cv">Open CVs →</Link></div>{cvCount?<div className="tool-list">{cvs.map(cv=><Link className="tool-card tool-row" key={`editor:${cv.id}`} to={`/app/cv?cvId=${cv.id}`}><span className="tool-icon" data-kind="cv"><FileText size={18}/></span><div><h2>{cv.name}</h2><p>Editable CV · {date(cv.updatedAt)}</p></div><span>→</span></Link>)}{legacy.map(cv=><article className="tool-card tool-row" key={`legacy:${cv.id}`}><span className="tool-icon" data-kind="cv"><FileText size={18}/></span><div><h2>{cv.title||"Earlier CV"}</h2><p>Earlier version</p></div><button className="tool-icon-button" aria-label={`Download ${cv.title||"CV"} as text`} onClick={()=>downloadText(cv.title||"CV",cv.textContent||cv.text_content||"")}><Download size={18}/></button></article>)}</div>:<Link className="tool-shortcut" to="/app/cv"><span className="tool-icon" data-kind="cv"><FileText size={18}/></span><span><strong>No CVs yet</strong><small>Create one in CV & AI tools</small></span><span>→</span></Link>}</section>}

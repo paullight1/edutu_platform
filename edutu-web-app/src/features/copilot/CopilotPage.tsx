@@ -70,11 +70,16 @@ interface Answer {
   draft: string;
 }
 export default function CopilotPage() {
-  const { request, userId } = useProductSession();
-  const { refreshBilling } = usePaywall();
+  const { userId } = useProductSession();
   const { id } = useParams();
   const [params] = useSearchParams();
   const opportunityId = id || params.get("opportunityId");
+  return <CopilotWorkspace key={`${userId}:${opportunityId || "all"}`} opportunityId={opportunityId} />;
+}
+
+function CopilotWorkspace({ opportunityId }: { opportunityId: string | null }) {
+  const { request, userId } = useProductSession();
+  const { refreshBilling, handleUpgradeError } = usePaywall();
   const [kits, setKits] = useState<Kit[]>([]);
   const [kit, setKit] = useState<Kit | null>(null);
   const [answers, setAnswers] = useState<Answer[]>([]);
@@ -102,39 +107,43 @@ export default function CopilotPage() {
     setDraft(text);
     setSavedDraft(text);
   }, []);
-  const load = useCallback(async () => {
+  const load = useCallback(async (signal: AbortSignal) => {
     setLoading(true);
     setError(null);
     try {
       if (opportunityId) {
         try {
-          select(await request<Kit>(`/copilot/kits/${opportunityId}`));
+          const value = await request<Kit>(`/copilot/kits/${opportunityId}`, { signal });
+          if (!signal.aborted) select(value);
         } catch (e) {
-          if (e && typeof e === "object" && "status" in e && e.status === 404)
-            setKit(null);
-          else throw e;
+          if (e && typeof e === "object" && "status" in e && e.status === 404) {
+            if (!signal.aborted) setKit(null);
+          } else throw e;
         }
       } else {
         const [list, bank] = await Promise.all([
-          request<Kit[]>("/copilot/kits"),
-          request<{ answers: Answer[] }>("/copilot/answers"),
+          request<Kit[]>("/copilot/kits", { signal }),
+          request<{ answers: Answer[] }>("/copilot/answers", { signal }),
         ]);
+        if (signal.aborted) return;
         setKits(list);
         setAnswers(bank.answers || []);
       }
     } catch (e) {
-      setError(errorMessage(e));
+      if (!signal.aborted) setError(errorMessage(e));
     } finally {
-      setLoading(false);
+      if (!signal.aborted) setLoading(false);
     }
   }, [opportunityId, request, select]);
   useEffect(() => {
+    const controller = new AbortController();
     setKit(null);
     setKits([]);
     setAnswers([]);
     setDraft("");
     setSavedDraft("");
-    void load();
+    void load(controller.signal);
+    return () => controller.abort();
   }, [load, userId]);
 
   const act = async (action: () => Promise<void>) => {
@@ -144,6 +153,7 @@ export default function CopilotPage() {
     try {
       await action();
     } catch (e) {
+      handleUpgradeError(e);
       setError(errorMessage(e));
     } finally {
       setBusy(false);
@@ -178,7 +188,7 @@ export default function CopilotPage() {
       if (!kit || !opportunityId) return;
       if (dirty)
         throw new Error("Save your essay before requesting AI guidance.");
-      await request(`/copilot/kits/${opportunityId}/${kind}`, {
+      const result = await request<{ source: "ai" | "fallback" }>(`/copilot/kits/${opportunityId}/${kind}`, {
         method: "POST",
         timeoutMs: 90000,
         body: json({
@@ -188,6 +198,8 @@ export default function CopilotPage() {
         }),
       });
       setKit(await request<Kit>(`/copilot/kits/${opportunityId}`));
+      if (result.source === "fallback")
+        setNotice("Starter guidance · AI is currently unavailable. Review these general suggestions against the opportunity requirements.");
     });
   return (
     <FeaturePage
