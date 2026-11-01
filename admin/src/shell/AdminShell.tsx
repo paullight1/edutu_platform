@@ -4,9 +4,9 @@ import { useAdminAuth } from "../auth/admin-auth-context";
 import { EngineRunProvider } from "../features/engine/state/EngineRunProvider";
 import EngineRunDock from "../features/engine/components/EngineRunDock";
 import AdminTopbar from "./AdminTopbar";
+import AdminBreadcrumb from "./AdminBreadcrumb";
 import MobileNavigation from "./MobileNavigation";
 import PrimaryRail from "./PrimaryRail";
-import SectionNavigation from "./SectionNavigation";
 import { ShellProvider } from "./ShellContext";
 import { useShell } from "./shell-context";
 import type { ShellUser } from "./types";
@@ -62,10 +62,9 @@ function AdminShellFrame() {
         isSigningOut={isSigningOut}
         onSignOut={() => void handleSignOut()}
       />
-      <SectionNavigation />
-
       <div className="admin-shell-workspace">
         <AdminTopbar navigationTriggerRef={navigationTriggerRef} />
+        <AdminBreadcrumb />
         <main className="admin-shell-content" id="admin-main-content">
           <Outlet />
         </main>

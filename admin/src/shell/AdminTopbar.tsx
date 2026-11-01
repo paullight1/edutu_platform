@@ -1,7 +1,6 @@
-import { Menu, Moon, Sun } from "lucide-react";
+import { Menu } from "lucide-react";
 import type { RefObject } from "react";
-import { useLocation } from "react-router-dom";
-import { routeForPath } from "../app/route-manifest";
+import { Link } from "react-router-dom";
 import { useShell } from "./shell-context";
 
 interface AdminTopbarProps {
@@ -11,43 +10,25 @@ interface AdminTopbarProps {
 export default function AdminTopbar({
   navigationTriggerRef,
 }: AdminTopbarProps) {
-  const location = useLocation();
-  const { isDark, toggleTheme, openMobileNavigation } = useShell();
-  const route = routeForPath(location.pathname);
+  const { openMobileNavigation, isMobileNavigationOpen } = useShell();
 
   return (
     <header className="admin-topbar">
       <button
         ref={navigationTriggerRef}
         type="button"
-        className="admin-topbar-control"
+        className="admin-topbar-control admin-mobile-trigger"
         aria-label="Open admin navigation"
         aria-controls="admin-mobile-navigation"
+        aria-expanded={isMobileNavigationOpen}
         onClick={openMobileNavigation}
       >
         <Menu size={20} aria-hidden="true" />
       </button>
-
-      <div className="admin-topbar-brand">
+      <Link to="/" className="admin-topbar-brand" aria-label="Edutu Admin home">
         <img src="/logo.png" alt="" aria-hidden="true" />
-        <div>
-          <span>Edutu Admin</span>
-          <strong>{route?.title || "Admin console"}</strong>
-        </div>
-      </div>
-
-      <button
-        type="button"
-        className="admin-topbar-control"
-        aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
-        onClick={toggleTheme}
-      >
-        {isDark ? (
-          <Sun size={20} aria-hidden="true" />
-        ) : (
-          <Moon size={20} aria-hidden="true" />
-        )}
-      </button>
+        <span>Edutu Admin</span>
+      </Link>
     </header>
   );
 }

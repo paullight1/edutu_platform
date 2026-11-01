@@ -1,11 +1,16 @@
-import { LogOut, Moon, Sun } from "lucide-react";
-import { NavLink } from "react-router-dom";
 import {
-  ADMIN_NAV_GROUPS,
-  getAdminRoute,
-} from "../app/route-manifest";
+  ChevronDown,
+  LogOut,
+  Moon,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Sun,
+} from "lucide-react";
+import { NavLink } from "react-router-dom";
+import { ADMIN_NAV_GROUPS, getAdminRoute } from "../app/route-manifest";
 import BackendHealthChip from "../components/BackendHealthChip";
 import { useShell } from "./shell-context";
+import SectionNavigation from "./SectionNavigation";
 import type { ShellUser } from "./types";
 
 interface PrimaryRailProps {
@@ -31,28 +36,52 @@ export default function PrimaryRail({
     selectedGroupId,
     isSectionOpen,
     toggleSection,
+    toggleSidebar,
   } = useShell();
   const dashboard = getAdminRoute("dashboard");
   const settings = getAdminRoute("settings");
   const profile = getAdminRoute("profile");
 
   return (
-    <aside className="admin-primary-rail">
+    <aside className="admin-primary-rail" id="admin-desktop-navigation">
       <nav
         className="admin-primary-navigation"
         aria-label="Primary admin navigation"
       >
-        <NavLink
-          to={dashboard.path}
-          end
-          className="admin-rail-brand"
-          aria-label="Edutu admin home"
-          data-tooltip="Edutu admin"
-        >
-          <img src="/logo.png" alt="" aria-hidden="true" />
-        </NavLink>
+        <div className="admin-sidebar-header">
+          <NavLink
+            to={dashboard.path}
+            end
+            className="admin-rail-brand"
+            aria-label="Edutu admin home"
+            data-tooltip="Edutu admin"
+          >
+            <img src="/logo.png" alt="" aria-hidden="true" />
+            <span className="admin-rail-brand-copy">
+              <strong>
+                Edutu <span>Admin</span>
+              </strong>
+              <small>Workspace</small>
+            </span>
+          </NavLink>
+          <button
+            type="button"
+            className="admin-sidebar-toggle"
+            aria-label={isSectionOpen ? "Collapse sidebar" : "Expand sidebar"}
+            aria-expanded={isSectionOpen}
+            aria-controls="admin-desktop-navigation"
+            onClick={toggleSidebar}
+          >
+            {isSectionOpen ? (
+              <PanelLeftClose size={18} aria-hidden="true" />
+            ) : (
+              <PanelLeftOpen size={18} aria-hidden="true" />
+            )}
+          </button>
+        </div>
 
         <div className="admin-rail-destinations">
+          <span className="admin-nav-eyebrow">Workspace</span>
           <NavLink
             to={dashboard.path}
             end
@@ -63,29 +92,38 @@ export default function PrimaryRail({
             }
           >
             <dashboard.icon size={20} strokeWidth={1.7} aria-hidden="true" />
-            <span className="admin-visually-hidden">{dashboard.label}</span>
+            <span className="admin-rail-label">{dashboard.label}</span>
           </NavLink>
 
           {ADMIN_NAV_GROUPS.map((group) => {
-            const isExpanded =
-              isSectionOpen && selectedGroupId === group.id;
+            const isExpanded = isSectionOpen && selectedGroupId === group.id;
             const isActive = routeGroupId === group.id;
 
             return (
-              <button
-                key={group.id}
-                type="button"
-                className={`admin-rail-control${
-                  isExpanded || isActive ? " is-active" : ""
-                }`}
-                aria-label={`${group.label} section`}
-                aria-expanded={isExpanded}
-                data-tooltip={group.label}
-                onClick={() => toggleSection(group.id)}
-              >
-                <group.icon size={20} strokeWidth={1.7} aria-hidden="true" />
-                <span className="admin-visually-hidden">{group.label}</span>
-              </button>
+              <div className="admin-rail-group" key={group.id}>
+                <button
+                  type="button"
+                  className={`admin-rail-control${
+                    isExpanded || isActive ? " is-active" : ""
+                  }`}
+                  aria-label={`${group.label} section`}
+                  aria-expanded={isExpanded}
+                  aria-controls={
+                    isExpanded ? `admin-section-${group.id}` : undefined
+                  }
+                  data-tooltip={group.label}
+                  onClick={() => toggleSection(group.id)}
+                >
+                  <group.icon size={20} strokeWidth={1.7} aria-hidden="true" />
+                  <span className="admin-rail-label">{group.label}</span>
+                  <ChevronDown
+                    size={14}
+                    className={`admin-rail-chevron${isExpanded ? " is-expanded" : ""}`}
+                    aria-hidden="true"
+                  />
+                </button>
+                {isExpanded && <SectionNavigation />}
+              </div>
             );
           })}
 
@@ -99,7 +137,7 @@ export default function PrimaryRail({
             }
           >
             <settings.icon size={20} strokeWidth={1.7} aria-hidden="true" />
-            <span className="admin-visually-hidden">{settings.label}</span>
+            <span className="admin-rail-label">{settings.label}</span>
           </NavLink>
         </div>
 
@@ -131,7 +169,12 @@ export default function PrimaryRail({
                 {userInitial(user)}
               </span>
             )}
-            <span className="admin-visually-hidden">My Profile</span>
+            <span className="admin-rail-label admin-rail-user">
+              <strong>
+                {user?.user_metadata?.full_name || "Administrator"}
+              </strong>
+              <small>My profile</small>
+            </span>
           </NavLink>
 
           <button
@@ -146,6 +189,9 @@ export default function PrimaryRail({
             ) : (
               <Moon size={20} strokeWidth={1.7} aria-hidden="true" />
             )}
+            <span className="admin-rail-label">
+              {isDark ? "Light mode" : "Dark mode"}
+            </span>
           </button>
 
           <button
@@ -157,7 +203,7 @@ export default function PrimaryRail({
             onClick={onSignOut}
           >
             <LogOut size={20} strokeWidth={1.7} aria-hidden="true" />
-            <span className="admin-visually-hidden">
+            <span className="admin-rail-label">
               {isSigningOut ? "Signing out" : "Sign Out"}
             </span>
           </button>

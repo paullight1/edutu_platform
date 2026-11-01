@@ -96,11 +96,17 @@ export default function MobileNavigation({
     };
 
     document.addEventListener("keydown", handleKeyDown);
+    const desktopQuery = window.matchMedia?.("(min-width: 901px)");
+    const handleDesktopChange = (event: MediaQueryListEvent) => {
+      if (event.matches) closeMobileNavigation();
+    };
+    desktopQuery?.addEventListener("change", handleDesktopChange);
     return () => {
       document.body.style.overflow = previousOverflow;
       document.removeEventListener("keydown", handleKeyDown);
+      desktopQuery?.removeEventListener("change", handleDesktopChange);
     };
-  }, [closeAndRestore, isMobileNavigationOpen]);
+  }, [closeAndRestore, closeMobileNavigation, isMobileNavigationOpen]);
 
   if (!isMobileNavigationOpen) return null;
 
@@ -138,7 +144,7 @@ export default function MobileNavigation({
             <img src="/logo.png" alt="" aria-hidden="true" />
             <div>
               <strong>Edutu Admin</strong>
-              <span>{userName(user)}</span>
+              <span>Workspace navigation</span>
             </div>
           </div>
           <button
@@ -179,8 +185,11 @@ export default function MobileNavigation({
               <section key={group.id} className="admin-mobile-group">
                 <button
                   type="button"
-                  className="admin-mobile-group-toggle"
+                  className={`admin-mobile-group-toggle${routeGroupId === group.id ? " is-current" : ""}`}
                   aria-expanded={isExpanded}
+                  aria-controls={
+                    isExpanded ? `admin-mobile-group-${group.id}` : undefined
+                  }
                   onClick={() => toggleGroup(group.id)}
                 >
                   <span>
@@ -194,7 +203,10 @@ export default function MobileNavigation({
                   />
                 </button>
                 {isExpanded ? (
-                  <div className="admin-mobile-group-links">
+                  <div
+                    className="admin-mobile-group-links"
+                    id={`admin-mobile-group-${group.id}`}
+                  >
                     {routes.map((route) => (
                       <NavLink
                         key={route.id}
@@ -231,9 +243,9 @@ export default function MobileNavigation({
         </nav>
 
         <footer className="admin-mobile-navigation-footer">
-          <BackendHealthChip />
           <NavLink
             to={profile.path}
+            aria-label="My Profile"
             end
             className={({ isActive }) =>
               `admin-mobile-utility${isActive ? " is-active" : ""}`
@@ -241,29 +253,35 @@ export default function MobileNavigation({
             onClick={closeAndRestore}
           >
             <profile.icon size={19} aria-hidden="true" />
-            <span>My Profile</span>
+            <span className="admin-mobile-account">
+              <strong>{userName(user)}</strong>
+              <small>My profile</small>
+            </span>
           </NavLink>
-          <button
-            type="button"
-            className="admin-mobile-utility"
-            onClick={toggleTheme}
-          >
-            {isDark ? (
-              <Sun size={19} aria-hidden="true" />
-            ) : (
-              <Moon size={19} aria-hidden="true" />
-            )}
-            <span>{isDark ? "Light mode" : "Dark mode"}</span>
-          </button>
-          <button
-            type="button"
-            className="admin-mobile-utility admin-mobile-utility--danger"
-            disabled={isSigningOut}
-            onClick={onSignOut}
-          >
-            <LogOut size={19} aria-hidden="true" />
-            <span>{isSigningOut ? "Signing out…" : "Sign Out"}</span>
-          </button>
+          <div className="admin-mobile-footer-actions">
+            <button
+              type="button"
+              className="admin-mobile-utility"
+              onClick={toggleTheme}
+            >
+              {isDark ? (
+                <Sun size={19} aria-hidden="true" />
+              ) : (
+                <Moon size={19} aria-hidden="true" />
+              )}
+              <span>{isDark ? "Light mode" : "Dark mode"}</span>
+            </button>
+            <button
+              type="button"
+              className="admin-mobile-utility admin-mobile-utility--danger"
+              disabled={isSigningOut}
+              onClick={onSignOut}
+            >
+              <LogOut size={19} aria-hidden="true" />
+              <span>{isSigningOut ? "Signing out…" : "Sign Out"}</span>
+            </button>
+          </div>
+          <BackendHealthChip />
         </footer>
       </div>
     </div>

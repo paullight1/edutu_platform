@@ -6,10 +6,7 @@ import {
   type ReactNode,
 } from "react";
 import { useLocation } from "react-router-dom";
-import {
-  groupForPath,
-  type AdminNavGroupId,
-} from "../app/route-manifest";
+import { groupForPath, type AdminNavGroupId } from "../app/route-manifest";
 import { ShellContext, type ShellContextValue } from "./shell-context";
 
 function readThemePreference(): boolean {
@@ -32,7 +29,7 @@ export function ShellProvider({ children }: { children: ReactNode }) {
   );
   const [manualGroupSelection, setManualGroupSelection] = useState<{
     path: string;
-    groupId: AdminNavGroupId;
+    groupId: AdminNavGroupId | null;
   } | null>(null);
   const [mobileNavigationPath, setMobileNavigationPath] = useState<
     string | null
@@ -42,9 +39,8 @@ export function ShellProvider({ children }: { children: ReactNode }) {
     manualGroupSelection?.path === location.pathname
       ? manualGroupSelection.groupId
       : routeGroupId;
-  const isSectionOpen = sectionPreferenceOpen && selectedGroupId !== null;
-  const isMobileNavigationOpen =
-    mobileNavigationPath === location.pathname;
+  const isSectionOpen = sectionPreferenceOpen;
+  const isMobileNavigationOpen = mobileNavigationPath === location.pathname;
 
   useEffect(() => {
     if (isDark) {
@@ -64,8 +60,7 @@ export function ShellProvider({ children }: { children: ReactNode }) {
   const toggleSection = useCallback(
     (groupId: AdminNavGroupId) => {
       if (isSectionOpen && selectedGroupId === groupId) {
-        setSectionPreferenceOpen(false);
-        window.localStorage.setItem("sidebar", "collapsed");
+        setManualGroupSelection({ path: location.pathname, groupId: null });
         return;
       }
 
@@ -76,9 +71,14 @@ export function ShellProvider({ children }: { children: ReactNode }) {
     [isSectionOpen, location.pathname, selectedGroupId],
   );
 
-  const collapseSection = useCallback(() => {
-    setSectionPreferenceOpen(false);
-    window.localStorage.setItem("sidebar", "collapsed");
+  const toggleSidebar = useCallback(() => {
+    setSectionPreferenceOpen((current) => {
+      window.localStorage.setItem(
+        "sidebar",
+        current ? "collapsed" : "expanded",
+      );
+      return !current;
+    });
   }, []);
 
   const openMobileNavigation = useCallback(() => {
@@ -97,14 +97,14 @@ export function ShellProvider({ children }: { children: ReactNode }) {
       selectedGroupId,
       isSectionOpen,
       toggleSection,
-      collapseSection,
+      toggleSidebar,
       isMobileNavigationOpen,
       openMobileNavigation,
       closeMobileNavigation,
     }),
     [
       closeMobileNavigation,
-      collapseSection,
+      toggleSidebar,
       isDark,
       isMobileNavigationOpen,
       isSectionOpen,
@@ -116,5 +116,7 @@ export function ShellProvider({ children }: { children: ReactNode }) {
     ],
   );
 
-  return <ShellContext.Provider value={value}>{children}</ShellContext.Provider>;
+  return (
+    <ShellContext.Provider value={value}>{children}</ShellContext.Provider>
+  );
 }

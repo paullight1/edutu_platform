@@ -8,7 +8,7 @@ export interface ShellContextValue {
   selectedGroupId: AdminNavGroupId | null;
   isSectionOpen: boolean;
   toggleSection(groupId: AdminNavGroupId): void;
-  collapseSection(): void;
+  toggleSidebar(): void;
   isMobileNavigationOpen: boolean;
   openMobileNavigation(): void;
   closeMobileNavigation(): void;
