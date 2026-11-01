@@ -17,6 +17,7 @@ let mockRevenueCatBuildConfigured = true;
 const mockGetOfferings = jest.fn();
 const mockPurchasePackage = jest.fn();
 const mockCreatePurchaseFulfillmentCheck = jest.fn();
+const mockHasRestoredServerEntitlement = jest.fn();
 const mockConfirmPurchase = jest.fn();
 const mockRestorePurchases = jest.fn();
 const mockFetchMarketplaceEntitlements = jest.fn().mockResolvedValue([]);
@@ -297,6 +298,7 @@ jest.mock('@edutu/core/src/hooks/useProStatus', () => ({
   useProStatus: () => ({
     isPro: mockIsPro,
     isLoading: mockProLoading,
+    refreshStatus: jest.fn().mockResolvedValue(undefined),
   }),
 }), { virtual: true });
 
@@ -316,6 +318,7 @@ jest.mock('@edutu/core/src/services/opportunities', () => ({
 
 jest.mock('@edutu/core/src/services/billingFulfillment', () => ({
   createPurchaseFulfillmentCheck: (...args: unknown[]) => mockCreatePurchaseFulfillmentCheck(...args),
+  hasRestoredServerEntitlement: (...args: unknown[]) => mockHasRestoredServerEntitlement(...args),
 }));
 
 jest.mock('@edutu/core/src/services/payments', () => ({
@@ -377,6 +380,7 @@ describe('mobile engagement routes', () => {
     mockGetOfferings.mockClear();
     mockPurchasePackage.mockClear();
     mockCreatePurchaseFulfillmentCheck.mockReset().mockResolvedValue(mockConfirmPurchase);
+    mockHasRestoredServerEntitlement.mockReset().mockResolvedValue(false);
     mockConfirmPurchase.mockReset().mockResolvedValue(false);
     mockRestorePurchases.mockClear();
     mockFetchMarketplaceEntitlements.mockReset();
@@ -644,6 +648,46 @@ describe('mobile engagement routes', () => {
     // Restore is wired to the RevenueCat restore flow.
     fireEvent.press(getByText('Restore purchases'));
     await waitFor(() => expect(mockRestorePurchases).toHaveBeenCalled());
+  });
+
+  it('does not report restoration complete until the server confirms access', async () => {
+    mockInitRevenueCat.mockResolvedValue(true);
+    mockRestorePurchases.mockResolvedValue({ success: true, customerInfo: { entitlements: { active: { pro: {} } } } });
+    const alert = jest.spyOn(Alert, 'alert');
+    try {
+      const { getByText } = render(<PaywallScreen />);
+      await waitFor(() => expect(getByText('Restore purchases')).toBeTruthy());
+      fireEvent.press(getByText('Restore purchases'));
+      await waitFor(() => expect(alert).toHaveBeenCalledWith('Restore is still processing', expect.any(String)));
+      expect(mockHasRestoredServerEntitlement).toHaveBeenCalled();
+    } finally { alert.mockRestore(); }
+  });
+
+  it('reports when the store account has no active subscription to restore', async () => {
+    mockInitRevenueCat.mockResolvedValue(true);
+    mockRestorePurchases.mockResolvedValue({ success: true, customerInfo: { entitlements: { active: {} } } });
+    const alert = jest.spyOn(Alert, 'alert');
+    try {
+      const { getByText } = render(<PaywallScreen />);
+      await waitFor(() => expect(getByText('Restore purchases')).toBeTruthy());
+      fireEvent.press(getByText('Restore purchases'));
+      await waitFor(() => expect(alert).toHaveBeenCalledWith('No active subscription found', expect.any(String)));
+      expect(mockHasRestoredServerEntitlement).not.toHaveBeenCalled();
+    } finally { alert.mockRestore(); }
+  });
+
+  it('reports restoration once the matching server entitlement is active', async () => {
+    mockInitRevenueCat.mockResolvedValue(true);
+    mockRestorePurchases.mockResolvedValue({ success: true, customerInfo: { entitlements: { active: { pro: {} } } } });
+    mockHasRestoredServerEntitlement.mockResolvedValue(true);
+    const alert = jest.spyOn(Alert, 'alert');
+    try {
+      const { getByText } = render(<PaywallScreen />);
+      await waitFor(() => expect(getByText('Restore purchases')).toBeTruthy());
+      fireEvent.press(getByText('Restore purchases'));
+      await waitFor(() => expect(mockHasRestoredServerEntitlement).toHaveBeenCalledWith(expect.anything(), 'user-1', ['pro']));
+      await waitFor(() => expect(alert).toHaveBeenCalledWith('Restored', 'Your purchases have been restored.'));
+    } finally { alert.mockRestore(); }
   });
 
   it('explains a missing store key as a build setup issue without offering futile retries', async () => {

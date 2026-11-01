@@ -144,8 +144,8 @@
     "signOut": "Toka",
     "signOutConfirm": "Utahitaji kuingia tena ili kufikia akaunti yako.",
     "deleteAccount": "Futa Akaunti",
-    "deleteHint": "Hii inafuta kabisa wasifu wako, malengo yako, na maendeleo yako. Haiwezi kutenduliwa.",
-    "deleteConfirmMessage": "Una uhakika unataka kufuta akaunti yako? Kitendo hiki hakiwezi kutenduliwa. Data yako yote, malengo, na maendeleo vitaondolewa kabisa.",
+    "deleteHint": "Omba kufutwa kwa akaunti yako. Baadhi ya rekodi zinaweza kuhitaji kuhifadhiwa.",
+    "deleteConfirmMessage": "Je, unataka kuomba kufutwa kwa akaunti yako? Baadhi ya rekodi zinaweza kuhitaji kuhifadhiwa kwa sababu za kisheria au usalama.",
     "userNotFound": "Mtumiaji hajapatikana. Tafadhali jaribu tena.",
     "dataDeleteError": "Hatukuweza kufuta data yako ya programu. Tafadhali jaribu tena kabla ya kufuta akaunti yako.",
     "deleteError": "Imeshindwa kufuta akaunti. Tafadhali wasiliana na timu ya usaidizi kupitia support@edutu.org"

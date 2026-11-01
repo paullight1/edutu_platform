@@ -696,7 +696,7 @@ export default function CVBuilderScreen() {
             };
 
             if (cvToSave.id) {
-                await cvService.updateUserCV(supabase, cvToSave.id, cvToSave);
+                await cvService.updateUserCV(supabase, cvToSave.id, cvToSave, user.id);
             } else {
                 const newCV = await cvService.createUserCV(supabase, user.id, cvToSave);
                 setCurrentCV((prev: Partial<UserCV>) => ({ ...prev, id: newCV.id }));
@@ -715,6 +715,7 @@ export default function CVBuilderScreen() {
     };
 
     const handleDeleteCV = async (cvId: string) => {
+        if (!user) return;
         Alert.alert(
             t('alerts.deleteTitle'),
             t('alerts.deleteMessage'),
@@ -725,7 +726,7 @@ export default function CVBuilderScreen() {
                     style: 'destructive',
                     onPress: async () => {
                         try {
-                            await cvService.deleteUserCV(supabase, cvId);
+                            await cvService.deleteUserCV(supabase, cvId, user.id);
                         } catch (error) {
                             console.error('Error deleting CV:', error);
                             Alert.alert(t('common:states.error'), t('alerts.deleteFailed'));

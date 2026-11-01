@@ -198,6 +198,21 @@ afterEvaluate {
     }
 }
 
+// EAS file variables are paths outside the checkout. Native projects do not
+// run Expo prebuild, so place the supplied Firebase config where the Google
+// Services Gradle plugin expects it before deciding whether to apply it.
+def easGoogleServicesPath = System.getenv("GOOGLE_SERVICES_JSON")
+if (easGoogleServicesPath) {
+    def easGoogleServicesFile = file(easGoogleServicesPath)
+    if (!easGoogleServicesFile.isFile()) {
+        throw new GradleException("GOOGLE_SERVICES_JSON must point to a readable file")
+    }
+    copy {
+        from easGoogleServicesFile
+        into projectDir
+        rename { "google-services.json" }
+    }
+}
 def googleServicesJsonExists = file("$projectRoot/google-services.json").exists() || file("$projectDir/google-services.json").exists()
 if (googleServicesJsonExists) {
     apply plugin: 'com.google.gms.google-services'

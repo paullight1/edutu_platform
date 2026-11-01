@@ -22,7 +22,7 @@ import { useUser, useAuth } from '@clerk/clerk-expo';
 import { ScreenHeader } from '../../components/ui/ScreenHeader';
 import { BrandedLoader } from '../../components/ui/BrandedLoader';
 import { PremiumCelebration } from '../../components/ui/PremiumCelebration';
-import { createPurchaseFulfillmentCheck } from '@edutu/core/src/services/billingFulfillment';
+import { createPurchaseFulfillmentCheck, hasRestoredServerEntitlement } from '@edutu/core/src/services/billingFulfillment';
 import { useProStatus } from '@edutu/core/src/hooks/useProStatus';
 import { supabase } from '../../lib/supabase';
 import { fetchMobileControlConfig } from '../../lib/mobileControl';
@@ -355,8 +355,24 @@ export default function PaywallScreen() {
     try {
       const result = await restorePurchases();
       if (result.success) {
-        await refreshStatus();
-        Alert.alert(t('paywall.restoredTitle'), t('paywall.restoredMessage'));
+        const restored = Object.keys(result.customerInfo?.entitlements.active ?? {})
+          .filter((key) => ['lite', 'pro', 'scholar'].includes(key));
+        if (!restored.length) {
+          Alert.alert(
+            t('paywall.restoreNoneTitle', { defaultValue: 'No active subscription found' }),
+            t('paywall.restoreNoneMessage', { defaultValue: 'No active subscription was found for this store account.' }),
+          );
+        } else if (userId && await waitForServerFulfillment(
+          () => hasRestoredServerEntitlement(supabase, userId, restored),
+        )) {
+          await refreshStatus();
+          Alert.alert(t('paywall.restoredTitle'), t('paywall.restoredMessage'));
+        } else {
+          Alert.alert(
+            t('paywall.restoreProcessingTitle', { defaultValue: 'Restore is still processing' }),
+            t('paywall.restoreProcessingMessage', { defaultValue: 'Your store subscription was found. Access will be available after the server confirms it. Please try again later.' }),
+          );
+        }
       } else {
         Alert.alert(t('common:states.error'), result.error || t('paywall.restoreFailed'));
       }
@@ -365,7 +381,7 @@ export default function PaywallScreen() {
     } finally {
       setRestoring(false);
     }
-  }, [refreshStatus, t]);
+  }, [refreshStatus, t, userId]);
 
   const purchaseWithIap = useCallback(async () => {
     if (!selectedPackage) {

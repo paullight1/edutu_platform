@@ -1,4 +1,5 @@
-import { createPurchaseFulfillmentCheck } from '../packages/core/src/services/billingFulfillment';
+import { createPurchaseFulfillmentCheck, hasRestoredServerEntitlement } from '../packages/core/src/services/billingFulfillment';
+import { toSafeUUID } from '../packages/core/src/utils/auth';
 
 type Row = { status: string; expires_at: string | null };
 const future = (days: number) => new Date(Date.now() + days * 86400000).toISOString();
@@ -52,4 +53,35 @@ it('does not treat invalid or past expiry as fulfillment', async () => {
   await expect(check()).resolves.toBe(false);
   rows.pro.expires_at = new Date(0).toISOString();
   await expect(check()).resolves.toBe(false);
+});
+
+it('accepts an existing active server grant when restoring a matching entitlement', async () => {
+  const { supabase } = setup({ pro: { status: 'active', expires_at: future(7) } });
+  await expect(hasRestoredServerEntitlement(supabase, 'user_A', ['pro'])).resolves.toBe(true);
+  await expect(hasRestoredServerEntitlement(supabase, 'user_A', ['lite'])).resolves.toBe(false);
+});
+
+it('does not confirm an expired or unrelated restored entitlement', async () => {
+  const { supabase } = setup({ pro: { status: 'active', expires_at: new Date(0).toISOString() } });
+  await expect(hasRestoredServerEntitlement(supabase, 'user_A', ['pro', 'unknown'])).resolves.toBe(false);
+});
+
+it('finds a server grant stored under the account’s derived UUID', async () => {
+  let queriedUser = '';
+  const query = {
+    select: jest.fn(() => query),
+    eq: jest.fn((key, value) => { if (key === 'user_id') queriedUser = value; return query; }),
+    maybeSingle: jest.fn(async () => ({
+      data: queriedUser === toSafeUUID('user_A') ? { status: 'active', expires_at: future(7) } : null,
+      error: null,
+    })),
+  };
+  await expect(hasRestoredServerEntitlement({ from: () => query } as any, 'user_A', ['pro'])).resolves.toBe(true);
+});
+
+it('waits for every restored paid tier to be reflected by the server', async () => {
+  const { rows, supabase } = setup({ lite: { status: 'active', expires_at: future(7) } });
+  await expect(hasRestoredServerEntitlement(supabase, 'user_A', ['lite', 'pro'])).resolves.toBe(false);
+  rows.pro = { status: 'active', expires_at: future(7) };
+  await expect(hasRestoredServerEntitlement(supabase, 'user_A', ['lite', 'pro'])).resolves.toBe(true);
 });

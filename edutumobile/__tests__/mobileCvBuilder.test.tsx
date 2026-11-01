@@ -397,6 +397,7 @@ describe('mobile CV builder', () => {
           id: 'cv-1',
           name: 'Scholarship CV',
         }),
+        'user-1',
       ),
     );
   });

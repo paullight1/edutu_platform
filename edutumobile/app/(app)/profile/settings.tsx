@@ -71,6 +71,7 @@ import { useAuth, useUser } from '@clerk/clerk-expo';
 import { useRouter } from 'expo-router';
 import { supabase } from '../../../lib/supabase';
 import { clearWidgetSuiteData } from '../../../lib/widgetSuiteSync';
+import { clearLocalUserCVs } from '@edutu/core/src/services/cv';
 import { useToast } from '../../../components/context/ToastContext';
 import { useNavStyleSettings, setNavBarStyle, type NavBarStyle } from '../../../lib/navStyleStore';
 
@@ -385,6 +386,23 @@ export default function SettingsScreen() {
         } catch { /* user dismissed */ }
     };
 
+    const showDeletionSupport = () => {
+        Alert.alert(
+            t('common:states.error'),
+            t('account.deletionSupportMessage', { defaultValue: 'We could not confirm that account deletion completed. Please email Edutu for help with your request.' }),
+            [
+                { text: t('common:actions.cancel'), style: 'cancel' },
+                {
+                    text: t('account.emailSupport', { defaultValue: 'Email support' }),
+                    onPress: () => {
+                        void Linking.openURL('mailto:my.edutu@gmail.com?subject=Edutu%20account%20deletion%20request')
+                            .catch(() => Alert.alert('Email unavailable', 'Please email my.edutu@gmail.com to request account deletion.'));
+                    },
+                },
+            ],
+        );
+    };
+
     const handleDeleteAccount = () => {
         Alert.alert(
             t('account.deleteAccount'),
@@ -408,14 +426,16 @@ export default function SettingsScreen() {
                             });
                             if (dbError) {
                                 if (__DEV__) console.error('Supabase data deletion failed:', dbError);
-                                Alert.alert(t('common:states.error'), t('account.dataDeleteError'));
+                                showDeletionSupport();
                                 return;
                             }
+                            await clearLocalUserCVs(userId);
+                            await clearWidgetSuiteData();
                             await user?.delete();
                             await signOut();
                             router.replace('/(auth)/sign-in');
                         } catch {
-                            Alert.alert(t('common:states.error'), t('account.deleteError'));
+                            showDeletionSupport();
                         }
                     },
                 },

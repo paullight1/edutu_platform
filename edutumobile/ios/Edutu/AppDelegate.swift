@@ -57,7 +57,7 @@ class AppDelegate: ExpoAppDelegate, PKPushRegistryDelegate {
     let groupName = (data["groupName"] as? String) ?? "Edutu community"
     let title = (data["title"] as? String) ?? "Community voice call"
     let expiresValue = (data["ringExpiresAt"] as? String) ?? (data["ring_expires_at"] as? String) ?? ""
-    let expiresAt = ISO8601DateFormatter().date(from: expiresValue)
+    let expiresAt = parseRingExpiry(expiresValue)
 
     guard type == .voIP, UUID(uuidString: callId) != nil, let expiresAt, expiresAt > Date() else {
       completion()

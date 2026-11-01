@@ -15,8 +15,8 @@
     "signOut": "Sign out",
     "signOutConfirm": "You'll need to sign in again to access your account.",
     "deleteAccount": "Delete Account",
-    "deleteHint": "This permanently erases your profile, goals, and progress. It cannot be undone.",
-    "deleteConfirmMessage": "Are you sure you want to delete your account? This action cannot be undone. All your data, goals, and progress will be permanently removed.",
+    "deleteHint": "Request account deletion. Some records may need to be retained.",
+    "deleteConfirmMessage": "Do you want to request account deletion? Some records may need to be retained for legal or security reasons.",
     "userNotFound": "User not found. Please try again.",
     "dataDeleteError": "We could not delete your app data. Please try again before deleting your account.",
     "deleteError": "Failed to delete account. Please contact support at support@edutu.org"

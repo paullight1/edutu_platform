@@ -18,6 +18,7 @@
 		C2BE98C060D6468ABFF05B28 /* index.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAD455A5262A418DB4B99308 /* index.swift */; };
 		DB9D1B4DD7D14967A1591A20 /* ExpoWidgetsTarget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 462C8723D77842AEA222A46D /* ExpoWidgetsTarget.appex */; };
 		F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748412D0307B40044C1D9 /* AppDelegate.swift */; };
+		EDE700012D0307B40044C1D9 /* RingExpiryParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDE700022D0307B40044C1D9 /* RingExpiryParser.swift */; };
 		F7E709779AE7441F8CAAE825 /* OpportunityWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DD74BA66E024975A9CF8A92 /* OpportunityWidget.swift */; };
 /* End PBXBuildFile section */
 
@@ -68,6 +69,7 @@
 		BD8B4C9928CC4FFE864C4973 /* Info.plist */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = text.plist.xml; name = Info.plist; path = "/Users/MAC/Desktop/Desktop/app-projects/Edutu_Folder/edutumobile/ios/ExpoWidgetsTarget/Info.plist"; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 		F11748412D0307B40044C1D9 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = Edutu/AppDelegate.swift; sourceTree = "<group>"; };
+		EDE700022D0307B40044C1D9 /* RingExpiryParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RingExpiryParser.swift; path = Edutu/RingExpiryParser.swift; sourceTree = "<group>"; };
 		F11748442D0722820044C1D9 /* Edutu-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "Edutu-Bridging-Header.h"; path = "Edutu/Edutu-Bridging-Header.h"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -107,6 +109,7 @@
 			isa = PBXGroup;
 			children = (
 				F11748412D0307B40044C1D9 /* AppDelegate.swift */,
+				EDE700022D0307B40044C1D9 /* RingExpiryParser.swift */,
 				F11748442D0722820044C1D9 /* Edutu-Bridging-Header.h */,
 				BB2F792B24A3F905000567C9 /* Supporting */,
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
@@ -574,6 +577,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */,
+				EDE700012D0307B40044C1D9 /* RingExpiryParser.swift in Sources */,
 				8A29831F073261CBEF23EB5C /* ExpoModulesProvider.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

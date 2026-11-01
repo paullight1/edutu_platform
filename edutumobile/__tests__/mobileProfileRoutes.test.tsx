@@ -780,6 +780,22 @@ describe("mobile profile routes", () => {
     );
   });
 
+  it("offers a manual deletion request when automated deletion fails", async () => {
+    mockSupabase.functions.invoke.mockResolvedValue({ error: new Error('unavailable') });
+    const { getByText } = render(<SettingsScreen />);
+    await waitFor(() => expect(getByText('Delete Account')).toBeTruthy());
+    fireEvent.press(getByText('Delete Account'));
+    const confirmation = alertSpy.mock.calls.find((call) => call[0] === 'Delete Account');
+    const deleteAction = confirmation?.[2]?.find((button: any) => button.style === 'destructive');
+    await deleteAction?.onPress?.();
+    await waitFor(() => expect(alertSpy).toHaveBeenCalledWith(
+      expect.any(String), expect.stringContaining('email'), expect.arrayContaining([
+        expect.objectContaining({ text: 'Email support' }),
+      ]),
+    ));
+    expect(mockDeleteUser).not.toHaveBeenCalled();
+  });
+
   it("updates theme, notification settings, password setup, and support links from settings", async () => {
     const { getByText, getByPlaceholderText, getAllByRole } = render(
       <SettingsScreen />,

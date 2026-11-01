@@ -47,7 +47,7 @@ export default {
     slug: "hanaedutu",
     owner: "edutu",
     version: "1.0.0",
-    runtimeVersion: "1.0.0",
+    runtimeVersion: "1.0.0-sdk57",
     orientation: "portrait",
     icon: "./assets/icon.png",
     // The app owns appearance in JS so the Light/Dark/System setting can

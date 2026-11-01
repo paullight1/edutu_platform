@@ -144,8 +144,8 @@
     "signOut": "Sair",
     "signOutConfirm": "Você precisará entrar novamente para acessar sua conta.",
     "deleteAccount": "Excluir conta",
-    "deleteHint": "Isso apaga permanentemente seu perfil, suas metas e seu progresso. Não é possível desfazer.",
-    "deleteConfirmMessage": "Tem certeza de que deseja excluir sua conta? Esta ação não pode ser desfeita. Todos os seus dados, metas e progresso serão removidos permanentemente.",
+    "deleteHint": "Solicite a exclusão da sua conta. Alguns dados podem precisar ser mantidos.",
+    "deleteConfirmMessage": "Deseja solicitar a exclusão da sua conta? Alguns dados podem precisar ser mantidos por motivos legais ou de segurança.",
     "userNotFound": "Usuário não encontrado. Tente novamente.",
     "dataDeleteError": "Não conseguimos excluir os dados do app. Tente novamente antes de excluir sua conta.",
     "deleteError": "Falha ao excluir a conta. Entre em contato com o suporte em support@edutu.org"

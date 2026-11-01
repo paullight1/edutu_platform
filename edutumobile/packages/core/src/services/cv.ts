@@ -207,21 +207,14 @@ async function writeLocalCVs(userId: string, cvs: UserCV[]) {
   await AsyncStorage.setItem(getLocalKey(userId), JSON.stringify(cvs));
 }
 
-async function readLocalCVById(cvId: string): Promise<UserCV | null> {
-  const keys = await AsyncStorage.getAllKeys();
-  const cvKeys = keys.filter((key) => key.startsWith(LOCAL_CV_KEY_PREFIX));
-  for (const key of cvKeys) {
-    const raw = await AsyncStorage.getItem(key);
-    if (!raw) continue;
-    try {
-      const items = JSON.parse(raw) as UserCV[];
-      const found = items.find((item) => item.id === cvId);
-      if (found) return found;
-    } catch {
-      continue;
-    }
-  }
-  return null;
+async function readLocalCVById(cvId: string, userId: string): Promise<UserCV | null> {
+  if (!userId) return null;
+  return (await readLocalCVs(userId)).find((item) => item.id === cvId) ?? null;
+}
+
+export async function clearLocalUserCVs(userId: string): Promise<void> {
+  if (!userId) throw new Error('User ID is required');
+  await AsyncStorage.removeItem(getLocalKey(userId));
 }
 
 function mapTemplate(row: any): CVTemplate {
@@ -399,6 +392,7 @@ export async function fetchUserCVs(
 export async function fetchUserCV(
   supabase: SupabaseClient,
   cvId: string,
+  userId: string,
 ): Promise<UserCV | null> {
   try {
     const { data, error } = await supabase
@@ -410,7 +404,7 @@ export async function fetchUserCV(
     if (error) throw error;
     return mapUserCV(data);
   } catch {
-    return readLocalCVById(cvId);
+    return readLocalCVById(cvId, userId);
   }
 }
 
@@ -461,6 +455,7 @@ export async function updateUserCV(
   supabase: SupabaseClient,
   cvId: string,
   updates: Partial<UserCV>,
+  userId: string,
 ): Promise<UserCV> {
   try {
     const { data, error } = await supabase
@@ -480,7 +475,7 @@ export async function updateUserCV(
     if (error) throw error;
     return mapUserCV(data);
   } catch (error) {
-    const current = await readLocalCVById(cvId);
+    const current = await readLocalCVById(cvId, userId);
     // A cloud CV isn't in local storage: surface the real failure instead of
     // a misleading "not found".
     if (!current) throw error;
@@ -500,6 +495,7 @@ export async function updateUserCV(
 export async function deleteUserCV(
   supabase: SupabaseClient,
   cvId: string,
+  userId: string,
 ): Promise<void> {
   let cloudDeleted = false;
   let cloudError: unknown = null;
@@ -519,7 +515,7 @@ export async function deleteUserCV(
 
   // Always drop any offline copy too: deleting a local-only id in the cloud
   // affects zero rows without an error, and the CV would resurrect on reload.
-  const current = await readLocalCVById(cvId);
+  const current = await readLocalCVById(cvId, userId);
   if (current) {
     const userCvs = await readLocalCVs(current.user_id);
     await writeLocalCVs(
@@ -987,8 +983,9 @@ export async function matchCVToOpportunity(
   supabase: SupabaseClient,
   cvId: string,
   opportunityId: string,
+  userId: string,
 ): Promise<CVMatchResult> {
-  const cv = await fetchUserCV(supabase, cvId);
+  const cv = await fetchUserCV(supabase, cvId, userId);
   if (!cv) throw new Error('CV not found');
 
   const { data: opportunity, error: oppError } = await supabase

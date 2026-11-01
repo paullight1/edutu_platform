@@ -144,8 +144,8 @@
     "signOut": "Fita",
     "signOutConfirm": "Za ka buƙaci sake shiga don amfani da asusunka.",
     "deleteAccount": "Goge Asusu",
-    "deleteHint": "Wannan zai goge bayanan martabarka, manufofinka, da ci gabanka gaba ɗaya. Ba za a iya juyar da shi ba.",
-    "deleteConfirmMessage": "Ka tabbata kana son goge asusunka? Ba za a iya juyar da wannan matakin ba. Duk bayanan ka, manufofinka, da ci gabanka za a goge su gaba ɗaya.",
+    "deleteHint": "Nemi a goge asusunka. Ana iya buƙatar riƙe wasu bayanai.",
+    "deleteConfirmMessage": "Kana son neman a goge asusunka? Ana iya buƙatar riƙe wasu bayanai saboda doka ko tsaro.",
     "userNotFound": "Ba a samu mai amfani ba. Da fatan za a sake gwadawa.",
     "dataDeleteError": "Ba mu iya goge bayanan manhajarka ba. Da fatan ka sake gwadawa kafin goge asusunka.",
     "deleteError": "An kasa goge asusu. Da fatan a tuntuɓi taimako ta support@edutu.org"

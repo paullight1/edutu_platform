@@ -144,8 +144,8 @@
     "signOut": "Se déconnecter",
     "signOutConfirm": "Vous devrez vous reconnecter pour accéder à votre compte.",
     "deleteAccount": "Supprimer le compte",
-    "deleteHint": "Cela efface définitivement votre profil, vos objectifs et votre progression. Cette action est irréversible.",
-    "deleteConfirmMessage": "Voulez-vous vraiment supprimer votre compte ? Cette action est irréversible. Toutes vos données, vos objectifs et votre progression seront définitivement supprimés.",
+    "deleteHint": "Demandez la suppression de votre compte. Certaines données peuvent devoir être conservées.",
+    "deleteConfirmMessage": "Voulez-vous demander la suppression de votre compte ? Certaines données peuvent devoir être conservées pour des raisons légales ou de sécurité.",
     "userNotFound": "Utilisateur introuvable. Veuillez réessayer.",
     "dataDeleteError": "Impossible de supprimer vos données. Veuillez réessayer avant de supprimer votre compte.",
     "deleteError": "Échec de la suppression du compte. Veuillez contacter le support à support@edutu.org"
