@@ -65,11 +65,9 @@ export function CvTemplatePicker({
               <span className="cv-template-copy">
                 <span className="cv-template-title-row">
                   <strong>{copy.name}</strong>
-                  {premium && (
-                    <span className="cv-template-badge">
-                      <LockKeyhole size={12} /> Pro
-                    </span>
-                  )}
+                  <span className="cv-template-badge">
+                    {premium && <LockKeyhole size={12} aria-hidden="true"/>}{premium ? "Paid plan" : "Free"}
+                  </span>
                 </span>
                 <span className="cv-template-description">
                   {copy.description}
@@ -80,7 +78,7 @@ export function CvTemplatePicker({
                     : checkingAccess
                       ? "Checking access…"
                       : premium && !isPro
-                        ? "Preview · Unlock"
+                        ? "Unlock design"
                         : premium
                           ? "Use premium design"
                           : "Use this design"}

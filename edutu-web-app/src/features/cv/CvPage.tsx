@@ -3,7 +3,7 @@ import { useDraftRecovery, DraftRecovery } from "../workspace/useDraftRecovery";
 import AccessSummary from "../feature-access/AccessSummary";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Download, Eye, PencilLine, Plus, Save, Sparkles, Trash2, ArrowLeft, ArrowRight, Copy, Upload, ChevronRight } from "lucide-react";
+import { Eye, PencilLine, Plus, Save, Sparkles, Trash2, ArrowLeft, ArrowRight, Upload, ChevronRight, CheckCircle2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
   FeaturePage,
@@ -29,6 +29,7 @@ import { CvDialog } from "./CvDialog";
 import { CvTemplatePicker } from "./CvTemplatePicker";
 import { CvTemplatePreview } from "./CvTemplatePreview";
 import { CV_CREATE_EVENT } from "./cvEvents";
+import { CvLibrary } from "./CvLibrary";
 const initial = () => ({
   header: { full_name: "", email: "" },
   summary: "",
@@ -101,12 +102,15 @@ const TEMPLATE_GALLERY_SAMPLE_CV = {
 function CvError({ error }: { error: string | null }) {
   return error ? <div className="feature-error" role="alert"><p>{error}</p></div> : null;
 }
-function formatCvDate(value: string) {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime())
-    ? "Recently updated"
-    : date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+function SkillsEditor({ skills, disabled, onChange }: {skills: string[];disabled: boolean;onChange: (skills: string[]) => void}) {
+  const [text, setText] = useState(() => skills.join(", "));
+  const canonical = skills.map(skill => skill.trim()).filter(Boolean).join(", ");
+  useEffect(() => {
+    setText(current => current.split(",").map(skill => skill.trim()).filter(Boolean).join(", ") === canonical ? current : canonical);
+  }, [canonical]);
+  return <label className="feature-label"><WorkspaceText value="skillsCommaSeparated"/><textarea className="feature-field mt-2" rows={4} value={text} disabled={disabled} placeholder="Research, Python, project coordination" onChange={event => {const next=event.target.value;setText(next);onChange(next.split(",").map(skill => skill.trim()).filter(Boolean));}}/><small className="cv-field-help">Separate skills with commas. Include tools and abilities you can demonstrate.</small></label>;
 }
+
 export default function CvPage() {
   const { request, userId } = useProductSession();
   const {
@@ -138,11 +142,15 @@ export default function CvPage() {
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState("");
   const [copyOnApply, setCopyOnApply] = useState(false);
+  const [proposalOrigin, setProposalOrigin] = useState<"ai" | "import">("ai");
   const [saved, setSaved] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState("");
+  const [renameTarget, setRenameTarget] = useState<EditorCv | null>(null);
+  const [renameName, setRenameName] = useState("");
+  const [renameError, setRenameError] = useState<string | null>(null);
   const [proposal, setProposal] = useState<Record<string, unknown> | null>(
     null,
   );
@@ -180,12 +188,19 @@ export default function CvPage() {
   );
   useEffect(() => {
     const abort = new AbortController();
+    setBusy(false);
+    setView(null);setReturnView(null);
+    setProposal(null);setLetter("");setAnalysis([]);setError(null);
+    setOpportunity(params.get("opportunityId") || "");
+    setOpportunityLabel("");setSearch("");setMatches([]);
     setRecord(null);
+    setName("My CV");setTemplate("minimal-ats");
     setData(initial());
     setSaved("");
     setLoading(true);
     request<EditorCv[]>("/cv/editor", { signal: abort.signal })
       .then((rows) => {
+        if (abort.signal.aborted) return;
         setCvs(rows);
         if (rows[0])
           choose(rows.find((r) => r.id === params.get("cvId")) || rows[0]);
@@ -205,6 +220,7 @@ export default function CvPage() {
     return () => {
       abort.abort();
       operation.current?.abort();
+      operation.current = null;
     };
   }, [request, userId, params]);
 
@@ -234,7 +250,7 @@ export default function CvPage() {
         template: row.templateId || "minimal-ats",
       }),
     );
-    setProposal(null);
+    setProposal(null); setLetter(""); setAnalysis([]);
     setError(null);
     setStatus("Saved");
   }
@@ -323,20 +339,42 @@ export default function CvPage() {
     try { await request(`/cv/editor/${row.id}`, { method: "DELETE" }); setCvs((rows) => rows.filter((item) => item.id !== row.id)); }
     catch (e) { setError(errorMessage(e)); } finally { setBusy(false); }
   }
+  async function downloadSavedCv(row: EditorCv) {
+    if (busy) return;
+    setBusy(true);setError(null);
+    try { await downloadCVPdf({ name:row.name, template_id:row.templateId || undefined, data_json:row.data as CVData }); }
+    catch(e) { setError(errorMessage(e)); }
+    finally { setBusy(false); }
+  }
+  async function renameCv() {
+    if (!renameTarget || busy || !renameName.trim() || renameName.trim() === renameTarget.name) return;
+    setBusy(true);setRenameError(null);
+    try {
+      const row = await request<EditorCv>(`/cv/editor/${renameTarget.id}`, {method:"PATCH",body:json({name:renameName.trim(),data:renameTarget.data,templateId:renameTarget.templateId,expectedUpdatedAt:renameTarget.updatedAt})});
+      setCvs(rows => rows.map(item => item.id === row.id ? row : item));
+      if (record?.id === row.id) {
+        if (dirty) setRecord(row);
+        else choose(row);
+      }
+      setRenameTarget(null);
+    } catch(e) { setRenameError(errorMessage(e)); }
+    finally { setBusy(false); }
+  }
   async function duplicateCv(row: EditorCv) {
     setBusy(true); setError(null);
     try {
-      const copy = await request<EditorCv>("/cv/editor", { method: "POST", body: json({ name: `${row.name} copy`, data: row.data, templateId: row.templateId }) });
+      const copy = await request<EditorCv>("/cv/editor", { method: "POST", body: json({ name: `${row.name.slice(0,145)} copy`, data: row.data, templateId: row.templateId }) });
       setCvs((rows) => [copy, ...rows]);
     } catch (e) { setError(errorMessage(e)); } finally { setBusy(false); }
   }
   useEffect(() => {
-    if (view !== "ai" || search.trim().length < 2) { setMatches([]); setSearching(false); return; }
+    if (view !== "ai" || search.trim().length < 2) { setMatches([]); setSearching(false); setSearchError(""); return; }
     const abort = new AbortController();
+    setMatches([]);setSearchError("");setSearching(true);
     const timer = window.setTimeout(() => {
       setSearching(true); setSearchError("");
       request<{id:string; title:string}[]>(`/opportunities/search?q=${encodeURIComponent(search.trim())}&limit=8`, { signal: abort.signal })
-        .then(setMatches).catch((e) => { if (!abort.signal.aborted) setSearchError(errorMessage(e)); })
+        .then(rows => { if (!abort.signal.aborted) setMatches(rows); }).catch((e) => { if (!abort.signal.aborted) setSearchError(errorMessage(e)); })
         .finally(() => { if (!abort.signal.aborted) setSearching(false); });
     }, 300);
     return () => { clearTimeout(timer); abort.abort(); };
@@ -374,6 +412,7 @@ export default function CvPage() {
     }
   }
   async function ai(kind: "draft" | "tailor" | "letter") {
+    if (busy || operation.current) return;
     const feature =
       kind === "draft"
         ? "AI CV writing"
@@ -388,10 +427,13 @@ export default function CvPage() {
       return;
     }
     setCopyOnApply(kind === "tailor");
-    setProposal(null); setLetter("");
+    setProposalOrigin("ai");
+    setProposal(null); setLetter(""); setAnalysis([]);
     setBusy(true);
     setError(null);
-    operation.current = new AbortController();
+    const controller = new AbortController();
+    operation.current = controller;
+    const isCurrent = () => operation.current === controller && !controller.signal.aborted;
     try {
       if (kind === "letter") {
         if (!opportunity)
@@ -403,21 +445,25 @@ export default function CvPage() {
           {
             method: "POST",
             timeoutMs: 90000,
-            signal: operation.current.signal,
+            signal: controller.signal,
             body: json({ opportunityId: opportunity, currentCV: data }),
           },
         );
+        if (!isCurrent()) return;
+        if (typeof r.coverLetter !== "string" || !r.coverLetter.trim()) throw new Error("No cover letter was returned. Your CV has not changed.");
         setLetter(r.coverLetter);
       } else {
         let context: Record<string, unknown> | null = null;
         if (kind === "tailor") {
           if (!opportunity)
             throw new Error(
-              "Enter an opportunity ID or open CV tailoring from an opportunity.",
+              "Find and select an opportunity to tailor this CV.",
             );
           context = await request<Record<string, unknown>>(
             `/opportunities/${opportunity}`,
+            { signal: controller.signal },
           );
+          if (!isCurrent()) return;
           context =
             (context?.opportunity as Record<string, unknown> | undefined) ||
             context;
@@ -431,15 +477,16 @@ export default function CvPage() {
         }>("/cv/ai/" + (kind === "tailor" ? "tailor" : "draft"), {
           method: "POST",
           timeoutMs: 90000,
-          signal: operation.current.signal,
+          signal: controller.signal,
           body: json(
             kind === "tailor"
               ? { currentCV: data, opportunity: context, userNotes: notes }
               : { currentCV: data, prompt: notes },
           ),
         });
+        if (!isCurrent()) return;
         const proposed = r.tailored_cv || r.cv;
-        if (!proposed)
+        if (!proposed || typeof proposed !== "object" || Array.isArray(proposed))
           throw new Error("The AI response contained no CV draft.");
         setProposal({
           ...data,
@@ -454,12 +501,17 @@ export default function CvPage() {
       window.dispatchEvent(new Event("edutu:ai-complete"));
       void refreshBilling();
     } catch (e) {
-      if (!handleUpgradeError(e)) setError(errorMessage(e));
+      if (isCurrent() && !handleUpgradeError(e)) setError(errorMessage(e));
     } finally {
-      setBusy(false);
+      if (operation.current === controller) { operation.current = null; setBusy(false); }
     }
   }
   async function importFile(file: File) {
+    if (busy || operation.current) return;
+    if (!/\.(pdf|zip)$/i.test(file.name) || file.size === 0 || file.size > 10 * 1024 * 1024) {
+      setError("Choose a LinkedIn PDF or ZIP file up to 10 MB. Empty files cannot be imported.");
+      return;
+    }
     if (
       !requestPremiumCvAccess(
         "Importing a LinkedIn export uses AI to prepare your CV and requires an Edutu paid plan.",
@@ -471,18 +523,23 @@ export default function CvPage() {
     form.append("file", file);
     setBusy(true);
     setError(null);
+    setLetter("");setAnalysis([]);setProposal(null);
+    const controller = new AbortController();
+    operation.current = controller;
     try {
       const r = await request<{ cv: Record<string, unknown> }>(
         "/cv/ai/import-linkedin-file",
-        { method: "POST", body: form, timeoutMs: 90000 },
+        { method: "POST", body: form, timeoutMs: 90000, signal: controller.signal },
       );
-      if (!r.cv) throw new Error("The file could not be converted into a CV.");
-      setProposal({ ...data, ...r.cv, header: { ...((data.header as object) || {}), ...((r.cv.header as object) || {}) } });
-      setView("ai"); setCopyOnApply(false);
+      if (controller.signal.aborted || operation.current !== controller) return;
+      if (!r.cv || typeof r.cv !== "object" || Array.isArray(r.cv)) throw new Error("The file could not be converted into a CV.");
+      setProposal(r.cv);
+      setProposalOrigin("import");
+      setView("ai"); setCopyOnApply(true);
     } catch (e) {
-      setError(errorMessage(e));
+      if (!controller.signal.aborted && operation.current === controller) setError(errorMessage(e));
     } finally {
-      setBusy(false);
+      if (operation.current === controller) { operation.current = null; setBusy(false); }
     }
   }
   const header = (data.header || {}) as Record<string, string>;
@@ -505,14 +562,22 @@ export default function CvPage() {
     window.addEventListener(CV_CREATE_EVENT, handleCreateCv);
     return () => window.removeEventListener(CV_CREATE_EVENT, handleCreateCv);
   }, []);
-  return <FeaturePage eyebrow="" title="cvsTitle" description="">
+  return <FeaturePage className="cv-page" eyebrow="" title="cvsTitle" description="cvsDescription" actions={<button type="button" className="feature-button" disabled={busy || loading} onClick={() => openEditor(null)}><Plus size={17}/>Create CV</button>}>
     {!view && <CvError error={error}/>}
     {loading ? <Loading/> : <>
       {dirty && <button className="feature-button secondary mb-4" onClick={() => setView("edit")}>Resume draft · {name}</button>}
       <div className="cv-quick-actions">
-        <button className="cv-quick-action--linkedin" onClick={() => { if (!requestPremiumCvAccess("Importing a LinkedIn export uses AI and requires an Edutu paid plan.")) return; if(navigateCv(null)) fileInput.current?.click(); }} disabled={busy}><Upload size={20}/><span><strong>Import LinkedIn <span className="cv-ai-pro-badge">Paid</span></strong><small>LinkedIn PDF or ZIP</small></span><ChevronRight size={17}/></button>
-        <button className="cv-quick-action--ai" onClick={() => { setProposal(null); setLetter(""); setReturnView(null); setView("ai"); }} disabled={busy}><Sparkles size={20}/><span><strong>AI tools</strong><small>Draft, tailor & write cover letters</small></span><ChevronRight size={17}/></button>
+        <button className="cv-quick-action--linkedin" onClick={() => { if (!requestPremiumCvAccess("Importing a LinkedIn export uses AI and requires an Edutu paid plan.")) return; fileInput.current?.click(); }} disabled={busy}><Upload size={20}/><span><strong>Import LinkedIn <span className="cv-ai-pro-badge">Paid plan</span></strong><small>Turn your LinkedIn PDF or ZIP into an editable CV</small></span><ChevronRight size={17}/></button>
+        <button className="cv-quick-action--ai" onClick={() => { setProposal(null); setLetter(""); setReturnView(null); setView("ai"); }} disabled={busy}><Sparkles size={20}/><span><strong>AI tools <span className="cv-ai-pro-badge">Paid plan</span></strong><small>Improve your CV, tailor it or draft a cover letter</small></span><ChevronRight size={17}/></button>
       </div>
+      {cvs.length > 0 && <CvLibrary cvs={cvs} busy={busy}
+        onPreview={row => { if (navigateCv(row)) { setReturnView(null); setView("preview"); } }}
+        onEdit={openEditor}
+        onRename={row => { setRenameTarget(row); setRenameName(row.name); setRenameError(null); }}
+        onDuplicate={row => void duplicateCv(row)}
+        onDelete={row => void removeCv(row)}
+        onDownload={row => { void downloadSavedCv(row); }}
+      />}
       {!view && <CvTemplatePicker
         compact
         title="Start with a template"
@@ -531,20 +596,11 @@ export default function CvPage() {
       />}
       <input type="file" ref={fileInput} hidden accept=".pdf,.zip" onChange={(e) => { if(e.target.files?.[0]) void importFile(e.target.files[0]); e.target.value=""; }}/>
       {busy && !view && <p role="status" className="feature-muted">Working…</p>}
-      {cvs.length > 0 && <><h2 className="cv-library-heading">Your CVs</h2><section className="cv-library-grid" aria-label="Saved CVs">{cvs.map((row) => <article className="cv-saved-card" key={row.id}>
-          <button className="cv-card-preview" aria-label={`Preview ${row.name}`} onClick={() => { choose(row); setReturnView(null); setView("preview"); }}>
-            <div className="cv-thumbnail-window"><CvTemplatePreview templateId={row.templateId} name={row.name} data={row.data}/></div>
-          </button>
-          <div className="cv-card-info"><h2>{row.name}</h2><p>Updated {formatCvDate(row.updatedAt)}</p></div>
-          <div className="cv-card-actions"><button onClick={() => openEditor(row)}><PencilLine size={16}/> Edit</button>
-            <details><summary aria-label={`More actions for ${row.name}`}>•••</summary><div className="cv-card-menu">
-              <button disabled={busy} onClick={() => openEditor(row)}>Rename</button>
-              <button disabled={busy} onClick={() => void duplicateCv(row)}><Copy size={15}/> Duplicate</button>
-              <button disabled={busy} onClick={async () => { setBusy(true); try { await downloadCVPdf({ name:row.name,template_id:row.templateId || undefined,data_json:row.data as CVData }); } catch(e){setError(errorMessage(e));} finally {setBusy(false);} }}><Download size={15}/> Download PDF</button>
-              <button disabled={busy} onClick={() => void removeCv(row)}><Trash2 size={15}/> Delete</button>
-            </div></details></div>
-        </article>)}</section></>}
+
     </>}
+    {renameTarget && <CvDialog title="Rename CV" busy={busy} onClose={() => setRenameTarget(null)} footer={<div className="cv-footer-actions"><button type="button" className="feature-button secondary" disabled={busy} onClick={() => setRenameTarget(null)}>Cancel</button><button type="button" className="feature-button" disabled={busy || !renameName.trim() || renameName.trim() === renameTarget.name} onClick={() => void renameCv()}>{busy ? "Saving…" : "Save name"}</button></div>}>
+      <CvError error={renameError}/><p className="feature-muted">Choose a name that helps you find the right version for an application.</p><label className="feature-label">CV name<input className="feature-field" value={renameName} maxLength={150} disabled={busy} onChange={e => setRenameName(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.nativeEvent.isComposing) {e.preventDefault();void renameCv();} }}/></label>
+    </CvDialog>}
     {view && <CvDialog title={view === "edit" ? record ? "Edit CV" : "Create CV" : view === "preview" ? "CV preview" : "AI tools"} onClose={closeDialog} closeLabel={view === "preview" && returnView ? "Back to editor" : "Close"} busy={busy} footer={
       view === "edit" ? <><span className="cv-draft-status" role="status">{busy ? "Saving…" : dirty ? "Draft kept in this tab" : status || "New CV"}</span><div className="cv-footer-actions">
         <button className="feature-button secondary" disabled={busy} onClick={() => {setReturnView("edit");setView("preview");}}><Eye size={16}/> Preview</button>
@@ -557,11 +613,12 @@ export default function CvPage() {
       {view === "edit" && <>
         {recovery.recovered && <DraftRecovery onDiscard={recovery.discard} onRestore={() => { const draft=recovery.recovered; if(draft){setName(draft.name);setData(draft.data);setTemplate(draft.template);} recovery.discard(); }}/ >}
         {error && record && <button className="feature-button secondary" disabled={busy} onClick={async () => {if(window.confirm("Reload saved version and discard edits?")) {try {choose(await request<EditorCv>(`/cv/editor/${record.id}`));}catch(e){setError(errorMessage(e));}}}}>Reload saved version</button>}
-        <nav ref={wizardNav} className="cv-wizard-steps" aria-label="CV sections">{steps.map((key,index) => <button key={key} aria-current={section===key ? "step" : undefined} onClick={() => setSection(key)} disabled={busy}><span>{index+1}</span>{labels[key]}</button>)}</nav>
+        <nav ref={wizardNav} className="cv-wizard-steps" aria-label="CV sections">{steps.map((key,index) => <button key={key} aria-label={labels[key]} aria-current={section===key ? "step" : undefined} onClick={() => setSection(key)} disabled={busy}><span aria-hidden="true">{index+1}</span>{" "}{labels[key]}</button>)}</nav>
         <div className="cv-editor-form">
           <h3>{labels[section] || section[0].toUpperCase()+section.slice(1)}</h3>
           {section === "basics" && <div className="cv-document-settings">
-            <label className="feature-label" htmlFor="cv-name">Version name<input id="cv-name" className="feature-field" value={name} onChange={(e)=>setName(e.target.value)} disabled={busy}/></label>
+            <label className="feature-label" htmlFor="cv-name">CV name<input id="cv-name" aria-describedby="cv-name-hint" maxLength={150} className="feature-field" value={name} onChange={(e)=>setName(e.target.value)} disabled={busy}/></label>
+            <p className="cv-field-help" id="cv-name-hint">Only used to organise your saved CVs. Your full name appears on the document.</p>
             <section className="cv-selected-design" aria-label="Selected CV design">
               <div className="cv-selected-design-preview"><CvTemplatePreview templateId={template} name={name} data={data}/></div>
               <div className="cv-selected-design-copy">
@@ -597,7 +654,7 @@ export default function CvPage() {
                   "portfolio",
                 ].map((key) => (
                   <label className="feature-label" key={key}>
-                    {({full_name:"Full name",email:"Email",phone:"Phone",location:"Location",linkedin:"LinkedIn",portfolio:"Portfolio"} as Record<string,string>)[key]}
+                    {({full_name:"Full name",email:"Email address",phone:"Phone number (optional)",location:"Location (optional)",linkedin:"LinkedIn URL (optional)",portfolio:"Portfolio URL (optional)"} as Record<string,string>)[key]}
                     <input
                       className="feature-field mt-2"
                       type={key === "email" ? "email" : key === "phone" ? "tel" : "text"}
@@ -627,41 +684,26 @@ export default function CvPage() {
                   />
                 </label>
               ) : section === "skills" ? (
-                <label className="feature-label">
-                  <WorkspaceText value="skillsCommaSeparated" />
-                  <textarea
-                    className="feature-field mt-2"
-                    value={((data.skills as string[]) || []).join(", ")}
-                    disabled={busy}
-                    onChange={(e) =>
-                      setData((d) => ({
-                        ...d,
-                        skills: e.target.value
-                          .split(",")
-                          .map((s) => s.trim())
-                          .filter(Boolean),
-                      }))
-                    }
-                  />
-                </label>
+                <SkillsEditor key={record?.id || "new"} skills={(data.skills as string[]) || []} disabled={busy} onChange={skills => setData(value => ({...value,skills}))}/>
               ) : (
                 <>
                   {entries.map((item, index) => (
                     <div
-                      className="border-b pb-5 mb-5"
+                      className="cv-entry-card"
                       key={String(item.id || index)}
                     >
+                      <h4>{labels[section] || section[0].toUpperCase()+section.slice(1)} · {index+1}</h4>
+                      {(section === "experience" || section === "education") && <p className="cv-field-help">Use YYYY-MM or a year, for example 2024-09 or 2024.</p>}
                       {SECTION_FIELDS[section].map((field) => (
                         <label className="feature-label" key={field.key}>
                           {field.label}
-                          <input
+                          {field.key === "description" ? <textarea className="feature-field mt-2" rows={4} value={String(item[field.key] || "")} disabled={busy} onChange={e => changeEntry(index,field.key,e.target.value)}/> : <input
                             className="feature-field mt-2"
                             value={String(item[field.key] || "")}
-                            disabled={busy}
-                            onChange={(e) =>
-                              changeEntry(index, field.key, e.target.value)
-                            }
-                          />
+                            placeholder={field.key.includes("date") ? "YYYY-MM or YYYY" : undefined}
+                            disabled={busy || (section === "experience" && field.key === "end_date" && !!item.current)}
+                            onChange={e => changeEntry(index,field.key,e.target.value)}
+                          />}
                         </label>
                       ))}
                       {section === "experience" && (
@@ -728,13 +770,16 @@ export default function CvPage() {
           <details className="cv-extra-sections"><summary>Additional sections</summary><div>{Object.keys(SECTION_FIELDS).filter(key=>key!=="experience"&&key!=="education").map(key=><button key={key} disabled={busy} className="feature-button secondary" onClick={()=>setSection(key as CvSection)}>{key[0].toUpperCase()+key.slice(1)}</button>)}</div></details>
         </div>
       </>}
-      {view === "preview" && <><CvPreview cv={cv}/><details className="cv-checklist"><summary>Preparation checklist · {health.score}/100</summary>{health.issues.slice(0,5).map(check=><p key={check.id}>{String(t(`cv.${check.labelKey}`,{defaultValue:check.labelKey.split(".").pop()?.replace(/([A-Z])/g," $1")||check.id,...check.values}))}</p>)}</details><div className="cv-secondary-exports"><button onClick={()=>printCV(html)}>Print</button><button onClick={()=>downloadText(name,buildCVText(cv))}>Download text</button></div></>}
+      {view === "preview" && <><CvPreview cv={cv}/><section className="cv-checklist" aria-labelledby="cv-checklist-title"><div className="cv-checklist-heading"><div><h3 id="cv-checklist-title">Preparation checklist</h3><p>Practical checks for clarity and completeness. This is not an application success score.</p></div><span className="cv-checklist-score">{health.score}<small>/100</small></span></div>
+        {health.issues.length ? <ul>{health.issues.map(check => <li key={check.id}><span>{String(t(`cv.${check.labelKey}`,{defaultValue:check.id,...check.values}))}</span><button type="button" className="cv-save-link" aria-label={`Fix: ${String(t(`cv.${check.labelKey}`,{defaultValue:check.id,...check.values}))}`} onClick={() => {setSection(check.id === "skills" ? "skills" : check.step === "extras" ? "experience" : check.step);setReturnView(null);setView("edit");}}>Fix <ArrowRight size={14}/></button></li>)}</ul> : <p className="cv-checklist-complete"><CheckCircle2 size={18}/>All preparation checks passed. Verify every detail before applying.</p>}
+      </section><div className="cv-secondary-exports"><button onClick={()=>printCV(html)}>Print CV</button><button onClick={()=>downloadText(name,buildCVText(cv))}>Download as text</button></div></>}
+
       {view === "ai" && <div className="cv-ai-form">
         {!proposal && !letter && <>
-          <label className="feature-label">CV to use<select className="feature-field" value={record?.id || ""} disabled={busy} onChange={e=>{const row=cvs.find(item=>item.id===e.target.value); if(row) choose(row); else navigateCv(null);}}><option value="">New CV</option>{cvs.map(row=><option key={row.id} value={row.id}>{row.name}</option>)}</select></label>
+          <label className="feature-label">CV to use<select className="feature-field" value={record?.id || ""} disabled={busy} onChange={e=>{const row=cvs.find(item=>item.id===e.target.value); navigateCv(row || null);}}><option value="">New CV</option>{cvs.map(row=><option key={row.id} value={row.id}>{row.name}</option>)}</select></label>
           {!String(header.full_name || "").trim() && <p className="feature-muted mb-4">Add your details to a CV first. <button className="cv-save-link" onClick={() => {setView("edit");setSection("basics");}}>Create or edit CV</button></p>}
-          <div className="cv-ai-options">{([["draft","Improve writing","Make your experience clearer"],["tailor","Tailor to opportunity","Create a version for an application"],["letter","Cover letter","Draft from your CV"]] as const).map(([kind,title,subtitle])=><button key={kind} aria-pressed={aiKind===kind} disabled={busy} onClick={()=>{setAiKind(kind);setError(null);}}><strong>{title}<span className="cv-ai-pro-badge">Paid</span></strong><small>{subtitle}</small></button>)}</div>
-          {aiKind !== "draft" && <><label className="feature-label">Find an opportunity<input className="feature-field" value={search} disabled={busy} onChange={e=>setSearch(e.target.value)} placeholder="Search by title or organisation"/></label>{searching && <p role="status">Searching…</p>}{searchError && <p role="alert">{searchError}</p>}<div className="cv-search-results">{matches.map(item=><button key={item.id} disabled={busy} aria-pressed={opportunity===item.id} onClick={()=>{setOpportunity(item.id);setOpportunityLabel(item.title);setSearch("");setMatches([]);}}>{item.title}{opportunity===item.id && " ✓"}</button>)}</div>{opportunity && <p className="feature-muted">Selected: {opportunityLabel || "Opportunity from your application"} <button className="cv-save-link" disabled={busy} onClick={() => {setOpportunity("");setOpportunityLabel("");}}>Change</button></p>}</>}
+          <div className="cv-ai-options">{([["draft","Improve writing","Make your experience clearer"],["tailor","Tailor to opportunity","Create a version for an application"],["letter","Cover letter","Draft from your CV"]] as const).map(([kind,title,subtitle])=><button key={kind} aria-pressed={aiKind===kind} disabled={busy} onClick={()=>{setAiKind(kind);setError(null);}}><strong>{title}</strong><small>{subtitle}</small></button>)}</div>
+          {aiKind !== "draft" && <><label className="feature-label">Find an opportunity<input className="feature-field" value={search} disabled={busy} onChange={e=>setSearch(e.target.value)} placeholder="Search by title or organisation"/></label>{searching && <p role="status">Searching…</p>}{searchError && <p role="alert">{searchError}</p>}{search.trim().length >= 2 && !searching && !searchError && !matches.length && <p className="feature-muted" role="status">No opportunities found. Try another title or organisation.</p>}<div className="cv-search-results">{matches.map(item=><button key={item.id} disabled={busy} aria-pressed={opportunity===item.id} onClick={()=>{setOpportunity(item.id);setOpportunityLabel(item.title);setSearch("");setMatches([]);}}>{item.title}{opportunity===item.id && " ✓"}</button>)}</div>{opportunity && <p className="feature-muted">Selected: {opportunityLabel || "Opportunity from your application"} <button className="cv-save-link" disabled={busy} onClick={() => {setOpportunity("");setOpportunityLabel("");}}>Change</button></p>}</>}
           <label className="feature-label">Instructions <span className="feature-muted">(optional)</span><textarea className="feature-field" rows={3} value={notes} disabled={busy} onChange={e=>setNotes(e.target.value)} placeholder="What would you like to improve?"/></label>
           {isPro ? (
             <AccessSummary action="cvAi" />
@@ -745,14 +790,14 @@ export default function CvPage() {
                 : "AI CV writing, tailoring, cover letters and LinkedIn import require a paid plan. Credit top-ups do not unlock these actions."}
             </p>
           )}
-          <button className="feature-button cv-ai-generate" disabled={busy || (billingLoading && !isPro) || !String(header.full_name || "").trim() || (aiKind!=="draft"&&!opportunity)} onClick={()=>{if(!isPro){requestPremiumCvAccess("AI CV features require an Edutu paid plan.");return;}void ai(aiKind);}}><Sparkles size={16}/>{busy ? "Preparing your draft…" : !isPro ? "Unlock with a paid plan" : "Generate draft"}</button>
+          <button className="feature-button cv-ai-generate" disabled={busy || (billingLoading && !isPro) || !String(header.full_name || "").trim() || (aiKind!=="draft"&&!opportunity)} onClick={()=>{if(!isPro){requestPremiumCvAccess("AI CV features require an Edutu paid plan.");return;}void ai(aiKind);}}><Sparkles size={16}/>{busy ? "Preparing…" : !isPro ? "Unlock with a paid plan" : aiKind === "letter" ? "Draft cover letter" : aiKind === "tailor" ? "Tailor CV" : "Improve CV"}</button>
         </>}
             {busy && <p role="status">Preparing your draft…</p>}
+            {(proposal || letter) && <button type="button" className="cv-result-back" onClick={() => {setProposal(null);setLetter("");setAnalysis([]);setError(null);}}><ArrowLeft size={16}/>Back to AI tools</button>}
             {proposal && (
               <div className="mt-6">
-                <h2>
-                  <WorkspaceText value="proposedVersion" />
-                </h2>
+                <h2>{proposalOrigin === "import" ? "Review imported CV" : "Proposed version"}</h2>
+                <p className="feature-muted">{copyOnApply ? "Review the details, then save this as a separate CV. Your original stays unchanged." : "Review the changes before applying them to your working draft."}</p>
                 <CvPreview title="Proposed CV" cv={{...cv,data_json:proposal as unknown as CVData}}/>
                 {analysis.map((line, i) => (
                   <p className="feature-muted" key={i}>
@@ -764,19 +809,19 @@ export default function CvPage() {
                     className="feature-button"
                     onClick={() => {
                       setData(proposal);
-                      if (copyOnApply) { setRecord(null); setName(`${name} tailored`); }
+                      if (copyOnApply) { setRecord(null); setName((proposalOrigin === "import" ? `${String((proposal.header as Record<string, unknown> | undefined)?.full_name || "Imported")} CV` : `${name} tailored`).slice(0,150)); }
                       setSection("summary"); setView("edit");
                       setProposal(null);
                       setStatus("Unsaved");
                     }}
                   >
-                    <WorkspaceText value="acceptChanges" />
+                    {copyOnApply ? "Use as a new CV" : "Apply to draft"}
                   </button>
                   <button
                     className="feature-button secondary"
                     onClick={() => setProposal(null)}
                   >
-                    <WorkspaceText value="keepOriginal" />
+                    Discard suggestion
                   </button>
                 </div>
               </div>
@@ -787,6 +832,7 @@ export default function CvPage() {
                   <WorkspaceText value="coverLetterDraft" />
                 </h2>
                 <textarea
+                  aria-label="Cover letter draft"
                   className="feature-field"
                   rows={12}
                   value={letter}

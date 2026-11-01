@@ -122,6 +122,7 @@
     "section": "Workspace",
     "developers": "Developers",
     "cvsTitle": "My CVs",
+    "cvsDescription": "Create a CV, refine your story and prepare a version for each application.",
     "documentsTitle": "My documents",
     "goalsTitle": "Goals",
     "searchesTitle": "Searches & alerts",
@@ -522,6 +523,26 @@
     "basedOnProfile": "Based on your profile"
   },
   "cv": {
+    "library": {
+      "title": "Your CVs",
+      "subtitle": "Keep a version for each opportunity. Your most recent CVs appear first.",
+      "search": "Search your CVs",
+      "searchPlaceholder": "Find a CV or design",
+      "results": "Showing {{count}} of {{total}}",
+      "preview": "Preview {{name}}",
+      "openPreview": "Open preview",
+      "saved": "Saved CV",
+      "updated": "Updated {{date}}",
+      "edit": "Edit",
+      "more": "More actions for {{name}}",
+      "rename": "Rename",
+      "duplicate": "Duplicate",
+      "download": "Download PDF",
+      "delete": "Delete",
+      "noMatches": "No CVs match your search",
+      "tryAnother": "Try another CV name or design.",
+      "clear": "Clear search"
+    },
     "health": {
       "title": "CV Health",
       "close": "Close",
