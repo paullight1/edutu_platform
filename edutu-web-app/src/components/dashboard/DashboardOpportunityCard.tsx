@@ -238,7 +238,7 @@ const DashboardOpportunityCard = React.memo(function DashboardOpportunityCard({
   return (
       <article
         data-density="compact"
-      className="opportunity-cinematic-card group relative flex min-h-[216px] flex-col overflow-hidden border border-subtle text-left transition-all hover:-translate-y-0.5 hover:border-strong hover:shadow-elevated lg:h-full lg:min-h-[320px]"
+      className="desktop-opportunity-card opportunity-cinematic-card group relative flex min-h-[216px] flex-col overflow-hidden border border-subtle text-left transition-all hover:-translate-y-0.5 hover:border-strong hover:shadow-elevated"
     >
       <button
         type="button"
@@ -279,6 +279,7 @@ const DashboardOpportunityCard = React.memo(function DashboardOpportunityCard({
             <MatchScoreBadge score={match.score} minScore={40} />
           </div>
         ) : null}
+        {opportunity.organization && <p className="desktop-opportunity-organization mb-2 truncate text-xs font-medium text-text-muted">{opportunity.organization}</p>}
         <h3 className="text-xs sm:text-sm font-semibold text-text-primary transition-colors line-clamp-2 leading-snug group-hover:text-brand">
           {opportunity.title}
         </h3>
@@ -291,7 +292,7 @@ const DashboardOpportunityCard = React.memo(function DashboardOpportunityCard({
           ) : (
             <span />
           )}
-          <span className={deadlineClass}>{deadlineText}</span>
+          {deadlineText && <span className={`shrink-0 ${deadlineClass}`}>{deadlineText}</span>}
         </div>
       </div>
     </article>

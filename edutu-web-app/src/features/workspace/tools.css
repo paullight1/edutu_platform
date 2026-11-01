@@ -25,3 +25,153 @@
 @media(max-width:1023px){.tool-page>.feature-heading>div:first-child {display:none}.tool-page>.feature-heading .feature-actions {width:100%}.tool-page>.feature-heading .feature-actions>.feature-button {flex:1;justify-content:center}}
 @media(max-width:600px){.tool-dialog {position:fixed;top:var(--tool-top,0px);left:0;margin:0;width:100%;height:var(--tool-height,100dvh)}.tool-dialog-surface {border-radius:0}.tool-dialog-surface>header {padding:calc(10px + env(safe-area-inset-top)) 16px 10px}.tool-dialog-body {padding:20px 16px}.tool-dialog-surface>footer {padding:12px 16px calc(12px + env(safe-area-inset-bottom))}.tool-card {padding:14px}.tool-row {gap:10px}.tool-icon {width:38px;height:38px}.tool-stats {gap:8px}.tool-stats strong {font-size:22px}.tool-stats span {font-size:10px}.goal-calendar .goal-day {min-height:64px;padding:4px;font-size:11px;overflow-wrap:anywhere}.goal-calendar .goal-day button {font-size:10px;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.tool-page .feature-grid {grid-template-columns:1fr}}
 .tool-page button:focus-visible,.tool-dialog button:focus-visible,.tool-page summary:focus-visible {outline:2px solid rgb(var(--color-brand-500));outline-offset:3px}.tool-page button:disabled,.tool-dialog button:disabled {opacity:.5;cursor:wait}
+
+
+/* Access and empty states stay readable at either workspace width. */
+.tool-locked {
+  gap: 0;
+  max-width: 920px;
+  margin: 24px auto;
+  padding: clamp(28px, 5vw, 56px);
+  border-radius: 20px;
+}
+.tool-locked-content {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.tool-state-eyebrow {
+  display: block;
+  margin-bottom: 12px;
+  color: rgb(var(--text-link));
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.tool-locked .tool-locked-content h2 {
+  font-family: var(--font-display);
+  font-size: clamp(23px, 2.5vw, 30px);
+  line-height: 1.2;
+  letter-spacing: -0.035em;
+}
+.tool-locked .tool-locked-content p {
+  max-width: 420px;
+  line-height: 1.75;
+}
+.tool-document-types {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 24px;
+}
+.tool-document-types span {
+  padding: 5px 9px;
+  border: 1px solid rgb(var(--border-subtle));
+  border-radius: 6px;
+  font-size: 10px;
+  color: rgb(var(--text-secondary));
+  background: rgb(var(--surface-body));
+}
+.tool-locked .tool-access-error {
+  max-width: 100%;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  border: 1px solid rgb(var(--border-subtle));
+  border-radius: 9px;
+  background: rgb(var(--surface-body));
+  font-size: 12px;
+}
+.tool-locked .feature-button {
+  min-height: 44px;
+  border-radius: 10px;
+  min-width: 0;
+  padding-inline: 20px;
+}
+.tool-locked small {
+  gap: 6px;
+}
+.tool-locked .tool-locked-link {
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  margin-top: 8px;
+}
+.tool-empty {
+  max-width: 920px;
+  margin: 16px auto;
+  padding: clamp(32px, 6vw, 64px) 24px;
+  border: 1px dashed rgb(var(--border-subtle));
+  border-radius: 16px;
+  background: rgb(var(--surface-layer));
+}
+@media (min-width: 768px) {
+  .tool-locked:not(.tool-locked--coach) {
+    display: grid;
+    grid-template-columns: 160px minmax(0, 1fr);
+    gap: 40px;
+    min-height: 340px;
+    text-align: left;
+  }
+  .tool-locked:not(.tool-locked--coach) > .paid-tool-icon {
+    width: 132px;
+    height: 132px;
+    justify-self: center;
+    margin: 0;
+  }
+  .tool-locked:not(.tool-locked--coach) .tool-locked-content {
+    align-items: flex-start;
+  }
+  .tool-locked:not(.tool-locked--coach) .tool-document-types {
+    justify-content: flex-start;
+  }
+}
+.tool-locked--coach {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  min-height: 0;
+  width: 100%;
+  margin: 0;
+  padding: 24px;
+  border: 0;
+}
+.tool-locked.tool-locked--coach > .paid-tool-icon {
+  width: 116px;
+  height: 104px;
+  margin-bottom: 18px;
+}
+.tool-locked--coach .tool-locked-content h2 {
+  font-size: 28px;
+}
+.tool-locked--coach .tool-locked-content > p {
+  max-width: 370px;
+}
+.coach-sheet > .coach-sheet-surface > .feature-workspace {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  padding: 0;
+  overflow-y: auto;
+}
+@media (max-width: 600px) {
+  .tool-locked {
+    margin: 12px auto;
+    padding: 30px 20px;
+  }
+  .tool-locked > .paid-tool-icon {
+    width: 84px;
+    height: 84px;
+  }
+  .tool-locked .feature-button {
+    width: 100%;
+  }
+  .tool-document-types {
+    justify-content: center;
+  }
+  .tool-locked--coach {
+    margin: 0;
+  }
+}

@@ -1,6 +1,7 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 describe("getApiBaseUrl", () => {
+  afterEach(() => { vi.unstubAllEnvs(); });
   it("falls back to the local backend port when no env URL is configured", async () => {
     vi.unstubAllEnvs();
     vi.stubEnv("VITE_BACKEND_URL", "");
@@ -31,4 +32,24 @@ describe("getApiBaseUrl", () => {
 
     expect(getApiBaseUrl("Developer API")).toBe("https://api.edutu.test");
   });
+  it("routes development opportunity reads through the preview API without redirecting protected requests", async () => {
+    vi.stubEnv("DEV", true);
+    vi.stubEnv("VITE_BACKEND_URL", "http://localhost:3010");
+    vi.stubEnv("VITE_DEV_OPPORTUNITIES_API_URL", " /__api/ ");
+    const { getApiBaseUrl } = await import("../../lib/apiBaseUrl");
+
+    expect(getApiBaseUrl("Opportunities API")).toBe("/__api");
+    expect(getApiBaseUrl("Product API")).toBe("http://localhost:3010");
+    expect(getApiBaseUrl("Opportunity Share API")).toBe("http://localhost:3010");
+  });
+
+  it("ignores development opportunity routing in a production build", async () => {
+    vi.stubEnv("DEV", false);
+    vi.stubEnv("VITE_BACKEND_URL", "https://api.edutu.test/");
+    vi.stubEnv("VITE_DEV_OPPORTUNITIES_API_URL", "/__api");
+    const { getApiBaseUrl } = await import("../../lib/apiBaseUrl");
+
+    expect(getApiBaseUrl("Opportunities API")).toBe("https://api.edutu.test");
+  });
+
 });

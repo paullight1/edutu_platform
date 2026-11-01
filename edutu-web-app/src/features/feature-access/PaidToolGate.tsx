@@ -6,12 +6,12 @@ import {
   FileText,
   FolderOpen,
   LockKeyhole,
-  Loader2,
   Sparkles,
   Target,
 } from "lucide-react";
 import { usePaywall } from "../../hooks/usePaywall";
 import { useModuleAccess } from "./useModuleAccess";
+import { Loading } from "../workspace/shared";
 import "../workspace/workspace.css";
 import "../workspace/tools.css";
 
@@ -41,8 +41,7 @@ const previews: Record<
   },
   "Application Copilot": {
     title: "Prepare this application",
-    description:
-      "Work through its checklist, essays and application strategy.",
+    description: "Work through its checklist, essays and application strategy.",
     action: "Unlock Copilot",
     Icon: Sparkles,
   },
@@ -69,7 +68,8 @@ const previews: Record<
   },
   "CV Builder": {
     title: "Build a CV that shows your strengths",
-    description: "Create and manage your CV, with premium designs available on a paid plan.",
+    description:
+      "Create and manage your CV, with premium designs available on a paid plan.",
     action: "Unlock CV Builder",
     Icon: FileText,
   },
@@ -93,21 +93,12 @@ export function PaidToolGate({
   const { isLoaded, isSignedIn } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
-  const {
-    billing,
-    billingLoading,
-    billingError,
-    openPaywall,
-    refreshBilling,
-  } = usePaywall();
+  const { billing, billingLoading, billingError, openPaywall, refreshBilling } =
+    usePaywall();
   const module = useModuleAccess(moduleKey);
 
   if (moduleKey && module.loading) {
-    return (
-      <div className="feature-loading" role="status">
-        <Loader2 className="animate-spin" size={20} /> Checking feature access…
-      </div>
-    );
+    return <Loading label="Checking feature access…" />;
   }
 
   if (module.access === "disabled") {
@@ -123,11 +114,7 @@ export function PaidToolGate({
   if (!requiresPaidPlan) return <>{children}</>;
 
   if (!isLoaded || (isSignedIn && billingLoading && !billing)) {
-    return (
-      <div className="feature-loading" role="status">
-        <Loader2 className="animate-spin" size={20} /> Checking your plan…
-      </div>
-    );
+    return <Loading label="Checking your plan…" />;
   }
 
   if (isSignedIn && billing?.planTier !== "none" && billing?.isPro) {
@@ -136,9 +123,11 @@ export function PaidToolGate({
 
   if (isSignedIn && !billing) {
     return (
-      <LockedFeature feature={feature}>
-        <p role="alert">
-          {billingError || "We couldn't confirm your plan."}
+      <LockedFeature feature={feature} accessUnverified>
+        <p role="alert" className="tool-access-error">
+          {billingError && !/token|internal server|jwt/i.test(billingError)
+            ? billingError
+            : "We couldn’t verify your access. Try checking again to continue."}
         </p>
         <button
           className="feature-button secondary"
@@ -166,10 +155,7 @@ export function PaidToolGate({
   };
   return (
     <LockedFeature feature={feature}>
-      <button
-        className="feature-button"
-        onClick={handleUnlock}
-      >
+      <button className="feature-button" onClick={handleUnlock}>
         {info.action}
       </button>
     </LockedFeature>
@@ -180,7 +166,9 @@ function LockedFeature({
   feature,
   message,
   children,
+  accessUnverified = false,
 }: {
+  accessUnverified?: boolean;
   feature: string;
   message?: string;
   children?: ReactNode;
@@ -195,7 +183,9 @@ function LockedFeature({
           <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-500/10 text-brand-600">
             <Sparkles size={19} aria-hidden="true" />
           </span>
-          <h2 className="text-base font-semibold text-text-primary">{info.title}</h2>
+          <h2 className="text-base font-semibold text-text-primary">
+            {info.title}
+          </h2>
         </div>
         <p className="mb-4 mt-2 text-sm leading-5 text-text-muted">
           {message || "Check your fit and build a clear application plan."}
@@ -208,7 +198,11 @@ function LockedFeature({
             <LockKeyhole size={12} aria-hidden="true" />
             {message ? "Check back later" : "Included with a paid plan"}
           </span>
-          {!message && <Link className="font-medium text-text-link" to="/app/wallet">View my plan</Link>}
+          {!message && (
+            <Link className="font-medium text-text-link" to="/app/wallet">
+              View my plan
+            </Link>
+          )}
         </div>
       </section>
     );
@@ -218,29 +212,59 @@ function LockedFeature({
     <section className="feature-workspace tool-page">
       <div
         className={`tool-locked${feature === "AI opportunity preparation" ? " tool-locked--compact" : ""}${feature === "AI Coach" ? " tool-locked--coach" : ""}`}
+        data-feature={feature}
       >
-        <span className="tool-icon paid-tool-icon">
+        <span className="tool-icon paid-tool-icon" aria-hidden="true">
           {feature === "AI Coach" ? (
-            <img className="coach-mascot" src="/illustrations/ai-coach-mascot.svg" alt="" />
+            <img
+              className="coach-mascot"
+              src="/illustrations/ai-coach-mascot.svg"
+              alt=""
+            />
           ) : (
             <>
               <PaidFeatureIllustration />
-              <span className="paid-tool-icon-symbol"><Icon size={24} strokeWidth={1.9} /></span>
+              <span className="paid-tool-icon-symbol">
+                <Icon size={24} strokeWidth={1.9} />
+              </span>
             </>
           )}
         </span>
-        <h2>{info.title}</h2>
-        <p>{message || info.description}</p>
-        {children}
-        <small>
-          <LockKeyhole size={12} />
-          {message ? "Check back later" : "Included with a paid plan"}
-        </small>
-        {!message && (
-          <Link className="tool-locked-link" to="/app/wallet">
-            View my plan
-          </Link>
-        )}
+        <div className="tool-locked-content">
+          <span className="tool-state-eyebrow">
+            {feature === "AI Coach"
+              ? "Your thinking partner"
+              : feature === "Document analysis"
+                ? "Application essentials"
+                : "Your workspace"}
+          </span>
+          <h2>{info.title}</h2>
+          <p>{message || info.description}</p>
+          {feature === "Document analysis" && (
+            <div
+              className="tool-document-types"
+              aria-label="Supported document uses"
+            >
+              <span>CVs</span>
+              <span>Transcripts</span>
+              <span>Application files</span>
+            </div>
+          )}
+          {children}
+          <small>
+            <LockKeyhole size={12} />
+            {message
+              ? "Check back later"
+              : accessUnverified
+                ? "Access check unavailable"
+                : "Included with a paid plan"}
+          </small>
+          {!message && (
+            <Link className="tool-locked-link" to="/app/wallet">
+              View my plan
+            </Link>
+          )}
+        </div>
       </div>
     </section>
   );
@@ -257,18 +281,72 @@ function PaidFeatureIllustration({ coach = false }: { coach?: boolean }) {
       fill="none"
     >
       <defs>
-        <linearGradient id="paid-feature-glow" x1="17" y1="15" x2="79" y2="84" gradientUnits="userSpaceOnUse">
+        <linearGradient
+          id="paid-feature-glow"
+          x1="17"
+          y1="15"
+          x2="79"
+          y2="84"
+          gradientUnits="userSpaceOnUse"
+        >
           <stop stopColor="currentColor" stopOpacity={coach ? ".36" : ".2"} />
-          <stop offset="1" stopColor="currentColor" stopOpacity={coach ? ".12" : ".04"} />
+          <stop
+            offset="1"
+            stopColor="currentColor"
+            stopOpacity={coach ? ".12" : ".04"}
+          />
         </linearGradient>
       </defs>
-      <path d="M48 4 56 10 66 9 70 18 80 22 80 32 88 39 84 49 88 59 80 66 80 76 70 80 66 89 56 88 48 94 40 88 30 89 26 80 16 76 16 66 8 59 12 49 8 39 16 32 16 22 26 18 30 9 40 10 48 4Z" fill="url(#paid-feature-glow)" />
-      <circle cx="48" cy="48" r="27" stroke="currentColor" strokeOpacity={coach ? ".62" : ".22"} strokeWidth={coach ? "3" : "1.5"} />
-      <circle cx="48" cy="48" r="20" stroke="currentColor" strokeOpacity={coach ? ".48" : ".28"} strokeWidth={coach ? "2.5" : "1.5"} strokeDasharray="3 4" />
-      <rect x="27" y="27" width="42" height="42" rx="14" fill="currentColor" fillOpacity={coach ? ".2" : ".12"} />
-      {coach && <path d="m48 33 4.3 10.7L63 48l-10.7 4.3L48 63l-4.3-10.7L33 48l10.7-4.3L48 33Z" fill="currentColor" />}
-      <circle cx="73" cy="26" r="7" fill="currentColor" fillOpacity={coach ? ".34" : ".18"} />
-      <path d="m70 26 2 2 4-5" stroke="currentColor" strokeWidth={coach ? "2.4" : "1.6"} strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M48 4 56 10 66 9 70 18 80 22 80 32 88 39 84 49 88 59 80 66 80 76 70 80 66 89 56 88 48 94 40 88 30 89 26 80 16 76 16 66 8 59 12 49 8 39 16 32 16 22 26 18 30 9 40 10 48 4Z"
+        fill="url(#paid-feature-glow)"
+      />
+      <circle
+        cx="48"
+        cy="48"
+        r="27"
+        stroke="currentColor"
+        strokeOpacity={coach ? ".62" : ".22"}
+        strokeWidth={coach ? "3" : "1.5"}
+      />
+      <circle
+        cx="48"
+        cy="48"
+        r="20"
+        stroke="currentColor"
+        strokeOpacity={coach ? ".48" : ".28"}
+        strokeWidth={coach ? "2.5" : "1.5"}
+        strokeDasharray="3 4"
+      />
+      <rect
+        x="27"
+        y="27"
+        width="42"
+        height="42"
+        rx="14"
+        fill="currentColor"
+        fillOpacity={coach ? ".2" : ".12"}
+      />
+      {coach && (
+        <path
+          d="m48 33 4.3 10.7L63 48l-10.7 4.3L48 63l-4.3-10.7L33 48l10.7-4.3L48 33Z"
+          fill="currentColor"
+        />
+      )}
+      <circle
+        cx="73"
+        cy="26"
+        r="7"
+        fill="currentColor"
+        fillOpacity={coach ? ".34" : ".18"}
+      />
+      <path
+        d="m70 26 2 2 4-5"
+        stroke="currentColor"
+        strokeWidth={coach ? "2.4" : "1.6"}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }

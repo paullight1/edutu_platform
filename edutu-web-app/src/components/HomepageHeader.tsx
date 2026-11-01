@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@clerk/clerk-react';
 import { ArrowRight, Menu, Search, X } from 'lucide-react';
+import './Homepage.css';
 
 const groups = [
     { title: 'Explore', links: [
@@ -56,7 +57,7 @@ export default function HomepageHeader({ onGetStarted, publicMode = false, fixed
         <header className={`homepage-header${publicMode ? ' homepage-header-public' : ''}${fixed ? ' homepage-header-fixed' : ''}${darkAtTop ? ' homepage-header-dark-top' : ''}`}>
             <div className="homepage-header-inner">
                 <Link to="/" className="homepage-logo" aria-label="Edutu home">
-                    <img src="/edutu-logo.webp" alt="" />
+                    <img src="/edutu-logo.webp" alt="" width={40} height={40} />
                     <span>edutu</span>
                 </Link>
                 <nav className="homepage-desktop-nav" aria-label="Primary navigation">
@@ -67,14 +68,14 @@ export default function HomepageHeader({ onGetStarted, publicMode = false, fixed
                     <Link className="homepage-login" to={isSignedIn ? '/dashboard' : '/auth?mode=sign-in&screen=full'}>
                         {isSignedIn ? 'Dashboard' : 'Sign in'}
                     </Link>
-                    <Link to="/opportunities" className="homepage-icon-button" aria-label="Search opportunities"><Search size={23} /></Link>
-                    <button type="button" className="homepage-icon-button" aria-label="Open menu" aria-haspopup="dialog" aria-expanded={open} aria-controls="homepage-menu" onClick={() => setOpen(true)}><Menu size={26} /></button>
+                    <Link to="/opportunities" className="homepage-icon-button" aria-label="Search opportunities"><Search size={22} strokeWidth={1.75} aria-hidden="true" /></Link>
+                    <button type="button" className="homepage-icon-button" aria-label="Open menu" aria-haspopup="dialog" aria-expanded={open} aria-controls="homepage-menu" onClick={() => setOpen(true)}><Menu size={24} strokeWidth={1.75} aria-hidden="true" /></button>
                 </div>
             </div>
             {open && (
                 <div className="homepage-menu-backdrop" onClick={() => setOpen(false)}>
                     <div ref={panelRef} id="homepage-menu" className="homepage-menu" role="dialog" aria-modal="true" aria-labelledby="homepage-menu-title" onClick={(event) => event.stopPropagation()}>
-                        <div className="homepage-menu-heading"><h2 id="homepage-menu-title">Explore Edutu</h2><button className="homepage-icon-button" type="button" aria-label="Close menu" onClick={() => setOpen(false)}><X size={26} /></button></div>
+                        <div className="homepage-menu-heading"><h2 id="homepage-menu-title">Explore Edutu</h2><button className="homepage-icon-button" type="button" aria-label="Close menu" onClick={() => setOpen(false)}><X size={24} strokeWidth={1.75} aria-hidden="true" /></button></div>
                         <nav className="homepage-menu-groups" aria-label="All pages">
                             {groups.map((group) => <div key={group.title}><h3>{group.title}</h3>{group.links.map((item) => <Link key={item.to} to={item.to} onClick={() => setOpen(false)}>{item.label}<ArrowRight size={18} aria-hidden="true" /></Link>)}</div>)}
                         </nav>

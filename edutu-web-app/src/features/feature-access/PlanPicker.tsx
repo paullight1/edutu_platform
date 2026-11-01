@@ -52,6 +52,9 @@ function readableBillingError(error: unknown, fallback: string): string {
     return "We couldn’t reach Edutu just now. Check your connection and try again.";
   }
 
+  if (error instanceof Error && /internal server error|invalid or expired token|jwt/i.test(error.message)) {
+    return "We couldn’t load this information right now. Please try again.";
+  }
   if (error instanceof Error && error.message.trim()) return error.message;
   return fallback;
 }

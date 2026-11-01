@@ -67,6 +67,25 @@ npm run preview
 npm run android
 ```
 
+### Local public opportunity preview
+
+If the local API is stopped or its database connection is unavailable, the web
+UI can use the deployed public opportunity catalog. Put these overrides in
+`edutu-web-app/.env.local` and restart Vite:
+
+```env
+VITE_DEV_OPPORTUNITIES_API_URL=/__api
+VITE_LOCAL_API_PROXY_TARGET=https://backend.edutu.org
+```
+
+This uses the existing Vite proxy so public reads do not depend on production
+CORS allowing localhost. Opportunity reads omit cookies and authorization;
+protected workflows continue using `VITE_BACKEND_URL` / `VITE_API_URL`.
+The opportunity override is ignored by production builds. Refresh the public
+catalog using its **Refresh** button to replace an old browser snapshot.
+Remove the two overrides to return public browsing to the local API.
+This preview does not repair the local API's database configuration.
+
 ## Scholarship Engine Docs Site
 
 Path:

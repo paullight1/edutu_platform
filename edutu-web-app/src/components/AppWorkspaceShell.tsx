@@ -36,6 +36,7 @@ import { useTranslation } from "react-i18next";
 import { LiquidGlass } from "@liquidglassjs/react";
 import "@liquidglassjs/core/css";
 import "./workspaceGlass.css";
+import "./desktopWorkspace.css";
 import { useAuth } from "../hooks/useAuth";
 import { useNotifications } from "../hooks/useNotifications";
 import { usePaywall } from "../hooks/usePaywall";
@@ -495,7 +496,7 @@ export default function AppWorkspaceShell({
       "flex h-10 w-full items-center rounded-xl text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 active:scale-[0.98]",
       isSidebarOpen ? "justify-start gap-3 px-3" : "justify-center px-0",
       active
-        ? "bg-brand-500 text-white"
+        ? "bg-brand-500/10 text-brand-700"
         : "text-text-secondary hover:bg-surface-elevated hover:text-text-primary",
     );
 
@@ -504,7 +505,7 @@ export default function AppWorkspaceShell({
       initialBlockingNoticePending={isHomeRoute && Boolean(user?.id)}
     >
       <div
-        className={cn("min-h-[100dvh] bg-surface-body text-text-primary")}
+        className={cn("learner-workspace min-h-[100dvh] bg-surface-body text-text-primary")}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
       >
@@ -517,16 +518,18 @@ export default function AppWorkspaceShell({
               "border-subtle bg-surface-layer",
             )}
             aria-label="Workspace navigation"
+            data-expanded={isSidebarOpen}
+            data-learner-sidebar
           >
             <div
               className={cn(
-                "flex h-full flex-col overflow-y-auto overflow-x-hidden py-4",
+                "learner-sidebar-inner flex h-full flex-col overflow-y-auto overflow-x-hidden py-4",
                 isSidebarOpen ? "px-4" : "px-2",
               )}
             >
               <div
                 className={cn(
-                  "mb-4 flex items-center border-b border-subtle pb-4",
+                  "learner-sidebar-brand mb-4 flex items-center border-b border-subtle pb-4",
                   isSidebarOpen ? "justify-between gap-3" : "justify-center",
                 )}
               >
@@ -586,6 +589,7 @@ export default function AppWorkspaceShell({
                       key={item.to}
                       to={item.to}
                       state={item.to === "/app/coach" ? { coachBackground: location } : undefined}
+                      aria-label={itemLabel}
                       title={!isSidebarOpen ? itemLabel : undefined}
                       className={linkClassName(active)}
                       aria-current={
@@ -658,7 +662,7 @@ export default function AppWorkspaceShell({
                 </nav>
               </div>
 
-              <div className={cn("mt-auto border-t border-subtle pt-4")}>
+              <div className={cn("learner-sidebar-footer mt-auto border-t border-subtle pt-4")}>
                 {showUpgradeCta ? (
                   isSidebarOpen ? (
                     <NavLink

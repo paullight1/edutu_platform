@@ -201,8 +201,8 @@ export default function MyPlanPage() {
 
   const screenState = useScreenState({ data: journeys, loading, error });
   return (
-    <main className="min-h-[100dvh] bg-surface-body px-4 pb-24 pt-6 sm:px-6 lg:px-8 lg:pt-10">
-      <div className="mx-auto max-w-6xl">
+    <main className="my-plan-page min-h-[100dvh] bg-surface-body px-4 pb-24 pt-6 sm:px-6 lg:px-8 lg:pt-10">
+      <div className="my-plan-layout mx-auto max-w-6xl">
         {isDedicatedStagePage ? (
           <header className="mb-5 flex items-center justify-between gap-4 border-b border-subtle pb-4">
             <div>
@@ -221,12 +221,7 @@ export default function MyPlanPage() {
           </header>
         ) : (
           <>
-            <div className="hidden sm:block">
-              <PlanMascotWelcome />
-            </div>
-            <div className="hidden sm:block">
-              <PlanPreparationTools />
-            </div>
+            <div className="my-plan-welcome hidden sm:block"><PlanMascotWelcome /></div>
           </>
         )}
         <header className={`${isDedicatedStagePage ? "hidden" : "hidden sm:flex"} flex-col gap-5 border-b border-subtle pb-6 sm:flex-row sm:items-end sm:justify-between`}>
@@ -268,7 +263,8 @@ export default function MyPlanPage() {
           </p>
         </section> : <p className="mb-5 text-sm text-text-muted">{t("myPlan.stageCount", { count: journeys.length })}</p>}
 
-        <section className="mt-7" aria-live="polite">
+        {!isDedicatedStagePage && <div className="my-plan-tools hidden sm:block"><PlanPreparationTools /></div>}
+        <section className="my-plan-results mt-7" aria-live="polite">
           {screenState.kind === "loading" ? (
             <div className="grid gap-4 md:grid-cols-2" aria-label={t("myPlan.loading")}>
               {[0, 1].map((item) => <div key={item} className="h-72 animate-pulse rounded-[20px] border border-subtle bg-surface-layer" />)}

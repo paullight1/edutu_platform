@@ -20,15 +20,20 @@ export function useProductSession() {
     return () =>
       active.abort(new DOMException("Workspace session changed", "AbortError"));
   }, [userId]);
-  const token = useCallback(async (options: { forceRefresh?: boolean } = {}) => {
-    const active = lifetime.current;
-    if (!userId) throw new Error("Sign in to open your workspace.");
-    active.signal.throwIfAborted();
-    const value = await (options.forceRefresh ? getToken({ skipCache: true }) : getToken());
-    active.signal.throwIfAborted();
-    if (!value) throw new Error("Your session expired. Sign in again.");
-    return value;
-  }, [getToken, userId]);
+  const token = useCallback(
+    async (options: { forceRefresh?: boolean } = {}) => {
+      const active = lifetime.current;
+      if (!userId) throw new Error("Sign in to open your workspace.");
+      active.signal.throwIfAborted();
+      const value = await (options.forceRefresh
+        ? getToken({ skipCache: true })
+        : getToken());
+      active.signal.throwIfAborted();
+      if (!value) throw new Error("Your session expired. Sign in again.");
+      return value;
+    },
+    [getToken, userId],
+  );
   const request = useCallback(
     async <T,>(
       path: string,
@@ -45,10 +50,18 @@ export function useProductSession() {
       try {
         const requestOptions = { ...options, signal: controller.signal };
         try {
-          return await productApiRequest<T>(paidToolPath(path), await token(), requestOptions);
+          return await productApiRequest<T>(
+            paidToolPath(path),
+            await token(),
+            requestOptions,
+          );
         } catch (error) {
           const method = (options.method || "GET").toUpperCase();
-          if (!(error instanceof ProductApiError) || error.status !== 401 || !["GET", "HEAD"].includes(method)) {
+          if (
+            !(error instanceof ProductApiError) ||
+            error.status !== 401 ||
+            !["GET", "HEAD"].includes(method)
+          ) {
             throw error;
           }
 
@@ -57,7 +70,11 @@ export function useProductSession() {
           // such as checkout creation or payment-status mutations.
           active.signal.throwIfAborted();
           options.signal?.throwIfAborted();
-          return await productApiRequest<T>(paidToolPath(path), await token({ forceRefresh: true }), requestOptions);
+          return await productApiRequest<T>(
+            paidToolPath(path),
+            await token({ forceRefresh: true }),
+            requestOptions,
+          );
         }
       } finally {
         active.signal.removeEventListener("abort", abortSession);
@@ -88,13 +105,17 @@ export function FeaturePage({
     <section className={`feature-workspace ${className}`}>
       <header className="feature-heading">
         <div>
-          {eyebrow && <p className="feature-eyebrow">
-            {t(`workspace.${eyebrow}`, { defaultValue: eyebrow })}
-          </p>}
+          {eyebrow && (
+            <p className="feature-eyebrow">
+              {t(`workspace.${eyebrow}`, { defaultValue: eyebrow })}
+            </p>
+          )}
           <h1>{t(`workspace.${title}`, { defaultValue: title })}</h1>
-          {description && <p className="feature-description">
-            {t(`workspace.${description}`, { defaultValue: description })}
-          </p>}
+          {description && (
+            <p className="feature-description">
+              {t(`workspace.${description}`, { defaultValue: description })}
+            </p>
+          )}
         </div>
         <div className="feature-actions">{actions}</div>
       </header>
@@ -123,10 +144,40 @@ export function FeatureError({
     </div>
   ) : null;
 }
-export function Loading() {
+export function Loading({
+  label = "Loading your workspace…",
+}: {
+  label?: string;
+}) {
   return (
-    <div className="feature-loading" role="status">
-      <Loader2 className="animate-spin" size={20} /> Loading your workspace…
+    <div
+      className="feature-loading feature-loading-workspace"
+      role="status"
+      aria-live="polite"
+      aria-busy="true"
+    >
+      <div className="feature-loading-heading">
+        <Loader2 className="animate-spin" size={18} aria-hidden="true" />
+        <div>
+          <strong>{label}</strong>
+          <p>Getting your tools and saved work ready.</p>
+        </div>
+      </div>
+      <div className="feature-loading-preview" aria-hidden="true">
+        <div className="feature-loading-document">
+          <span />
+          <span />
+          <span />
+          <span />
+          <span />
+        </div>
+        <div className="feature-loading-lines">
+          <span />
+          <span />
+          <span />
+          <span />
+        </div>
+      </div>
     </div>
   );
 }

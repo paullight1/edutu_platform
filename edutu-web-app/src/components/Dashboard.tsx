@@ -1454,7 +1454,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
 
             <section
               aria-label="Dashboard priorities"
-              className="flex flex-col gap-4 lg:col-span-4 lg:col-start-1 lg:row-start-2 lg:grid lg:grid-cols-1 lg:content-start lg:items-stretch"
+              className="dashboard-priorities flex flex-col gap-4 lg:col-span-4 lg:col-start-1 lg:row-start-2 lg:grid lg:grid-cols-1 lg:content-start lg:items-stretch"
             >
               <AnimatePresence>
                 {profileScore && profileScore.score < 100 && !dismissBanner && (
@@ -1609,7 +1609,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
 
             </section>
 
-            <div className="hidden lg:col-span-8 lg:col-start-5 lg:row-start-2 lg:block lg:self-stretch">
+            <div className="dashboard-promotion hidden lg:col-span-8 lg:col-start-5 lg:row-start-2 lg:block lg:self-stretch">
               <BannerCarousel banners={heroBanners} fillDesktopHeight />
             </div>
 
@@ -1783,7 +1783,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                   </div>
 
                   {viewMode === "grid" ? (
-                    <div className="hidden gap-4 sm:grid sm:grid-cols-2 lg:auto-rows-fr lg:grid-cols-3 2xl:grid-cols-4">
+                    <div className="dashboard-desktop-opportunities hidden gap-4 sm:grid sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
                       {opportunitiesLoading ? (
                         Array.from({ length: 6 }).map((_, i) => (
                           <div

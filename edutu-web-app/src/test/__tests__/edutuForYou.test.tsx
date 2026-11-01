@@ -304,20 +304,14 @@ describe("EdutuForYouBand", () => {
     const links = screen.getAllByRole("link");
     expect(links).toHaveLength(1);
     expect(links[0]).toHaveAttribute("href", "/edutuforyou");
-    expect(links[0]).toHaveTextContent(/read more/i);
+    expect(links[0]).toHaveTextContent(/explore edutu for you/i);
   });
 
-  it("exposes the reach progress to assistive tech", () => {
+  it("introduces the program without reach figures or a progress meter", () => {
     renderBand();
-    const bar = screen.getByRole("progressbar");
-    expect(bar).toHaveAttribute("aria-valuemax", "1000000");
-    expect(bar).toHaveAttribute("aria-valuenow", "67000");
-    expect(
-      within(bar.parentElement as HTMLElement).getByText(
-        /of 1,000,000 reached/i,
-      ),
-    ).toBeInTheDocument();
-    expect(within(bar.parentElement as HTMLElement).getByText("67,000"))
-      .toBeInTheDocument();
+    const program = screen.getByRole("region", { name: /opportunity should be within everyone’s reach/i });
+    expect(within(program).queryByRole("progressbar")).not.toBeInTheDocument();
+    expect(program).not.toHaveTextContent(/67,000|1,000,000|one million/i);
+    expect(within(program).getByRole("img", { name: /young people studying together/i })).toHaveAttribute("src", "/community/scholarships.webp");
   });
 });

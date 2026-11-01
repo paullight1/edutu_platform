@@ -51,6 +51,23 @@ describe("opportunities snapshot cache", () => {
     vi.unstubAllGlobals();
     window.localStorage.clear();
     vi.stubEnv("VITE_BACKEND_URL", "https://api.example.test");
+    vi.stubEnv("VITE_DEV_OPPORTUNITIES_API_URL", "");
+  });
+
+  it("loads a public detail through the development proxy without sending credentials", async () => {
+    vi.stubEnv("DEV", true);
+    vi.stubEnv("VITE_DEV_OPPORTUNITIES_API_URL", "/__api");
+    mockFetchSuccess();
+    const service = await importOpportunities();
+
+    const opportunity = await service.getOpportunity("opp-1");
+
+    expect(opportunity?.title).toBe("Test Scholarship");
+    expect(fetch).toHaveBeenCalledWith("/__api/opportunities/opp-1", expect.objectContaining({
+      method: "GET",
+      credentials: "omit",
+      headers: { Accept: "application/json" },
+    }));
   });
 
   it("persists fetched opportunities and serves them synchronously in a new session", async () => {

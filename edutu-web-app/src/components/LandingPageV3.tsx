@@ -13,7 +13,6 @@ import { useOpportunities } from '../hooks/useOpportunities';
 import { fetchPublishedPosts, formatPostDate, readingTime } from '../services/blog';
 import PageSeo from './PageSeo';
 import HomepageHeader from './HomepageHeader';
-import './Homepage.css';
 import SiteFooter from './SiteFooter';
 import CommunityShowcase from './CommunityShowcase';
 import EdutuForYouBand from './EdutuForYouBand';

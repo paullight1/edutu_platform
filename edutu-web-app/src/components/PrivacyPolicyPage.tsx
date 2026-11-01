@@ -47,14 +47,15 @@ const sections: LegalSection[] = [
     {
         heading: '6. Account Deletion',
         body: [
-            'You can permanently delete your Edutu account and all associated data at any time.',
+            'You can request deletion of your Edutu account and associated personal data. We may need to retain limited information for purposes such as legal obligations, accounting, fraud prevention or resolving disputes.',
             [
-                'In the mobile app: go to Profile → Settings → Delete Account. Your profile, chats, goals, CVs, saved opportunities, and billing records are all removed.',
-                'By email: send us a deletion request using the button below from the email address linked to your account, and we will delete your account and confirm within 30 days.',
+                'By email: use the button below to request deletion from the email address linked to your account. We may need to verify that the account belongs to you before processing your request.',
+                'The in-app deletion option is temporarily unavailable. Please use the email request while we restore it.',
+                'Shared conversations may be retained in a form that protects other users, and limited payment or security records may need to be retained where justified. We will explain applicable exceptions when responding to your request.',
             ],
         ],
         cta: {
-            label: 'Email us to delete your account',
+            label: 'Email us to request account deletion',
             href: 'mailto:my.edutu@gmail.com?subject=Account%20Deletion%20Request&body=Please%20delete%20my%20Edutu%20account%20and%20all%20associated%20data.%0A%0AAccount%20email%3A%20',
         },
     },

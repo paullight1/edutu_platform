@@ -36,7 +36,7 @@ const TOOLS = [
 export default function PlanPreparationTools() {
   const { t } = useTranslation();
   return (
-    <section className="mb-8 mt-5" aria-labelledby="plan-preparation-heading">
+    <section className="plan-preparation-tools mb-8 mt-5" aria-labelledby="plan-preparation-heading">
       <div className="mb-4">
         <h2
           id="plan-preparation-heading"
@@ -48,7 +48,7 @@ export default function PlanPreparationTools() {
           {t("planWorkspace.toolsDescription")}
         </p>
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="plan-preparation-grid grid grid-cols-2 gap-3">
         {TOOLS.filter((item) =>
           isWorkspaceFeatureEnabled(item.feature as WorkspaceFeature),
         ).map((item) => (

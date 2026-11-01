@@ -1,42 +1,38 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { ThemeProvider } from "../../hooks/useTheme";
 import OpportunitySharePage from "../../components/OpportunitySharePage";
+import OpportunityDetailFetcher from "../../components/OpportunityDetailFetcher";
 
 const serviceMocks = vi.hoisted(() => ({
-  fetchOpportunityShareCard: vi.fn(),
+  getOpportunity: vi.fn(),
 }));
 
-vi.mock("@clerk/clerk-react", () => ({
-  useAuth: () => ({
-    isLoaded: true,
-    isSignedIn: false,
-    getToken: vi.fn().mockResolvedValue("token-123"),
-  }),
-  useUser: () => ({
-    isLoaded: true,
-    isSignedIn: false,
-    user: null,
-  }),
-  useClerk: () => ({
-    signOut: vi.fn(),
-  }),
+vi.mock("../../services/opportunities", () => ({
+  getCachedOpportunitySync: () => null,
+  getOpportunity: serviceMocks.getOpportunity,
 }));
 
+// Image generation can take much longer than the public opportunity read.
+// Opening an old shared link must not wait for it.
 vi.mock("../../services/opportunityShare", () => ({
-  fetchOpportunityShareCard: serviceMocks.fetchOpportunityShareCard,
+  fetchOpportunityShareCard: () => new Promise(() => {}),
 }));
 
-function renderSharePage() {
+function CurrentLocation() {
+  const location = useLocation();
+  return <output aria-label="Current location">{location.pathname}{location.search}{location.hash}</output>;
+}
+
+function renderSharePage(entry = "/share/opportunity/opp-123") {
   return render(
     <ThemeProvider>
-      <MemoryRouter initialEntries={["/share/opportunity/opp-123"]}>
+      <MemoryRouter initialEntries={[entry]}>
+        <CurrentLocation />
         <Routes>
-          <Route
-            path="/share/opportunity/:id"
-            element={<OpportunitySharePage />}
-          />
+          <Route path="/share/opportunity/:id" element={<OpportunitySharePage />} />
+          <Route path="/opportunity/:id" element={<OpportunityDetailFetcher onBack={() => {}} />} />
         </Routes>
       </MemoryRouter>
     </ThemeProvider>,
@@ -45,50 +41,26 @@ function renderSharePage() {
 
 describe("OpportunitySharePage", () => {
   beforeEach(() => {
-    serviceMocks.fetchOpportunityShareCard.mockReset();
-    serviceMocks.fetchOpportunityShareCard.mockResolvedValue({
-      url: "https://cdn.example.com/share.png",
-      path: "share/opp-123.png",
-      format: "png",
-      generatedAt: "2026-06-18T09:00:00.000Z",
-      fingerprint: "abc123",
-      expiresAt: null,
-      shareText: [
-        "Still Active!",
-        "",
-        "Global Leadership Fellowship",
-        "",
-        "Sponsor: Edutu Foundation",
-        "",
-        "Benefits:",
-        "- Full details available on Edutu",
-        "",
-        "Category: Fellowship",
-        "Eligible Country: Worldwide",
-        "Deadline: August 1, 2026",
-        "",
-        "Open the link below to view the preview.",
-        "https://www.edutu.org/share/opportunity/opp-123",
-        "",
-        "Share this with anyone who needs the link.",
-      ].join("\n"),
-      shareUrl: "https://www.edutu.org/share/opportunity/opp-123",
-    });
+    serviceMocks.getOpportunity.mockReset();
+    serviceMocks.getOpportunity.mockResolvedValue(null);
   });
 
-  it("renders the public preview and sign-in actions", async () => {
+  it("opens the public detail route without waiting for share-card generation", async () => {
+    renderSharePage("/share/opportunity/opp-123?source=message#details");
+
+    expect(await screen.findByRole("heading", { name: "This opportunity is no longer available" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Current location")).toHaveTextContent("/opportunity/opp-123?source=message#details");
+    expect(screen.getByRole("link", { name: /sign in/i })).toHaveAttribute("href", "/auth?mode=sign-in&screen=full");
+    expect(screen.getByRole("link", { name: /browse opportunities/i })).toHaveAttribute("href", "/opportunities");
+  });
+
+  it("offers retry after a failed read instead of showing a blank shared card", async () => {
+    serviceMocks.getOpportunity.mockRejectedValueOnce(new Error("Connection lost"));
     renderSharePage();
 
-    expect(
-      await screen.findByText("Global Leadership Fellowship"),
-    ).toBeInTheDocument();
-
-    expect(screen.getByRole("link", { name: /sign in/i })).toHaveAttribute(
-      "href",
-      "/auth?mode=sign-in&screen=full",
-    );
-    expect(
-      screen.getByRole("link", { name: /browse opportunities/i }),
-    ).toHaveAttribute("href", "/opportunities");
+    expect(await screen.findByRole("alert")).toHaveTextContent("We couldn't load this opportunity");
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(await screen.findByRole("heading", { name: "This opportunity is no longer available" })).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });

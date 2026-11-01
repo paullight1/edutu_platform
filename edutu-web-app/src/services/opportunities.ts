@@ -763,6 +763,7 @@ async function requestStaticOpportunitySnapshot(
 async function assertOpportunityServiceReady(signal?: AbortSignal): Promise<void> {
   const response = await fetch(buildBackendUrl("/health/ready"), {
     method: "GET",
+    credentials: "omit",
     signal,
     headers: { Accept: "application/json" },
   });
@@ -809,6 +810,7 @@ async function requestOpportunityPage(
 
   const response = await fetch(buildBackendUrl("/opportunities", params), {
     method: "GET",
+    credentials: "omit",
     signal: options.signal,
     headers: {
       Accept: "application/json",
@@ -1026,7 +1028,7 @@ export async function searchOpportunityCatalog(
   const params = new URLSearchParams({ q: term, limit: "60" });
   const response = await fetch(
     `${getApiBaseUrl("Opportunities API")}/opportunities/catalog?${params}`,
-    { headers: { Accept: "application/json" }, signal },
+    { headers: { Accept: "application/json" }, signal, credentials: "omit" },
   );
   if (!response.ok) {
     throw new Error("Opportunity search could not be loaded.");
@@ -1198,6 +1200,7 @@ export async function getOpportunity(id: string): Promise<Opportunity | null> {
       buildBackendUrl(`/opportunities/${encodeURIComponent(id)}`),
       {
         method: "GET",
+        credentials: "omit",
         headers: {
           Accept: "application/json",
         },

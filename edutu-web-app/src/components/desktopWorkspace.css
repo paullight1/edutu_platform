@@ -1,0 +1,266 @@
+/* Learner workspace: compact desktop navigation, clear reading widths. */
+@media (min-width: 1024px) {
+  .learner-workspace [data-learner-sidebar] {
+    background: rgb(var(--surface-layer));
+  }
+  .learner-sidebar-inner {
+    padding-top: 0;
+    padding-bottom: 12px;
+    scrollbar-width: thin;
+  }
+  .learner-sidebar-brand {
+    min-height: 80px;
+    margin-bottom: 20px;
+    padding: 18px 0;
+  }
+  .learner-sidebar-brand a {
+    color: rgb(var(--text-primary));
+  }
+  .learner-sidebar-brand a > span {
+    font-size: 22px;
+    font-weight: 750;
+    letter-spacing: -0.8px;
+  }
+  .learner-sidebar-brand img {
+    width: 38px;
+    height: 38px;
+  }
+  .learner-sidebar-brand button {
+    border: 1px solid rgb(var(--border-subtle));
+    border-radius: 9px;
+  }
+  [data-learner-sidebar] nav a {
+    min-height: 42px;
+    height: auto;
+    border-radius: 9px;
+    font-size: 13px;
+    font-weight: 500;
+  }
+  [data-learner-sidebar] nav a > svg {
+    color: rgb(var(--text-secondary));
+    stroke-width: 1.7;
+  }
+  [data-learner-sidebar] nav a[aria-current] {
+    background: rgb(var(--color-brand-500) / 0.09);
+    color: rgb(var(--text-link));
+    font-weight: 650;
+  }
+  [data-learner-sidebar] nav a[aria-current] > svg {
+    color: currentColor;
+  }
+  [data-learner-sidebar][data-expanded="false"] nav a {
+    width: 44px;
+    margin-inline: auto;
+    border-radius: 11px;
+  }
+  [data-learner-sidebar][data-expanded="false"] .learner-sidebar-brand {
+    margin-bottom: 12px;
+  }
+  .learner-sidebar-footer {
+    padding-top: 12px;
+    margin-top: auto;
+  }
+  .learner-sidebar-footer > a {
+    border-radius: 10px;
+    font-size: 12px;
+  }
+  .learner-sidebar-footer button[aria-haspopup="menu"] > span:first-child {
+    border-radius: 10px;
+    font-size: 12px;
+  }
+
+  .dashboard-screen > div > main {
+    column-gap: 24px;
+    row-gap: 24px;
+  }
+  .dashboard-priorities {
+    gap: 16px;
+  }
+  .dashboard-priorities > section {
+    min-width: 0;
+  }
+  .dashboard-priorities a[aria-label="Calendar and upcoming dates"] {
+    min-height: 190px;
+    padding: 22px;
+    border-radius: 16px;
+    box-shadow: none;
+  }
+  .dashboard-priorities #home-calendar-heading {
+    font-size: 17px;
+    line-height: 1.35;
+  }
+  .dashboard-promotion {
+    min-height: 190px;
+  }
+  .dashboard-promotion > div {
+    min-height: 190px;
+    border-radius: 16px;
+  }
+  .dashboard-promotion a > div:last-child {
+    padding: 24px 30px;
+  }
+  .dashboard-promotion a > div:last-child > div {
+    max-width: 68%;
+  }
+  .dashboard-promotion a > div:last-child > div > span:nth-child(2) {
+    font-size: clamp(22px, 2.1vw, 30px);
+    line-height: 1.2;
+  }
+  .dashboard-desktop-opportunities {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+    align-items: stretch;
+    gap: 20px;
+  }
+  .dashboard-screen .desktop-opportunity-card {
+    min-height: 0;
+    height: 100%;
+    border-radius: 15px;
+    background: rgb(var(--surface-layer));
+    box-shadow: none;
+  }
+  .dashboard-screen .desktop-opportunity-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 12px 28px rgb(15 23 42 / 0.07);
+  }
+  .desktop-opportunity-card .opportunity-cinematic-media {
+    height: auto;
+    aspect-ratio: 16 / 9;
+  }
+  .desktop-opportunity-card .opportunity-cinematic-media::after {
+    content: none;
+  }
+  .desktop-opportunity-card .opportunity-cinematic-media > img {
+    object-position: center;
+  }
+  .desktop-opportunity-card > div:last-child {
+    padding: 18px;
+  }
+  .desktop-opportunity-card h3 {
+    min-height: 3em;
+    font-size: 15px;
+    line-height: 1.5;
+    -webkit-line-clamp: 3;
+  }
+  .desktop-opportunity-card > div:last-child > div:last-child {
+    margin-top: auto;
+    padding-top: 14px;
+    border-top: 1px solid rgb(var(--border-subtle));
+    font-size: 11px;
+  }
+
+  .my-plan-page {
+    padding-top: 28px;
+  }
+  .my-plan-layout {
+    max-width: 1200px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 300px;
+    column-gap: 28px;
+  }
+  .my-plan-layout > header {
+    grid-column: 1;
+    grid-row: 2;
+    align-items: start;
+    gap: 20px;
+    padding-bottom: 24px;
+  }
+  .my-plan-layout > header h1 {
+    margin-top: 0;
+    font-size: clamp(28px, 3vw, 40px);
+    line-height: 1.15;
+    letter-spacing: -0.04em;
+  }
+  .my-plan-layout > header p {
+    max-width: 560px;
+    font-size: 14px;
+    line-height: 1.7;
+  }
+  .my-plan-welcome {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+  .my-plan-welcome .plan-welcome {
+    min-height: 112px;
+    margin-bottom: 28px;
+    padding: 20px 24px;
+    border-radius: 16px;
+  }
+  .plan-welcome h2 {
+    font-size: 18px;
+    line-height: 1.4;
+  }
+  .my-plan-layout > section[aria-label] {
+    grid-column: 1;
+    grid-row: 3;
+  }
+  .my-plan-tools {
+    grid-column: 2;
+    grid-row: 2 / span 4;
+  }
+  .my-plan-tools .plan-preparation-tools {
+    margin: 0;
+    padding: 20px;
+    border: 1px solid rgb(var(--border-subtle));
+    border-radius: 16px;
+    background: rgb(var(--surface-layer));
+  }
+  .my-plan-tools .plan-preparation-tools h2 {
+    font-size: 16px;
+  }
+  .my-plan-tools .plan-preparation-tools > div > p {
+    font-size: 12px;
+    line-height: 1.65;
+  }
+  .my-plan-tools .plan-preparation-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+  .my-plan-tools .plan-preparation-grid > a {
+    min-height: 88px;
+    gap: 12px;
+    padding: 12px;
+    border: 1px solid rgb(var(--border-subtle));
+    border-radius: 10px;
+  }
+  .my-plan-tools .plan-preparation-grid > a > span:first-child {
+    width: 36px;
+    height: 36px;
+    border-radius: 9px;
+  }
+  .my-plan-tools
+    .plan-preparation-grid
+    > a
+    > span:nth-child(2)
+    > span:last-child {
+    font-size: 11px;
+    line-height: 1.55;
+  }
+  .my-plan-tools .plan-preparation-grid > a > svg {
+    display: none;
+  }
+  .my-plan-results {
+    grid-column: 1;
+    grid-row: 4;
+  }
+  .my-plan-results > div {
+    min-width: 0;
+  }
+}
+@media (min-width: 1024px) and (max-width: 1200px) {
+  .my-plan-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .my-plan-tools {
+    grid-column: 1;
+    grid-row: 5;
+    margin-top: 24px;
+  }
+  .my-plan-tools .plan-preparation-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-screen .desktop-opportunity-card:hover {
+    transform: none;
+  }
+}

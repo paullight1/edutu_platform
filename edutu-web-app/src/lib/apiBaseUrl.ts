@@ -1,6 +1,13 @@
 const PUBLIC_API_FALLBACK = "https://backend.edutu.org";
 
-export function getApiBaseUrl(_serviceName: string): string {
+export function getApiBaseUrl(serviceName: string): string {
+  // A local UI can browse the deployed public catalog through Vite's proxy
+  // while protected workflows continue using the configured development API.
+  const previewUrl = import.meta.env.VITE_DEV_OPPORTUNITIES_API_URL?.trim();
+  if (import.meta.env.DEV && serviceName === "Opportunities API" && previewUrl) {
+    return previewUrl.replace(/\/$/, "");
+  }
+
   const configuredUrl =
     import.meta.env.VITE_BACKEND_URL?.trim() ||
     import.meta.env.VITE_API_URL?.trim();
