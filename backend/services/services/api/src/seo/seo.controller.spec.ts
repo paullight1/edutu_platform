@@ -183,6 +183,31 @@ describe("SeoController", () => {
     expect(html).toContain('href="https://example.org/scholarship"');
   });
 
+  it("renders a self-canonical scholarship and omits unknown providers", async () => {
+    const controller = makeController({ opportunities: { findOne: jest.fn(async () => ({
+      id: "scholarship-1", title: "Nigeria scholarship", category: "scholarships",
+      organization: "Opportunity provider", description: "Scholarship for students in Nigeria.",
+    })) } });
+    const response = makeResponse();
+    const html = await controller.opportunity("scholarship-1", response);
+    expect(html).toContain('href="https://www.edutu.org/opportunity/scholarship-1"');
+    expect(html).toContain('"@type":"EducationalOccupationalProgram"');
+    expect(html).not.toContain('"provider":{"@type":"Organization","name":"Opportunity provider"}');
+    expect(html).toContain('<script type="module" src="/assets/index.js">');
+  });
+
+  it("marks closed opportunities noindex and does not label jobs as programmes", async () => {
+    const controller = makeController({ opportunities: { findOne: jest.fn(async () => ({
+      id: "closed", title: "Internship", category: "internships", status: "closed",
+      description: "A closed internship.",
+    })) } });
+    const response = makeResponse();
+    const html = await controller.opportunity("closed", response);
+    expect(response.headers["x-robots-tag"]).toContain("noindex");
+    expect(html).toContain('"@type":"WebPage"');
+    expect(html).not.toContain('"@type":"EducationalOccupationalProgram"');
+  });
+
   it("returns a real 404 and noindex for missing opportunities", async () => {
     const controller = makeController();
     const response = makeResponse();

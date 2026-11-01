@@ -197,7 +197,7 @@ const BlogPostPage: React.FC = () => {
                     ? { dateModified: post.updatedAt ?? post.publishedAt }
                     : {}),
                   author: {
-                    "@type": "Person",
+                    "@type": post.authorName ? "Person" : "Organization",
                     name: post.authorName || "Edutu",
                     ...(post.authorAvatar ? { image: post.authorAvatar } : {}),
                   },

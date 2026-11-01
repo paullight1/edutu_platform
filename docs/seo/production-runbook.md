@@ -8,7 +8,14 @@ The software release is complete only when the repository gates pass. Search Con
 
 ## Public route ownership
 
-The root `vercel.json` is the single production routing owner.
+Production runs on Dokploy. The frontend currently uses Dokploy's Nixpacks
+static Nginx service; Vercel configuration is not the production routing owner.
+The opportunity proxy in `edutu-web-app/deploy/nginx-opportunity-seo.conf` must
+be included in the actual frontend Nginx server configuration; committing the
+snippet alone does not activate it. Preserve the existing SPA and asset routes.
+Deploy the compatible backend renderer and web changes first, check `nginx -t`,
+then reload or roll out the frontend configuration. Remove the proxy and reload
+to roll back; do not replace a backend outage with a misleading home-page 200.
 
 | Public route | Backend SEO endpoint | Expected behaviour |
 | --- | --- | --- |

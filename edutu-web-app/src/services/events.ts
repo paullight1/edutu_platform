@@ -52,7 +52,7 @@ function normaliseEvent(row: BackendEventRow): EdutuEvent {
   const title = pickString("Edutu event", row.title, row.name);
   const slug = pickString(String(row.id ?? title), row.slug, row.id);
   const startsAt = pickString(
-    new Date().toISOString(),
+    "",
     row.starts_at,
     row.startsAt,
   );
@@ -72,7 +72,7 @@ function normaliseEvent(row: BackendEventRow): EdutuEvent {
         ? row.is_online
         : typeof row.isOnline === "boolean"
           ? row.isOnline
-          : true,
+          : null,
     ctaLabel: pickOptionalString(row.cta_label, row.ctaLabel) || "Join event",
     ctaUrl: pickOptionalString(row.cta_url, row.ctaUrl),
     imageUrl: pickOptionalString(row.image_url, row.imageUrl),

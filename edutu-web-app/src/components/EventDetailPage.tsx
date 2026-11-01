@@ -101,33 +101,18 @@ export default function EventDetailPage() {
         image: [toAbsoluteUrl(event.imageUrl || getDefaultSeoImage())],
         startDate: event.startsAt,
         endDate: event.endsAt || undefined,
-        eventAttendanceMode: event.isOnline
+        eventAttendanceMode: event.isOnline === true
           ? "https://schema.org/OnlineEventAttendanceMode"
-          : "https://schema.org/OfflineEventAttendanceMode",
-        eventStatus: "https://schema.org/EventScheduled",
-        location: event.isOnline
+          : event.isOnline === false ? "https://schema.org/OfflineEventAttendanceMode" : undefined,
+        location: event.isOnline === true && event.ctaUrl
           ? {
               "@type": "VirtualLocation",
-              url: event.ctaUrl || toAbsoluteUrl(eventPath),
-            }
-          : {
-              "@type": "Place",
-              name: event.location || "Edutu event location",
-            },
-        organizer: {
-          "@type": "Organization",
-          name: "Edutu",
-          url: toAbsoluteUrl("/opportunities"),
-        },
-        offers: event.ctaUrl
-          ? {
-              "@type": "Offer",
               url: event.ctaUrl,
-              availability: "https://schema.org/InStock",
-              price: "0",
-              priceCurrency: "USD",
             }
-          : undefined,
+          : event.isOnline === false && event.location ? {
+              "@type": "Place",
+              name: event.location,
+            } : undefined,
       },
       {
         "@context": "https://schema.org",
@@ -268,7 +253,7 @@ export default function EventDetailPage() {
             <div className="p-5 sm:p-6">
               <div className="flex flex-wrap gap-2 text-xs font-semibold">
                 <span className="rounded-md border border-brand/20 bg-brand/10 px-2 py-1 text-brand">
-                  {event.isOnline ? "Online" : "In person"}
+                  {event.isOnline === true ? "Online" : event.isOnline === false ? "In person" : "Location TBA"}
                 </span>
                 <span className="rounded-md border border-subtle bg-surface-elevated px-2 py-1 text-text-secondary">
                   {event.audience || "Public"}

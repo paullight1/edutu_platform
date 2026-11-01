@@ -374,11 +374,6 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
     opportunity.image || opportunity.imageFallback || getDefaultSeoImage();
   const seoJsonLd = useMemo(() => {
     const deadlineIso = deadlineToIso(opportunity.deadline);
-    const stipendValue =
-      typeof opportunity.stipend === "number" &&
-      Number.isFinite(opportunity.stipend)
-        ? opportunity.stipend
-        : null;
 
     // Structured data must never assert an organisation we can't stand behind.
     // Falling back to "Edutu" claimed we were the hiring org / provider for
@@ -399,60 +394,15 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
 
     const employmentKind = getEmploymentKind(opportunity);
 
-    // Jobs and internships get schema.org JobPosting (eligible for Google's
-    // jobs rich results); everything else (scholarships, fellowships, grants,
-    // programs) keeps EducationalOccupationalProgram.
+    // Source data does not reliably provide the employer's original date,
+    // full job description, or structured country needed for JobPosting.
     const primarySchema = employmentKind
       ? {
           "@context": "https://schema.org",
-          "@type": "JobPosting",
-          title: opportunity.title,
+          "@type": "WebPage",
+          name: opportunity.title,
           description: seoDescription,
           url: canonicalUrl,
-          image: toAbsoluteUrl(seoImage),
-          ...schemaOrgProperty("hiringOrganization"),
-          ...(getIsoDate(opportunity.createdAt || opportunity.lastUpdated)
-            ? {
-                datePosted: getIsoDate(
-                  opportunity.createdAt || opportunity.lastUpdated,
-                ),
-              }
-            : {}),
-          ...(deadlineIso ? { validThrough: deadlineIso } : {}),
-          ...(employmentKind === "internship"
-            ? { employmentType: "INTERN" }
-            : {}),
-          ...(opportunity.isRemote
-            ? {
-                jobLocationType: "TELECOMMUTE",
-                applicantLocationRequirements: {
-                  "@type": "Country",
-                  name: opportunity.location || "Worldwide",
-                },
-              }
-            : opportunity.location
-              ? {
-                  jobLocation: {
-                    "@type": "Place",
-                    address: {
-                      "@type": "PostalAddress",
-                      addressLocality: opportunity.location,
-                    },
-                  },
-                }
-              : {}),
-          ...(stipendValue !== null
-            ? {
-                baseSalary: {
-                  "@type": "MonetaryAmount",
-                  currency: opportunity.currency?.toUpperCase() || "USD",
-                  value: {
-                    "@type": "QuantitativeValue",
-                    value: stipendValue,
-                  },
-                },
-              }
-            : {}),
         }
       : {
         "@context": "https://schema.org",
@@ -465,15 +415,6 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
         ...schemaOrgProperty("provider"),
         ...(deadlineIso
           ? { applicationDeadline: deadlineIso, validThrough: deadlineIso }
-          : {}),
-        ...(stipendValue !== null
-          ? {
-              offers: {
-                "@type": "Offer",
-                price: String(stipendValue),
-                priceCurrency: opportunity.currency?.toUpperCase() || "USD",
-              },
-            }
           : {}),
         dateModified: getIsoDate(opportunity.lastUpdated),
         publisher: {

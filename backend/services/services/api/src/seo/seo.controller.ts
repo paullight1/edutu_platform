@@ -804,9 +804,8 @@ export class SeoController {
     const description =
       truncateText(summary || descriptionText, 190) ||
       "Review this verified opportunity, its eligibility, deadline and official application source on Edutu.";
-    const organization =
-      firstText(opportunity, ["organization", "provider", "company"]) ||
-      "Opportunity provider";
+    const providerName = firstText(opportunity, ["organization", "provider", "company"]);
+    const organization = providerName || "Opportunity provider";
     const categoryName =
       normalizeCategory(
         firstValue(opportunity, ["canonical_category", "category"]),
@@ -821,6 +820,12 @@ export class SeoController {
       "deadline_date",
     ]);
     const deadlineIso = isoDate(deadline);
+    const deadlineDate = deadlineIso ? new Date(deadlineIso) : null;
+    const endOfDeadline = deadlineDate
+      ? Date.UTC(deadlineDate.getUTCFullYear(), deadlineDate.getUTCMonth(), deadlineDate.getUTCDate(), 23, 59, 59, 999)
+      : null;
+    const expired = firstText(opportunity, ["status"]).toLowerCase() === "closed" ||
+      (endOfDeadline !== null && endOfDeadline < Date.now());
     const location = firstText(opportunity, [
       "location",
       "targetRegion",
@@ -932,14 +937,17 @@ export class SeoController {
     const jsonLd: SeoJsonLd = [
       {
         "@context": "https://schema.org",
-        "@type": "EducationalOccupationalProgram",
+        "@type": categoryName === "scholarships" ? "EducationalOccupationalProgram" : "WebPage",
         name: title,
         description,
         url: canonicalUrl,
         image,
         category: category.label,
-        provider: { "@type": "Organization", name: organization },
-        ...(deadlineIso
+        ...(categoryName === "scholarships" && providerName &&
+        !/^(?:opportunity provider|(?:the |official |program )?organi[sz]er|the official organi[sz]er|unknown|not specified|not listed|n\/?a|tbd)$/i.test(providerName)
+          ? { provider: { "@type": "Organization", name: providerName } }
+          : {}),
+        ...(deadlineIso && categoryName === "scholarships"
           ? {
               applicationDeadline: deadlineIso,
               validThrough: deadlineIso,
@@ -967,7 +975,7 @@ export class SeoController {
         imageUrl: image,
         imageAlt: title,
         ogType: "article",
-        robots: shareSurface
+        robots: shareSurface || expired
           ? "noindex, follow, max-image-preview:large"
           : "index, follow, max-image-preview:large",
         bodyHtml,

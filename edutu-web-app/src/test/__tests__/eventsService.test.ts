@@ -14,6 +14,14 @@ describe("events service resilience", () => {
     vi.resetModules();
   });
 
+  it("does not invent a start date or attendance mode when they are absent", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify([{ id: "missing", title: "Event" }]), { status: 200 })));
+    const { fetchEvents } = await import("../../services/events");
+    const [event] = await fetchEvents();
+    expect(event.startsAt).toBe("");
+    expect(event.isOnline).toBeNull();
+  });
+
   it("reuses the last successful response when a later refresh loses the network", async () => {
     const fetchMock = vi
       .fn()

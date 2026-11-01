@@ -84,7 +84,7 @@ function EventCard({ event }: { event: EdutuEvent }) {
       <div className="flex flex-1 flex-col p-4">
         <div className="flex flex-wrap gap-2 text-xs font-semibold">
           <span className="rounded-md border border-brand/20 bg-brand/10 px-2 py-1 text-brand">
-            {event.isOnline ? "Online" : "In person"}
+            {event.isOnline === true ? "Online" : event.isOnline === false ? "In person" : "Location TBA"}
           </span>
           <span className="rounded-md border border-subtle bg-surface-elevated px-2 py-1 text-text-secondary">
             {event.audience || "Public"}

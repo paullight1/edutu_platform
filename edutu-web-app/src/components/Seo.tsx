@@ -102,6 +102,8 @@ export default function Seo({
   }, [jsonLd]);
 
   useEffect(() => {
+    // Server-rendered route data must not survive client-side navigation.
+    document.head.querySelector('script[data-edutu-seo-jsonld="true"]')?.remove();
     document.title = title;
 
     upsertMeta("name", "description", description);
@@ -131,7 +133,12 @@ export default function Seo({
 
     if (jsonLdString) {
       upsertJsonLd(jsonLdString);
+    } else {
+      document.head.querySelector('script[data-route-json-ld="true"]')?.remove();
     }
+    return () => {
+      document.head.querySelector('script[data-route-json-ld="true"]')?.remove();
+    };
   }, [
     canonicalUrl,
     description,
