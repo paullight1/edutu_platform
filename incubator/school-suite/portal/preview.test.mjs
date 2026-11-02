@@ -13,6 +13,7 @@ test("example tenants declare unique IDs, colors and labels", () => {
   for (const item of tenants) {
     assert.match(item.id, /^[a-z0-9-]+$/);
     assert.match(item.accent, /^#[0-9a-f]{6}$/i);
+    assert.match(item.currency, /^(NGN|GHS)$/);
     assert.ok(item.school && item.monogram);
     assert.ok(item.students.every((student) => /Example/i.test(student.name)));
     assert.ok(item.payments.every((payment) => payment.ref.startsWith("DEMO-")));

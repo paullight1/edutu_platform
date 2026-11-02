@@ -20,3 +20,13 @@ Do not run Skuul V3 development migrations on an existing V2 production database
 White-label operator portal, per-school branding, role-specific navigation, tenant-safe APIs, human-reviewed AI teacher assistance, configurable Nigerian school terms/fee formats, payment reconciliation and audit trail.
 
 Only synthetic preview data is allowed at this stage. No parent or pupil personal data, payment keys, or credentials belong in this branch.
+
+## Current working foundation
+
+- Responsive, role-specific, multi-school UI preview in portal/ (run python3 -m http.server 4173 --directory incubator/school-suite/portal).
+- Change sample institution and role; inspect demonstration dashboards, student search and fee statements. Preview data only; not live student records.
+- AI teacher drafting service in services/ai-gateway/ (server-only access; no pupil data). Model credentials are optional and not committed.
+- Syntax and offline integration tests in scripts/verify.sh (Node.js 20+).
+- GitHub Actions checks run on this development branch without pulling the full upstream submodules.
+
+Use Skuul as the first integration candidate and GegoK12 as a separate comparison baseline. Actual source folders are retrieved with git submodule update --init; no production rollout or modification of Edutu main has occurred.

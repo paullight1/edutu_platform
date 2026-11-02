@@ -3,7 +3,7 @@
 window.SCHOOL_SUITE_TENANTS = Object.freeze({
   evolve: {
     id: "evolve", brand: "EVOLVE", school: "Evolve Academy", monogram: "EA",
-    location: "Lagos, Nigeria", academicYear: "2026/2027",
+    location: "Lagos, Nigeria", currency: "NGN", academicYear: "2026/2027",
     accent: "#e67436", accentSoft: "#fff1e8",
     statistics: { students: 684, teachers: 38, present: 93, collected: 82, outstanding: 14, applications: 27 },
     students: [
@@ -19,7 +19,7 @@ window.SCHOOL_SUITE_TENANTS = Object.freeze({
   },
   summit: {
     id: "summit", brand: "SUMMIT", school: "Summit College", monogram: "SC",
-    location: "Abuja, Nigeria", academicYear: "2026/2027",
+    location: "Abuja, Nigeria", currency: "NGN", academicYear: "2026/2027",
     accent: "#267b65", accentSoft: "#e6f5f0",
     statistics: { students: 420, teachers: 26, present: 97, collected: 91, outstanding: 8, applications: 19 },
     students: [
@@ -33,7 +33,7 @@ window.SCHOOL_SUITE_TENANTS = Object.freeze({
   },
   horizon: {
     id: "horizon", brand: "HORIZON", school: "Horizon Learning Centre", monogram: "HL",
-    location: "Accra, Ghana", academicYear: "2026/2027",
+    location: "Accra, Ghana", currency: "GHS", academicYear: "2026/2027",
     accent: "#6350bd", accentSoft: "#f0edff",
     statistics: { students: 312, teachers: 19, present: 95, collected: 86, outstanding: 11, applications: 12 },
     students: [

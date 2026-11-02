@@ -15,7 +15,7 @@
   const escape = (v) => String(v).replace(/[&<>"']/g, (c) => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
   })[c]);
-  const formatMoney = (value) => new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN", maximumFractionDigits: 0 }).format(value);
+  const formatMoney = (value) => new Intl.NumberFormat(tenant().currency === "GHS" ? "en-GH" : "en-NG", { style: "currency", currency: tenant().currency || "NGN", maximumFractionDigits: 0 }).format(value);
   const icon = (name) => ({
     Overview: "▦", Students: "♙", Admissions: "⊕", Attendance: "✓",
     Academics: "▤", Fees: "₦", Staff: "♧", Reports: "▥", Settings: "⚙"
@@ -54,14 +54,14 @@
     return '<div class="section-heading"><div><h2>' + escape(title) + '</h2><p>' + escape(caption) + '</p></div></div>';
   }
   function paymentRows() {
-    return tenant().payments.map((item) =>
+    return (state.role === "parent" ? tenant().payments.slice(0, 1) : tenant().payments).map((item) =>
       '<tr><td><strong>' + escape(item.name) + '</strong><small>' + escape(item.ref) +
       '</small></td><td>' + escape(formatMoney(item.amount)) + '</td><td><span class="pill ' +
       (item.status === "Paid" ? "success" : "pending") + '">' + escape(item.status) + '</span></td></tr>'
     ).join("");
   }
   function studentRows() {
-    const matches = tenant().students.filter((s) =>
+    const matches = (state.role === "teacher" ? tenant().students.slice(0, 2) : tenant().students).filter((s) =>
       [s.name, s.id, s.class].some((field) => field.toLowerCase().includes(state.query.toLowerCase()))
     );
     return matches.length ? matches.map((s) =>
@@ -144,7 +144,7 @@
       studentRows() + '</tbody></table></div></section>';
   }
   function fees() {
-    const sum = tenant().payments.reduce((acc, p) => acc + p.amount, 0);
+    const sum = (state.role === "parent" ? tenant().payments.slice(0, 1) : tenant().payments).reduce((acc, p) => acc + p.amount, 0);
     return '<div class="stat-grid compact-stats">' + statCard("Sample invoice value", formatMoney(sum), "Not a real balance", "₦") +
       statCard("Payment entries", tenant().payments.length, "Illustrative records", "▤") +
       statCard("Collections", tenant().statistics.collected + "%", "Example term rate", "↗") + '</div>' +
