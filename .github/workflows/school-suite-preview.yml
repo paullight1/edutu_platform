@@ -1,0 +1,31 @@
+name: SchoolSuite - offline prototype checks
+on:
+  pull_request:
+    paths:
+      - "incubator/school-suite/**"
+      - ".gitmodules"
+      - ".github/workflows/school-suite-preview.yml"
+  push:
+    branches:
+      - "feat/evolve-schools-white-label-20261102"
+    paths:
+      - "incubator/school-suite/**"
+      - ".gitmodules"
+      - ".github/workflows/school-suite-preview.yml"
+permissions:
+  contents: read
+jobs:
+  offline-checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout without fetching upstream submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Run SchoolSuite checks
+        run: bash incubator/school-suite/scripts/verify.sh
