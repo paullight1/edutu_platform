@@ -7,4 +7,5 @@ node --check "$ROOT/portal/app.js"
 node --check "$ROOT/services/ai-gateway/server.mjs"
 node --check "$ROOT/services/ai-gateway/server.test.mjs"
 node --test "$ROOT/portal/preview.test.mjs" "$ROOT/services/ai-gateway/server.test.mjs"
+python3 -m unittest discover -s "$ROOT/scripts" -p "test_*.py" -v
 echo "SchoolSuite offline checks passed"
