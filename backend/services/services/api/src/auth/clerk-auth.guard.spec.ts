@@ -113,6 +113,23 @@ describe("ClerkAuthGuard", () => {
     });
   });
 
+  it("does not mistake a profile database failure for an invalid verified token", async () => {
+    mockedVerifyToken.mockResolvedValue({ sub: "user_clerk_123" } as any);
+    const { guard } = createGuard();
+    jest
+      .spyOn(guard as any, "findProfile")
+      .mockRejectedValue(new Error("missing schema helper"));
+    jest.spyOn(guard as any, "findProfileWithSupabase").mockResolvedValue(null);
+    const { context, request } = createContext({
+      authorization: "Bearer clerk-token",
+    });
+    await expect(guard.canActivate(context)).resolves.toBe(true);
+    expect(request.user).toMatchObject({
+      authId: "user_clerk_123",
+      role: "user",
+    });
+  });
+
   it("populates canonical identity from a verified Clerk bearer token", async () => {
     mockedVerifyToken.mockResolvedValue({
       sub: "user_clerk_123",

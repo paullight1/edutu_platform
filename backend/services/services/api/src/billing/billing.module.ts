@@ -1,3 +1,5 @@
+import { MobileWalletController } from "./mobile-wallet.controller";
+import { MobileWalletService } from "./mobile-wallet.service";
 import { BillingPayShellController } from "./billing-pay-shell.controller";
 import { BillingPayShellService } from "./billing-pay-shell.service";
 import {
@@ -77,8 +79,13 @@ import {
 
 @Module({
   imports: [SettingsModule],
-  controllers: [BillingController, BillingPayShellController],
+  controllers: [
+    BillingController,
+    BillingPayShellController,
+    MobileWalletController,
+  ],
   providers: [
+    MobileWalletService,
     BillingService,
     BillingReconciliationScheduler,
     BachsReconciliationAdapter,

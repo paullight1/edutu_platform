@@ -174,7 +174,7 @@ export class ClerkAuthGuard implements CanActivate {
       // Profiles are keyed by the raw auth subject (canonical). Resolve the row
       // via the dual-key matcher so a legacy derived-uuid row still hydrates
       // role/email while the merge migration catches up.
-      const profile = await this.findProfile(dbUserId);
+      const profile = await this.safeFindProfile(dbUserId);
       const clerkUser = profile
         ? null
         : await this.safeGetClerkUser(payload.sub);
