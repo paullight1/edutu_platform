@@ -39,6 +39,11 @@ export interface BillingStatus {
   planTier: SubscriptionTier;
   proSince: string | null;
   proExpiresAt: string | null;
+  /** Active canonical grants, shared by web and native purchase confirmation. */
+  paidEntitlements: Array<{
+    tier: Exclude<SubscriptionTier, "none">;
+    expiresAt: string | null;
+  }>;
   credits: number;
   subscriptionStatus: string | null;
   entitlements: string[];

@@ -334,7 +334,20 @@ export class BillingService {
               and grant_row.revoked_at is null
               and grant_row.valid_from <= now()
               and (grant_row.valid_until is null or grant_row.valid_until > now())
-          ), '[]'::jsonb) as active_grants
+          ), '[]'::jsonb) as active_grants,
+          coalesce((
+            select jsonb_agg(jsonb_build_object('tier', paid.feature_key, 'expiresAt', paid.expires_at))
+            from (
+              select feature_key,
+                case when bool_or(valid_until is null) then null else max(valid_until) end as expires_at
+              from public.billing_entitlement_grants
+              where user_id = ${userId} and environment = 'live'
+                and feature_key in ('lite', 'pro', 'scholar')
+                and status = 'active' and revoked_at is null
+                and valid_from <= now() and (valid_until is null or valid_until > now())
+              group by feature_key
+            ) paid
+          ), '[]'::jsonb) as paid_entitlements
       `);
       canonicalRow =
         ((result as { rows?: Array<Record<string, unknown>> }).rows ?? [])[0] ??
@@ -371,6 +384,15 @@ export class BillingService {
     }
 
     const isPro = planTier !== "none";
+    const paidEntitlements = jsonArray(
+      canonicalRow?.paid_entitlements,
+    ) as Array<{
+      tier: "lite" | "pro" | "scholar";
+      expiresAt: string | null;
+    }>;
+    const planEntitlement = paidEntitlements.find(
+      (grant) => grant.tier === planTier,
+    );
 
     const entitlements = new Set(canonicalGrants);
     if (planTier === "scholar") {
@@ -393,7 +415,12 @@ export class BillingService {
       isPro,
       planTier,
       proSince: profile?.pro_since ?? null,
-      proExpiresAt: hasCanonicalData ? nativeSubscription.accessUntil : null,
+      proExpiresAt: planEntitlement
+        ? planEntitlement.expiresAt
+        : hasCanonicalData
+          ? nativeSubscription.accessUntil
+          : null,
+      paidEntitlements,
       credits: Number(canonicalRow?.credits ?? profile?.credits ?? 0),
       subscriptionStatus:
         nativeSubscription.state !== "none"

@@ -90,6 +90,8 @@ export default function PlanPicker({
   docked?: boolean;
 }) {
   const { isLoaded, isSignedIn, userId, getToken } = useAuth();
+  const tokenGetter = useRef(getToken);
+  useEffect(() => { tokenGetter.current = getToken; }, [getToken]);
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -110,7 +112,7 @@ export default function PlanPicker({
       setError(null);
       setShowWalletLink(false);
       try {
-        const token = await getToken();
+        const token = await tokenGetter.current();
         if (!token) throw new Error("Sign in to view available plans.");
         const result = await productApiRequest<Catalog>(
           "/billing/user-catalog",
@@ -126,7 +128,7 @@ export default function PlanPicker({
         if (!signal.aborted) setLoading(false);
       }
     },
-    [getToken],
+    [],
   );
   useEffect(() => {
     setCatalog(null);

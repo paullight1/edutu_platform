@@ -47,6 +47,7 @@ vi.mock("../../lib/proPricing", () => ({
 
 describe("PlanPicker unavailable catalog recovery", () => {
   beforeEach(() => {
+    mocks.getToken = vi.fn().mockResolvedValue("session-token");
     mocks.request.mockReset();
     mocks.checkout.mockReset();
     localStorage.clear();
@@ -54,6 +55,17 @@ describe("PlanPicker unavailable catalog recovery", () => {
   });
 
   afterEach(() => vi.unstubAllEnvs());
+
+  it("does not reload the catalogue when only Clerk's token getter changes", async () => {
+    mocks.request.mockResolvedValue({ products: [], checkoutEnabled: true });
+    const { rerender } = render(<MemoryRouter><PlanPicker /></MemoryRouter>);
+    await screen.findByText("No prices available for this plan yet");
+    const count = mocks.request.mock.calls.length;
+    mocks.getToken = vi.fn().mockResolvedValue("fresh-token");
+    rerender(<MemoryRouter><PlanPicker /></MemoryRouter>);
+    await screen.findByText("No prices available for this plan yet");
+    expect(mocks.request).toHaveBeenCalledTimes(count);
+  });
 
   it("never relabels legacy admin pricing as a checkout offer when the catalog is empty", async () => {
     mocks.pricing = {

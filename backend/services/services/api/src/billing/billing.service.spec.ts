@@ -540,6 +540,28 @@ describe("BillingService", () => {
     expect(fulfill).not.toHaveBeenCalled();
   });
 
+  it("returns canonical web grant expiry for cross-platform purchase confirmation", async () => {
+    const expiresAt = "2027-08-30T10:00:00.000Z";
+    jest.spyOn(db, "execute").mockResolvedValue({
+      rows: [
+        {
+          has_canonical_data: true,
+          active_grants: ["pro"],
+          native_subscriptions: [],
+          paid_entitlements: [{ tier: "pro", expiresAt }],
+        },
+      ],
+    } as never);
+    const service = new BillingService(settingsStub);
+    (service as any).supabase = createSupabaseMock();
+    const status = await service.getStatus("user-1");
+    expect(status).toMatchObject({
+      planTier: "pro",
+      proExpiresAt: expiresAt,
+      paidEntitlements: [{ tier: "pro", expiresAt }],
+    });
+  });
+
   it("keeps profile-only Pro access inactive while still returning billing history", async () => {
     jest.spyOn(db, "execute").mockResolvedValue({ rows: [] } as never);
     const service = new BillingService(settingsStub);
