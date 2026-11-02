@@ -1,0 +1,13 @@
+{
+  "name": "school-suite-ai-gateway",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Server-only AI lesson drafts for teachers, without pupil data",
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node --test server.test.mjs",
+    "check": "node --check server.mjs && node --check server.test.mjs"
+  }
+}
