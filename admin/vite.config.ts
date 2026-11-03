@@ -8,14 +8,17 @@ export default defineConfig(({ mode }) => {
   resolveAdminRuntimeConfig(env, runtimeMode);
 
   const DEV_PROXY_TARGET =
-    env.VITE_BACKEND_URL ||
-    env.VITE_API_URL ||
-    "https://backend.edutu.org";
+    env.VITE_BACKEND_URL || env.VITE_API_URL || "https://backend.edutu.org";
 
   return {
     plugins: [react()],
     server: {
       proxy: {
+        "/__api": {
+          target: DEV_PROXY_TARGET,
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/__api/, ""),
+        },
         "/api": {
           target: DEV_PROXY_TARGET,
           changeOrigin: true,

@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { registerReleaseDraftSaver } from '../lib/releaseSafety';
-import { useAuth as useClerkAuth } from '@clerk/clerk-react';
-import { useNavigate } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { registerReleaseDraftSaver } from "../lib/releaseSafety";
+import { useAuth as useClerkAuth } from "@clerk/clerk-react";
+import { useNavigate } from "react-router-dom";
 import {
   ArrowRight,
   Calendar,
@@ -16,57 +16,71 @@ import {
   Trash2,
   Trophy,
   X,
-} from 'lucide-react';
-import { useAuth as useAppAuth } from '../hooks/useAuth';
-import { usePersonalization } from '../hooks/usePersonalization';
-import { InlineError, StateView, showsContent, useScreenState } from './state';
-import PullToRefresh from './ui/PullToRefresh';
-import CelebrationBurst from './ui/CelebrationBurst';
-import { useToast } from './ui/ToastProvider';
-import { MatchScoreBadge, TopMatchReason } from './opportunity/MatchInsights';
-import { getDeadlineBadge, urgencyTextClasses } from '../services/deadlineUrgency';
-import { fetchOpportunities, isOpportunityExpired } from '../services/opportunities';
-import { getBookmarks } from '../services/bookmarks';
-import type { MatchResult } from '../services/personalizedRecommendations';
-import type { Opportunity } from '../types/opportunity';
+} from "lucide-react";
+import { useAuth as useAppAuth } from "../hooks/useAuth";
+import { usePersonalization } from "../hooks/usePersonalization";
+import { InlineError, StateView, showsContent, useScreenState } from "./state";
+import PullToRefresh from "./ui/PullToRefresh";
+import CelebrationBurst from "./ui/CelebrationBurst";
+import { useToast } from "./ui/ToastProvider";
+import { MatchScoreBadge, TopMatchReason } from "./opportunity/MatchInsights";
+import {
+  getDeadlineBadge,
+  urgencyTextClasses,
+} from "../services/deadlineUrgency";
+import {
+  fetchOpportunities,
+  isOpportunityExpired,
+} from "../services/opportunities";
+import { getBookmarks } from "../services/bookmarks";
+import type { MatchResult } from "../services/personalizedRecommendations";
+import type { Opportunity } from "../types/opportunity";
 import {
   APPLICATION_PIPELINE,
   addApplicationReflection,
   fetchAnswerBankCount,
   getApplicationHistory,
-  getApplications,
+  getApplicationPage,
+  getApplicationOpportunityIds,
   removeApplication,
   updateApplicationStatus,
   type ApplicationRecord,
   type ApplicationStatus,
-} from '../services/applications';
-import { latestApplicationReflection } from '../services/applicationReflectionState';
-import WebPushPrompt from './WebPushPrompt';
+  type ApplicationPage,
+} from "../services/applications";
+import { latestApplicationReflection } from "../services/applicationReflectionState";
+import WebPushPrompt from "./WebPushPrompt";
+import { ProductApiError } from "../services/productApi";
+import { useOnlineStatus } from "../hooks/useNetworkStatus";
 
-type ApplicationFilter = 'all' | ApplicationStatus;
+type ApplicationFilter = "all" | ApplicationStatus;
 
 const STATUS_LABELS: Record<ApplicationStatus, string> = {
-  draft: 'Draft',
-  submitted: 'Submitted',
-  interview: 'Interview',
-  offer: 'Offer',
-  rejected: 'Rejected',
-  withdrawn: 'Withdrawn',
-  no_response: 'No response',
+  draft: "Draft",
+  submitted: "Submitted",
+  interview: "Interview",
+  offer: "Offer",
+  rejected: "Rejected",
+  withdrawn: "Withdrawn",
+  no_response: "No response",
 };
 
 const STATUS_OPTIONS: ApplicationStatus[] = [
-  'draft',
-  'submitted',
-  'interview',
-  'offer',
-  'rejected',
-  'withdrawn',
-  'no_response',
+  "draft",
+  "submitted",
+  "interview",
+  "offer",
+  "rejected",
+  "withdrawn",
+  "no_response",
 ];
 
 /** Terminal statuses — closed out, never part of the active pipeline. */
-const TERMINAL_STATUSES: ApplicationStatus[] = ['rejected', 'withdrawn', 'no_response'];
+const TERMINAL_STATUSES: ApplicationStatus[] = [
+  "rejected",
+  "withdrawn",
+  "no_response",
+];
 
 function isTerminalStatus(status: ApplicationStatus): boolean {
   return TERMINAL_STATUSES.includes(status);
@@ -76,18 +90,22 @@ function isTerminalStatus(status: ApplicationStatus): boolean {
  * Per-stage celebration copy for forward moves through the pipeline.
  * Draft has no entry — creating a draft isn't a milestone yet.
  */
-const CELEBRATION_COPY: Partial<Record<ApplicationStatus, { title: string; description: string }>> = {
+const CELEBRATION_COPY: Partial<
+  Record<ApplicationStatus, { title: string; description: string }>
+> = {
   submitted: {
-    title: 'Submitted. The hardest part is behind you.',
-    description: 'Most people never press send — you just did.',
+    title: "Submitted. The hardest part is behind you.",
+    description: "Most people never press send — you just did.",
   },
   interview: {
-    title: 'Interview! They noticed you.',
-    description: 'Your application stood out. Time to prepare for the conversation.',
+    title: "Interview! They noticed you.",
+    description:
+      "Your application stood out. Time to prepare for the conversation.",
   },
   offer: {
-    title: 'An offer. Huge congratulations!',
-    description: 'You put in the work and it paid off — take a moment to enjoy this.',
+    title: "An offer. Huge congratulations!",
+    description:
+      "You put in the work and it paid off — take a moment to enjoy this.",
   },
 };
 
@@ -96,7 +114,10 @@ const CELEBRATION_COPY: Partial<Record<ApplicationStatus, { title: string; descr
  * no_response is reframed as closure the user owns — never a celebration,
  * never the user's fault.
  */
-const CLOSURE_COPY: Record<'rejected' | 'no_response', { title: string; body: string }> = {
+const CLOSURE_COPY: Record<
+  "rejected" | "no_response",
+  { title: string; body: string }
+> = {
   rejected: {
     title: "This one said no. That's data, not a verdict.",
     body: "Every application sharpens the next one. If you want, note what you'd try differently — future you will thank you.",
@@ -120,33 +141,33 @@ function nextStage(status: ApplicationStatus): ApplicationStatus | null {
 }
 
 function formatDate(value?: string | null) {
-  if (!value) return 'No date';
+  if (!value) return "No date";
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return 'No date';
+  if (Number.isNaN(date.getTime())) return "No date";
   return date.toLocaleDateString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
+    month: "short",
+    day: "numeric",
+    year: "numeric",
   });
 }
 
 function statusTone(status: ApplicationStatus) {
   switch (status) {
-    case 'offer':
-      return 'bg-success/10 text-success';
-    case 'rejected':
-      return 'bg-danger/10 text-danger';
-    case 'withdrawn':
-      return 'bg-danger/10 text-danger';
-    case 'no_response':
+    case "offer":
+      return "bg-success/10 text-success";
+    case "rejected":
+      return "bg-danger/10 text-danger";
+    case "withdrawn":
+      return "bg-danger/10 text-danger";
+    case "no_response":
       // Neutral, not red — the silence is on them, not a failure on the user.
-      return 'bg-surface-elevated text-text-muted';
-    case 'interview':
-      return 'bg-warning/10 text-warning';
-    case 'submitted':
-      return 'bg-brand/10 text-brand';
+      return "bg-surface-elevated text-text-muted";
+    case "interview":
+      return "bg-warning/10 text-warning";
+    case "submitted":
+      return "bg-brand/10 text-brand";
     default:
-      return 'bg-surface-elevated text-text-muted';
+      return "bg-surface-elevated text-text-muted";
   }
 }
 
@@ -165,13 +186,13 @@ function PipelineStepper({ status }: { status: ApplicationStatus }) {
             <span
               className={`h-1.5 flex-1 rounded-full transition-colors ${
                 reached
-                  ? status === 'offer'
-                    ? 'bg-success'
-                    : 'bg-brand'
+                  ? status === "offer"
+                    ? "bg-success"
+                    : "bg-brand"
                   : terminalRejected && index === 0
-                    ? 'bg-danger/40'
-                    : 'bg-surface-elevated'
-              } ${isCurrent ? 'ring-2 ring-brand/20' : ''}`}
+                    ? "bg-danger/40"
+                    : "bg-surface-elevated"
+              } ${isCurrent ? "ring-2 ring-brand/20" : ""}`}
             />
           </div>
         );
@@ -183,14 +204,26 @@ function PipelineStepper({ status }: { status: ApplicationStatus }) {
 export default function ApplicationsPage() {
   const navigate = useNavigate();
   const { getToken } = useClerkAuth();
+  const tokenGetter = useRef(getToken);
+  tokenGetter.current = getToken;
   const { user } = useAppAuth();
   const [applications, setApplications] = useState<ApplicationRecord[]>([]);
+  const [pageSummary, setPageSummary] = useState<ApplicationPage | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [loading, setLoading] = useState(true);
+  const loadController = useRef<AbortController | null>(null);
+  const online = useOnlineStatus();
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const mutationInFlight = useRef(false);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
-  const [filter, setFilter] = useState<ApplicationFilter>('all');
+  const [filter, setFilter] = useState<ApplicationFilter>("all");
   const [isFilterOpen, setIsFilterOpen] = useState(false);
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  useEffect(() => {
+    const timer = window.setTimeout(() => setSearchQuery(query.trim()), 250);
+    return () => window.clearTimeout(timer);
+  }, [query]);
   const [error, setError] = useState<string | null>(null);
   // The raw LOAD failure only. Update and delete failures stay message-only:
   // they are operation failures, not screen states, and become InlineError.
@@ -202,8 +235,15 @@ export default function ApplicationsPage() {
   // reflections, and the recomputed "next best shot" suggestion.
   const [rejectionPanelId, setRejectionPanelId] = useState<string | null>(null);
   const [reflections, setReflections] = useState<Record<string, string>>({});
-  const [persistedReflections, setPersistedReflections] = useState<Record<string, string>>({});
-  const [reflectionSavingId, setReflectionSavingId] = useState<string | null>(null);
+  const [persistedReflections, setPersistedReflections] = useState<
+    Record<string, string>
+  >({});
+  const [reflectionSavingId, setReflectionSavingId] = useState<string | null>(
+    null,
+  );
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [historyAttempt, setHistoryAttempt] = useState(0);
   const [nextBestShot, setNextBestShot] = useState<{
     opportunity: Opportunity;
     match: MatchResult;
@@ -226,17 +266,30 @@ export default function ApplicationsPage() {
     setNextBestShot(null);
     try {
       const token = await getToken().catch(() => null);
-      const [all, saved] = await Promise.all([
+      const [all, saved, trackedIds] = await Promise.all([
         fetchOpportunities(),
-        user?.id ? getBookmarks(user.id, token).catch(() => []) : Promise.resolve([]),
+        user?.id
+          ? getBookmarks(user.id, token).catch(() => [])
+          : Promise.resolve([]),
+        user?.id && token
+          ? getApplicationOpportunityIds(token)
+          : Promise.resolve([]),
       ]);
       const excluded = new Set<string>();
-      for (const application of applications) excluded.add(application.opportunity_id);
+      for (const id of trackedIds) excluded.add(id);
+      for (const application of applications)
+        excluded.add(application.opportunity_id);
       for (const bookmark of saved) excluded.add(bookmark.opportunity_id);
 
       const best = all
-        .filter((opportunity) => !excluded.has(opportunity.id) && !isOpportunityExpired(opportunity))
-        .map((opportunity) => ({ opportunity, match: explainOpportunity(opportunity) }))
+        .filter(
+          (opportunity) =>
+            !excluded.has(opportunity.id) && !isOpportunityExpired(opportunity),
+        )
+        .map((opportunity) => ({
+          opportunity,
+          match: explainOpportunity(opportunity),
+        }))
         .sort((a, b) => b.match.score - a.match.score)[0];
       setNextBestShot(best ?? null);
     } catch {
@@ -247,63 +300,161 @@ export default function ApplicationsPage() {
   }, [applications, explainOpportunity, getToken, user?.id]);
 
   const resolveToken = useCallback(async () => {
-    const token = await getToken().catch(() => null);
-    if (!token) throw new Error('Your session has expired. Sign in again to manage applications.');
+    const token = await tokenGetter.current().catch(() => null);
+    if (!token)
+      throw new ProductApiError(
+        "Your session has expired. Sign in again to manage applications.",
+        401,
+      );
     return token;
-  }, [getToken]);
+  }, []);
 
   const loadApplications = useCallback(async () => {
-    if (!user?.id) return;
+    if (mutationInFlight.current) return;
+    loadController.current?.abort();
+    if (!user?.id) {
+      setApplications([]);
+      setLoading(false);
+      return;
+    }
+    const controller = new AbortController();
+    loadController.current = controller;
     setLoading(true);
     setError(null);
     setLoadError(null);
     try {
       const token = await resolveToken();
-      const loaded = await getApplications(user.id, token);
-      setApplications(loaded);
-
-      // Reflections live in the server-owned application ledger. Hydrate the
-      // latest one for closure cards so switching browsers/devices never loses
-      // the learner's post-application notes. A single history read failing is
-      // non-fatal to the application list.
-      const closureApplications = loaded.filter(
-        (item) => item.status === 'rejected' || item.status === 'no_response',
-      );
-      const historyResults = await Promise.allSettled(
-        closureApplications.map(async (application) => ({
-          id: application.id,
-          history: await getApplicationHistory(application.id, token),
-        })),
-      );
-      const durable: Record<string, string> = {};
-      for (const result of historyResults) {
-        if (result.status !== 'fulfilled') continue;
-        const reflection = latestApplicationReflection(result.value.history);
-        if (reflection) durable[result.value.id] = reflection;
-      }
-      setReflections(durable);
-      setPersistedReflections(durable);
+      const page = await getApplicationPage(user.id, token, {
+        signal: controller.signal,
+        q: searchQuery,
+        status: filter === "all" ? undefined : filter,
+      });
+      if (controller.signal.aborted) return;
+      setApplications(page.items);
+      setPageSummary(page);
     } catch (caught) {
+      if (controller.signal.aborted) return;
       setLoadError(caught);
-      setError(caught instanceof Error ? caught.message : 'Unable to load applications.');
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "Unable to load applications.",
+      );
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) setLoading(false);
     }
-  }, [resolveToken, user?.id]);
+  }, [resolveToken, user?.id, searchQuery, filter]);
+
+  const loadMore = async () => {
+    if (
+      !user?.id ||
+      !pageSummary?.nextCursor ||
+      loading ||
+      loadingMore ||
+      mutationInFlight.current
+    )
+      return;
+    const controller = new AbortController();
+    loadController.current?.abort();
+    loadController.current = controller;
+    setLoadingMore(true);
+    setError(null);
+    try {
+      const token = await resolveToken();
+      const page = await getApplicationPage(user.id, token, {
+        cursor: pageSummary.nextCursor,
+        signal: controller.signal,
+        q: searchQuery,
+        status: filter === "all" ? undefined : filter,
+      });
+      if (controller.signal.aborted) return;
+      setApplications((current) => [
+        ...current,
+        ...page.items.filter(
+          (row) => !current.some((item) => item.id === row.id),
+        ),
+      ]);
+      setPageSummary(page);
+    } catch (caught) {
+      if (!controller.signal.aborted)
+        setError(
+          caught instanceof Error
+            ? caught.message
+            : "Could not load more applications. Try again.",
+        );
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   useEffect(() => {
     void loadApplications();
+    return () => loadController.current?.abort();
   }, [loadApplications]);
+
+  useEffect(() => {
+    const refresh = () => {
+      void loadApplications();
+    };
+    window.addEventListener("online", refresh);
+    window.addEventListener("edutu:applications-changed", refresh);
+    return () => {
+      window.removeEventListener("online", refresh);
+      window.removeEventListener("edutu:applications-changed", refresh);
+    };
+  }, [loadApplications]);
+
+  // Optional history is read only for the card the learner expands. A large
+  // archive no longer starts N requests or blocks the first usable render.
+  useEffect(() => {
+    if (!rejectionPanelId) return;
+    let cancelled = false;
+    setHistoryLoading(true);
+    setHistoryError(null);
+    void (async () => {
+      try {
+        const token = await resolveToken();
+        const history = await getApplicationHistory(rejectionPanelId, token);
+        const value = latestApplicationReflection(history);
+        if (!cancelled && value) {
+          setPersistedReflections((current) => ({
+            ...current,
+            [rejectionPanelId]: value,
+          }));
+          setReflections((current) =>
+            Object.prototype.hasOwnProperty.call(current, rejectionPanelId)
+              ? current
+              : { ...current, [rejectionPanelId]: value },
+          );
+        }
+      } catch (caught) {
+        if (!cancelled)
+          setHistoryError(
+            caught instanceof Error
+              ? caught.message
+              : "Could not load your saved reflection.",
+          );
+      } finally {
+        if (!cancelled) setHistoryLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [rejectionPanelId, resolveToken, historyAttempt]);
 
   const persistReflection = useCallback(
     async (applicationId: string) => {
-      const draft = (reflections[applicationId] ?? '').trim();
-      const persisted = persistedReflections[applicationId] ?? '';
+      const draft = (reflections[applicationId] ?? "").trim();
+      const persisted = persistedReflections[applicationId] ?? "";
       if (!draft) {
         // The ledger is append-only by design. Do not silently erase a durable
         // reflection just because a textarea was temporarily cleared.
         if (persisted) {
-          setReflections((current) => ({ ...current, [applicationId]: persisted }));
+          setReflections((current) => ({
+            ...current,
+            [applicationId]: persisted,
+          }));
         }
         return;
       }
@@ -313,15 +464,20 @@ export default function ApplicationsPage() {
       try {
         const token = await resolveToken();
         await addApplicationReflection(applicationId, draft, token);
-        setPersistedReflections((current) => ({ ...current, [applicationId]: draft }));
-        setReflections((current) => (current[applicationId] ?? '').trim() === draft
-          ? { ...current, [applicationId]: draft }
-          : current);
+        setPersistedReflections((current) => ({
+          ...current,
+          [applicationId]: draft,
+        }));
+        setReflections((current) =>
+          (current[applicationId] ?? "").trim() === draft
+            ? { ...current, [applicationId]: draft }
+            : current,
+        );
       } catch (saveError) {
         setError(
           saveError instanceof Error
             ? saveError.message
-            : 'Unable to save your reflection across devices.',
+            : "Unable to save your reflection across devices.",
         );
       } finally {
         setReflectionSavingId(null);
@@ -330,17 +486,25 @@ export default function ApplicationsPage() {
     [persistedReflections, reflections, resolveToken],
   );
 
-  useEffect(() => registerReleaseDraftSaver(async () => {
-    const pending = Object.entries(reflections).filter(([id, value]) =>
-      value.trim() && value.trim() !== (persistedReflections[id] ?? ''),
-    );
-    if (!pending.length) return;
-    const token = await resolveToken();
-    for (const [id, value] of pending) {
-      await addApplicationReflection(id, value.trim(), token);
-      setPersistedReflections(current => ({ ...current, [id]: value.trim() }));
-    }
-  }), [reflections, persistedReflections, resolveToken]);
+  useEffect(
+    () =>
+      registerReleaseDraftSaver(async () => {
+        const pending = Object.entries(reflections).filter(
+          ([id, value]) =>
+            value.trim() && value.trim() !== (persistedReflections[id] ?? ""),
+        );
+        if (!pending.length) return;
+        const token = await resolveToken();
+        for (const [id, value] of pending) {
+          await addApplicationReflection(id, value.trim(), token);
+          setPersistedReflections((current) => ({
+            ...current,
+            [id]: value.trim(),
+          }));
+        }
+      }),
+    [reflections, persistedReflections, resolveToken],
+  );
 
   // Lazily count the answer bank only once a closure panel actually opens —
   // never on page load. Failures resolve to 0 and simply hide the line.
@@ -360,44 +524,79 @@ export default function ApplicationsPage() {
   const visibleApplications = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
     return applications.filter((application) => {
-      if (filter !== 'all' && application.status !== filter) return false;
+      if (filter !== "all" && application.status !== filter) return false;
       if (!normalizedQuery) return true;
       return [
         application.opportunity_title,
         application.opportunity_category,
-        application.notes ?? '',
+        application.notes ?? "",
       ].some((value) => value.toLowerCase().includes(normalizedQuery));
     });
   }, [applications, filter, query]);
 
-  const filtersActive = Boolean(query.trim()) || filter !== 'all';
+  const filtersActive = Boolean(query.trim()) || filter !== "all";
   const screenState = useScreenState({
     data: visibleApplications,
     loading,
+    refreshing: loading && applications.length > 0,
     error: loadError,
+    offline: !online,
+    locked: !user?.id ? "guest" : null,
     filtersActive,
   });
 
   const stageCounts = useMemo(() => {
+    if (pageSummary)
+      return new Map(
+        Object.entries(pageSummary.counts) as [ApplicationStatus, number][],
+      );
     const counts = new Map<ApplicationStatus, number>();
     for (const application of applications) {
       counts.set(application.status, (counts.get(application.status) ?? 0) + 1);
     }
     return counts;
-  }, [applications]);
+  }, [applications, pageSummary]);
 
-  const changeStatus = async (application: ApplicationRecord, status: ApplicationStatus) => {
-    if (status === application.status) return;
+  const changeStatus = async (
+    application: ApplicationRecord,
+    status: ApplicationStatus,
+  ) => {
+    if (status === application.status || mutationInFlight.current) return;
+    mutationInFlight.current = true;
+    loadController.current?.abort();
+    setLoading(false);
     setUpdatingId(application.id);
     setError(null);
     try {
       const token = await resolveToken();
-      const updated = await updateApplicationStatus(application.id, status, token);
+      const updated = await updateApplicationStatus(
+        application.id,
+        status,
+        token,
+        application.version,
+      );
       setApplications((current) =>
-        current.map((item) => (item.id === application.id ? { ...item, ...updated } : item)),
+        current.map((item) =>
+          item.id === application.id ? { ...item, ...updated } : item,
+        ),
+      );
+      setPageSummary((current) =>
+        current
+          ? {
+              ...current,
+              counts: {
+                ...current.counts,
+                [application.status]: Math.max(
+                  0,
+                  (current.counts[application.status] ?? 0) - 1,
+                ),
+                [updated.status]: (current.counts[updated.status] ?? 0) + 1,
+              },
+            }
+          : current,
       );
 
-      if (status === 'rejected' || status === 'no_response') {
+      if (status === "rejected" || status === "no_response") {
         // Never a dead-end: open the supportive/closure panel and line up the
         // next shot. no_response is closure, not a rejection — copy differs.
         setRejectionPanelId(application.id);
@@ -405,43 +604,91 @@ export default function ApplicationsPage() {
       } else {
         if (rejectionPanelId === application.id) setRejectionPanelId(null);
         // Celebrate forward movement through the pipeline.
-        const movedForward = pipelineIndex(status) > pipelineIndex(application.status);
+        const movedForward =
+          pipelineIndex(status) > pipelineIndex(application.status);
         const copy = movedForward ? CELEBRATION_COPY[status] : undefined;
         if (copy) {
           toast.success(copy.title, copy.description);
-          if (status === 'offer') setCelebrating(true);
+          if (status === "offer") setCelebrating(true);
         }
       }
     } catch (updateError) {
-      setError(updateError instanceof Error ? updateError.message : 'Unable to update application status.');
+      setError(
+        updateError instanceof Error
+          ? updateError.message
+          : "Unable to update application status.",
+      );
+      if (
+        updateError instanceof ProductApiError &&
+        updateError.status === 409
+      ) {
+        mutationInFlight.current = false;
+        await loadApplications();
+        setError(
+          "This application changed in another session. The latest status is now shown; review it before trying again.",
+        );
+      }
     } finally {
+      mutationInFlight.current = false;
       setUpdatingId(null);
     }
   };
 
   const deleteApplication = async (application: ApplicationRecord) => {
+    if (mutationInFlight.current) return;
     if (confirmingId !== application.id) {
       setConfirmingId(application.id);
       return;
     }
 
+    mutationInFlight.current = true;
+    loadController.current?.abort();
+    setLoading(false);
     setUpdatingId(application.id);
     setError(null);
     try {
       const token = await resolveToken();
       await removeApplication(application.id, token);
-      setApplications((current) => current.filter((item) => item.id !== application.id));
+      setApplications((current) =>
+        current.filter((item) => item.id !== application.id),
+      );
+      setPageSummary((current) =>
+        current
+          ? {
+              ...current,
+              total: current.total - 1,
+              filteredTotal: Math.max(0, current.filteredTotal - 1),
+              counts: {
+                ...current.counts,
+                [application.status]: Math.max(
+                  0,
+                  (current.counts[application.status] ?? 0) - 1,
+                ),
+              },
+            }
+          : current,
+      );
       setConfirmingId(null);
     } catch (deleteError) {
-      setError(deleteError instanceof Error ? deleteError.message : 'Unable to remove application.');
+      setError(
+        deleteError instanceof Error
+          ? deleteError.message
+          : "Unable to remove application.",
+      );
     } finally {
+      mutationInFlight.current = false;
       setUpdatingId(null);
     }
   };
 
   return (
-    <div data-release-busy={Boolean(reflectionSavingId)} className="min-h-[100dvh] bg-surface-body text-text-primary">
-      {celebrating ? <CelebrationBurst onDone={() => setCelebrating(false)} /> : null}
+    <div
+      data-release-busy={Boolean(reflectionSavingId)}
+      className="min-h-[100dvh] bg-surface-body text-text-primary"
+    >
+      {celebrating ? (
+        <CelebrationBurst onDone={() => setCelebrating(false)} />
+      ) : null}
       <header className="sticky top-0 z-30 hidden border-b border-subtle bg-surface-layer/90 backdrop-blur-xl lg:block">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
           <button
@@ -458,7 +705,11 @@ export default function ApplicationsPage() {
             disabled={loading}
             className="inline-flex h-10 items-center gap-2 rounded-xl bg-brand px-3 text-sm font-bold text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {loading ? <Loader2 size={17} className="animate-spin" /> : <RefreshCcw size={17} />}
+            {loading ? (
+              <Loader2 size={17} className="animate-spin" />
+            ) : (
+              <RefreshCcw size={17} />
+            )}
             Refresh
           </button>
         </div>
@@ -469,342 +720,529 @@ export default function ApplicationsPage() {
         disabled={loading}
         className="min-h-[calc(100dvh-4rem)]"
       >
-      <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
-        {error && showsContent(screenState) ? (
-          // A status update or delete that failed while the list is on screen:
-          // recover in place rather than replacing what the user was reading.
-          <InlineError message={error} onRetry={() => void loadApplications()} />
-        ) : null}
+        <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
+          {error && showsContent(screenState) ? (
+            // A status update or delete that failed while the list is on screen:
+            // recover in place rather than replacing what the user was reading.
+            <InlineError
+              message={error}
+              onRetry={() => void loadApplications()}
+            />
+          ) : null}
 
-        {!loading && applications.length > 0 ? (
-          <section className={`${error ? 'mt-5' : ''} mb-5`}>
-            <h1 className="mb-1 font-display text-xl font-semibold tracking-tight text-text-primary">
-              Application pipeline
-            </h1>
-            <p className="mb-4 text-sm text-text-muted">
-              Track every application from draft to offer.
-            </p>
-            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-6">
-              {(['all', ...STATUS_OPTIONS] as ApplicationFilter[]).map((stage) => {
-                const count =
-                  stage === 'all'
-                    ? applications.length
-                    : stageCounts.get(stage) ?? 0;
-                const active = filter === stage;
-                return (
-                  <button
-                    key={stage}
-                    type="button"
-                    onClick={() => setFilter(active && stage !== 'all' ? 'all' : stage)}
-                    aria-pressed={active}
-                    className={`flex flex-col items-start rounded-2xl border p-3 text-left transition ${
-                      active
-                        ? 'border-brand bg-brand/5 ring-1 ring-brand/30'
-                        : 'border-subtle bg-surface-layer hover:border-strong'
-                    }`}
-                  >
-                    <span className="text-2xl font-bold leading-none tracking-tight">
-                      {count}
-                    </span>
-                    <span className="mt-1.5 text-xs font-semibold text-text-muted">
-                      {stage === 'all' ? 'Total' : STATUS_LABELS[stage]}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </section>
-        ) : null}
+          {applications.length > 0 ? (
+            <section className={`${error ? "mt-5" : ""} mb-5`}>
+              <h1 className="mb-1 font-display text-xl font-semibold tracking-tight text-text-primary">
+                Application pipeline
+              </h1>
+              <p className="mb-4 text-sm text-text-muted">
+                Track every application from draft to offer.
+              </p>
+              <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-6">
+                {(["all", ...STATUS_OPTIONS] as ApplicationFilter[]).map(
+                  (stage) => {
+                    const count =
+                      stage === "all"
+                        ? (pageSummary?.total ?? applications.length)
+                        : (stageCounts.get(stage) ?? 0);
+                    const active = filter === stage;
+                    return (
+                      <button
+                        key={stage}
+                        type="button"
+                        onClick={() =>
+                          setFilter(active && stage !== "all" ? "all" : stage)
+                        }
+                        aria-pressed={active}
+                        className={`flex flex-col items-start rounded-2xl border p-3 text-left transition ${
+                          active
+                            ? "border-brand bg-brand/5 ring-1 ring-brand/30"
+                            : "border-subtle bg-surface-layer hover:border-strong"
+                        }`}
+                      >
+                        <span className="text-2xl font-bold leading-none tracking-tight">
+                          {count}
+                        </span>
+                        <span className="mt-1.5 text-xs font-semibold text-text-muted">
+                          {stage === "all" ? "Total" : STATUS_LABELS[stage]}
+                        </span>
+                      </button>
+                    );
+                  },
+                )}
+              </div>
+            </section>
+          ) : null}
 
-        {/* Contextual opt-in: only asked once there is a live pipeline worth
+          {/* Contextual opt-in: only asked once there is a live pipeline worth
             being nudged about. Renders nothing when push is unavailable,
             blocked, already on, or previously dismissed. */}
-        {!loading && applications.length > 0 ? (
-          <WebPushPrompt
-            promptId="applications"
-            title="Get told when it's time to follow up"
-            body="Turn on browser reminders for status nudges and closing dates on the roles you're tracking."
-            className="mb-5"
-          />
-        ) : null}
+          {!loading && applications.length > 0 ? (
+            <WebPushPrompt
+              promptId="applications"
+              title="Get told when it's time to follow up"
+              body="Turn on browser reminders for status nudges and closing dates on the roles you're tracking."
+              className="mb-5"
+            />
+          ) : null}
 
-        <section className={error && (loading || applications.length === 0) ? 'mt-5' : ''}>
-          <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-            <div className="relative max-w-xl flex-1">
-              <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={17} />
-              <button
-                type="button"
-                onClick={() => setIsFilterOpen((value) => !value)}
-                className={`absolute left-9 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full transition ${
-                  filter === 'all'
-                    ? 'text-text-muted hover:bg-surface-elevated hover:text-text-secondary'
-                    : 'bg-brand/10 text-brand'
-                }`}
-                aria-label="Filter applications"
-                aria-expanded={isFilterOpen}
+          <section
+            className={
+              error && (loading || applications.length === 0) ? "mt-5" : ""
+            }
+          >
+            <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+              <div className="relative max-w-xl flex-1">
+                <Search
+                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted"
+                  size={17}
+                />
+                <button
+                  type="button"
+                  onClick={() => setIsFilterOpen((value) => !value)}
+                  className={`absolute left-9 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full transition ${
+                    filter === "all"
+                      ? "text-text-muted hover:bg-surface-elevated hover:text-text-secondary"
+                      : "bg-brand/10 text-brand"
+                  }`}
+                  aria-label="Filter applications"
+                  aria-expanded={isFilterOpen}
+                >
+                  <Filter size={15} />
+                </button>
+                <input
+                  aria-label="Search applications"
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Search applications"
+                  className="h-11 w-full rounded-xl border border-subtle bg-surface-layer pl-20 pr-3 text-sm font-semibold text-text-secondary outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20"
+                />
+                {isFilterOpen ? (
+                  <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-20 overflow-hidden rounded-2xl border border-subtle bg-surface-layer p-1.5 shadow-elevated">
+                    {(["all", ...STATUS_OPTIONS] as ApplicationFilter[]).map(
+                      (item) => (
+                        <button
+                          key={item}
+                          type="button"
+                          onClick={() => {
+                            setFilter(item);
+                            setIsFilterOpen(false);
+                          }}
+                          className={`flex h-10 w-full items-center justify-between rounded-xl px-3 text-left text-sm font-semibold transition ${
+                            filter === item
+                              ? "bg-brand text-white"
+                              : "text-text-secondary hover:bg-surface-elevated"
+                          }`}
+                        >
+                          <span>
+                            {item === "all"
+                              ? "All statuses"
+                              : STATUS_LABELS[item]}
+                          </span>
+                          {filter === item ? <CheckCircle2 size={15} /> : null}
+                        </button>
+                      ),
+                    )}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+
+            {loading && applications.length === 0 ? (
+              <div
+                className="mt-5 space-y-3"
+                role="status"
+                aria-label="Loading applications"
+                aria-busy="true"
               >
-                <Filter size={15} />
-              </button>
-              <input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search applications"
-                className="h-11 w-full rounded-xl border border-subtle bg-surface-layer pl-20 pr-3 text-sm font-semibold text-text-secondary outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20"
-              />
-              {isFilterOpen ? (
-                <div
-                  className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-20 overflow-hidden rounded-2xl border border-subtle bg-surface-layer p-1.5 shadow-elevated"
-                >
-                  {(['all', ...STATUS_OPTIONS] as ApplicationFilter[]).map((item) => (
-                    <button
-                      key={item}
-                      type="button"
-                      onClick={() => {
-                        setFilter(item);
-                        setIsFilterOpen(false);
-                      }}
-                      className={`flex h-10 w-full items-center justify-between rounded-xl px-3 text-left text-sm font-semibold transition ${
-                        filter === item
-                          ? 'bg-brand text-white'
-                          : 'text-text-secondary hover:bg-surface-elevated'
-                      }`}
-                    >
-                      <span>{item === 'all' ? 'All statuses' : STATUS_LABELS[item]}</span>
-                      {filter === item ? <CheckCircle2 size={15} /> : null}
-                    </button>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-          </div>
-
-          {loading ? (
-            <div className="mt-5 space-y-3">
-              {Array.from({ length: 5 }).map((_, index) => (
-                <div key={index} className="h-28 animate-pulse rounded-[20px] border border-subtle bg-surface-layer" />
-              ))}
-            </div>
-          ) : !showsContent(screenState) ? (
-            <div className="mt-5 rounded-[20px] border border-subtle bg-surface-layer">
-              <StateView
-                state={screenState}
-                flow="applied"
-                onRetry={() => void loadApplications()}
-                onAction={() => navigate('/opportunities')}
-              />
-            </div>
-          ) : (
-            <div className="mt-5 space-y-3">
-              {visibleApplications.map((application) => (
-                <article
-                  key={application.id}
-                  className="rounded-[20px] border border-subtle bg-surface-layer p-4 shadow-soft sm:p-5"
-                >
-                  <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px_170px] lg:items-center">
-                    <button
-                      type="button"
-                      onClick={() => navigate(`/opportunity/${application.opportunity_id}`)}
-                      className="min-w-0 text-left"
-                    >
-                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand">
-                        {application.opportunity_category || 'Opportunity'}
-                      </p>
-                      <h2 className="mt-2 line-clamp-2 font-display text-lg font-semibold leading-6 tracking-tight text-text-primary">
-                        {application.opportunity_title}
-                      </h2>
-                      <div className="mt-3 flex flex-wrap items-center gap-3 text-sm font-semibold text-text-muted">
-                        <span className="inline-flex items-center gap-2">
-                          <Calendar size={15} />
-                          {formatDate(application.applied_at)}
-                        </span>
-                        <span className="inline-flex items-center gap-2">
-                          <Clock size={15} />
-                          {application.notes ? 'Notes saved' : 'No notes'}
-                        </span>
-                      </div>
-                    </button>
-
-                    <div>
-                      <span className={`inline-flex rounded-xl px-2.5 py-1 text-xs font-semibold ${statusTone(application.status)}`}>
-                        {STATUS_LABELS[application.status]}
-                      </span>
-                      <div className="mt-2.5">
-                        <PipelineStepper status={application.status} />
-                      </div>
-                      <select
-                        value={application.status}
-                        disabled={updatingId === application.id}
-                        onChange={(event) => void changeStatus(application, event.target.value as ApplicationStatus)}
-                        className="mt-2 h-10 w-full rounded-xl border border-subtle bg-surface-layer px-3 text-sm font-bold text-text-secondary outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20 disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        {STATUS_OPTIONS.map((status) => (
-                          <option key={status} value={status}>
-                            {STATUS_LABELS[status]}
-                          </option>
-                        ))}
-                      </select>
+                <span className="sr-only">Loading your applications…</span>
+                {Array.from({ length: 3 }).map((_, index) => (
+                  <div
+                    key={index}
+                    className="rounded-[20px] border border-subtle bg-surface-layer p-4 motion-safe:animate-pulse"
+                    aria-hidden="true"
+                  >
+                    <div className="h-2 w-20 rounded bg-surface-elevated" />
+                    <div className="mt-3 h-4 w-3/4 rounded bg-surface-elevated" />
+                    <div className="mt-3 h-2 w-1/2 rounded bg-surface-elevated" />
+                    <div className="mt-5 flex gap-2">
+                      <div className="h-9 w-28 rounded-xl bg-surface-elevated" />
+                      <div className="h-9 w-20 rounded-xl bg-surface-elevated" />
                     </div>
+                  </div>
+                ))}
+              </div>
+            ) : !showsContent(screenState) ? (
+              <div className="mt-5 rounded-[20px] border border-subtle bg-surface-layer">
+                <StateView
+                  state={screenState}
+                  flow="applied"
+                  sceneSize={100}
+                  className="!min-h-0 !px-5 !py-6"
+                  title={
+                    screenState.kind === "error" &&
+                    screenState.cause === "server"
+                      ? "Applications are temporarily unavailable"
+                      : undefined
+                  }
+                  body={
+                    screenState.kind === "offline"
+                      ? "Connect to load and update your application tracker."
+                      : screenState.kind === "error" &&
+                          screenState.cause === "server"
+                        ? "We couldn’t load your tracker. Please try again in a moment."
+                        : undefined
+                  }
+                  onRetry={() => void loadApplications()}
+                  onAction={() => {
+                    if (
+                      screenState.kind === "empty" &&
+                      screenState.reason === "filtered"
+                    ) {
+                      setFilter("all");
+                      setQuery("");
+                    } else if (
+                      screenState.kind === "locked" ||
+                      (screenState.kind === "error" &&
+                        screenState.cause === "auth")
+                    )
+                      navigate("/auth?mode=sign-in");
+                    else navigate("/opportunities");
+                  }}
+                />
+              </div>
+            ) : (
+              <div className="mt-5 space-y-3">
+                {loading ? (
+                  <p
+                    role="status"
+                    className="flex items-center gap-2 text-xs text-text-muted"
+                  >
+                    <Loader2 size={14} className="motion-safe:animate-spin" />
+                    Updating your applications…
+                  </p>
+                ) : null}
+                {visibleApplications.map((application) => (
+                  <article
+                    key={application.id}
+                    className="rounded-[20px] border border-subtle bg-surface-layer p-4 shadow-soft sm:p-5"
+                  >
+                    {application.status === "draft" ? (
+                      <p className="mb-3 rounded-xl bg-brand/5 px-3 py-2 text-sm text-text-secondary">
+                        Did you submit this application? Choose Submitted below
+                        only after sending it on the provider’s website.
+                      </p>
+                    ) : null}
+                    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px_170px] lg:items-center">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          navigate(`/opportunity/${application.opportunity_id}`)
+                        }
+                        className="min-w-0 text-left"
+                      >
+                        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand">
+                          {application.opportunity_category || "Opportunity"}
+                        </p>
+                        <h2 className="mt-2 line-clamp-2 font-display text-lg font-semibold leading-6 tracking-tight text-text-primary">
+                          {application.opportunity_title}
+                        </h2>
+                        <div className="mt-3 flex flex-wrap items-center gap-3 text-sm font-semibold text-text-muted">
+                          <span className="inline-flex items-center gap-2">
+                            <Calendar size={15} />
+                            {formatDate(application.applied_at)}
+                          </span>
+                          <span className="inline-flex items-center gap-2">
+                            <Clock size={15} />
+                            {application.notes ? "Notes saved" : "No notes"}
+                          </span>
+                        </div>
+                      </button>
 
-                    <div className="flex flex-wrap gap-2 lg:justify-end">
-                      {nextStage(application.status) ? (
+                      <div>
+                        <span
+                          className={`inline-flex rounded-xl px-2.5 py-1 text-xs font-semibold ${statusTone(application.status)}`}
+                        >
+                          {STATUS_LABELS[application.status]}
+                        </span>
+                        <div className="mt-2.5">
+                          <PipelineStepper status={application.status} />
+                        </div>
+                        <select
+                          aria-label={`Status for ${application.opportunity_title}`}
+                          value={application.status}
+                          disabled={Boolean(updatingId)}
+                          onChange={(event) =>
+                            void changeStatus(
+                              application,
+                              event.target.value as ApplicationStatus,
+                            )
+                          }
+                          className="mt-2 h-10 w-full rounded-xl border border-subtle bg-surface-layer px-3 text-sm font-bold text-text-secondary outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {STATUS_OPTIONS.map((status) => (
+                            <option key={status} value={status}>
+                              {STATUS_LABELS[status]}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="flex flex-wrap gap-2 lg:justify-end">
+                        {application.status === "rejected" ||
+                        application.status === "no_response" ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setRejectionPanelId(application.id);
+                              void loadNextBestShot();
+                            }}
+                            className="inline-flex min-h-10 items-center justify-center rounded-xl border border-subtle px-3 text-sm font-semibold text-text-secondary"
+                          >
+                            Review reflection
+                          </button>
+                        ) : null}
+                        {nextStage(application.status) ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              void changeStatus(
+                                application,
+                                nextStage(application.status)!,
+                              )
+                            }
+                            disabled={Boolean(updatingId)}
+                            className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-success px-3 text-sm font-bold text-white transition hover:bg-success/90 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {updatingId === application.id ? (
+                              <Loader2 size={15} className="animate-spin" />
+                            ) : (
+                              <ArrowRight size={15} />
+                            )}
+                            {STATUS_LABELS[nextStage(application.status)!]}
+                          </button>
+                        ) : null}
                         <button
                           type="button"
                           onClick={() =>
-                            void changeStatus(
-                              application,
-                              nextStage(application.status)!,
+                            navigate(
+                              `/opportunity/${application.opportunity_id}`,
                             )
                           }
-                          disabled={updatingId === application.id}
-                          className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-success px-3 text-sm font-bold text-white transition hover:bg-success/90 disabled:cursor-not-allowed disabled:opacity-60"
+                          className="inline-flex h-10 items-center justify-center rounded-xl bg-brand px-4 text-sm font-bold text-white transition hover:bg-brand-700"
+                        >
+                          Open
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void deleteApplication(application)}
+                          disabled={Boolean(updatingId)}
+                          className="inline-flex h-10 items-center gap-2 rounded-xl border border-subtle px-3 text-sm font-bold text-text-secondary transition hover:bg-surface-elevated disabled:cursor-not-allowed disabled:opacity-60"
                         >
                           {updatingId === application.id ? (
                             <Loader2 size={15} className="animate-spin" />
                           ) : (
-                            <ArrowRight size={15} />
+                            <Trash2 size={15} />
                           )}
-                          {STATUS_LABELS[nextStage(application.status)!]}
-                        </button>
-                      ) : null}
-                      <button
-                        type="button"
-                        onClick={() => navigate(`/opportunity/${application.opportunity_id}`)}
-                        className="inline-flex h-10 items-center justify-center rounded-xl bg-brand px-4 text-sm font-bold text-white transition hover:bg-brand-700"
-                      >
-                        Open
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void deleteApplication(application)}
-                        disabled={updatingId === application.id}
-                        className="inline-flex h-10 items-center gap-2 rounded-xl border border-subtle px-3 text-sm font-bold text-text-secondary transition hover:bg-surface-elevated disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        {updatingId === application.id ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
-                        {confirmingId === application.id ? 'Confirm' : 'Remove'}
-                      </button>
-                    </div>
-                  </div>
-
-                  {(application.status === 'rejected' || application.status === 'no_response') &&
-                  rejectionPanelId === application.id ? (
-                    <div className="mt-4 rounded-2xl border border-subtle bg-surface-elevated p-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-semibold text-text-primary">
-                            {CLOSURE_COPY[application.status === 'no_response' ? 'no_response' : 'rejected'].title}
-                          </p>
-                          <p className="mt-1 text-xs leading-5 text-text-muted">
-                            {CLOSURE_COPY[application.status === 'no_response' ? 'no_response' : 'rejected'].body}
-                          </p>
-                          {answerBankCount > 0 ? (
-                            <p className="mt-2 text-xs font-semibold text-brand">
-                              Your answer bank now holds {answerBankCount} answers you can reuse.
-                            </p>
-                          ) : null}
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setRejectionPanelId(null)}
-                          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-text-muted transition hover:bg-surface-layer hover:text-text-secondary"
-                          aria-label="Dismiss reflection panel"
-                        >
-                          <X size={15} />
+                          {confirmingId === application.id
+                            ? "Confirm"
+                            : "Remove"}
                         </button>
                       </div>
+                    </div>
 
-                      <textarea
-                        data-release-draft-managed
-                        value={reflections[application.id] ?? ''}
-                        onChange={(event) => saveReflection(application.id, event.target.value)}
-                        onBlur={(event) => {
-                          // The refresh flow owns this save, avoiding two ledger writes.
-                          if (!(event.relatedTarget instanceof Element && event.relatedTarget.closest('[data-release-refresh]'))) {
-                            void persistReflection(application.id);
-                          }
-                        }}
-                        rows={3}
-                        placeholder="Optional: what would you try differently next time?"
-                        className="mt-3 w-full resize-none rounded-xl border border-subtle bg-surface-layer p-3 text-sm text-text-secondary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand/20"
-                      />
-                      {(reflections[application.id] ?? '').trim() ? (
-                        <p className="mt-1.5 text-xs text-text-muted" aria-live="polite">
-                          {reflectionSavingId === application.id
-                            ? 'Saving across devices…'
-                            : (reflections[application.id] ?? '').trim() ===
-                                (persistedReflections[application.id] ?? '')
-                              ? 'Saved across devices'
-                              : 'Changes save when you leave this field'}
-                        </p>
-                      ) : null}
-
-                      <div className="mt-3 border-t border-subtle pt-3">
-                        <p className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-brand">
-                          <Sparkles size={13} />
-                          Your next best shot
-                        </p>
-                        {nextShotLoading ? (
-                          <div className="mt-2 flex items-center gap-2 text-sm text-text-muted">
-                            <Loader2 size={15} className="animate-spin" />
-                            Finding your strongest open match…
-                          </div>
-                        ) : nextBestShot ? (
-                          <div className="mt-2 flex flex-col gap-3 rounded-xl border border-subtle bg-surface-layer p-3.5 sm:flex-row sm:items-center sm:justify-between">
-                            <div className="min-w-0">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <MatchScoreBadge score={nextBestShot.match.score} />
-                                {(() => {
-                                  const badge = getDeadlineBadge(nextBestShot.opportunity.deadline);
-                                  return badge.level !== 'none' ? (
-                                    <span className={`text-xs text-text-muted ${urgencyTextClasses(badge.level)}`}>
-                                      {badge.label}
-                                    </span>
-                                  ) : null;
-                                })()}
-                              </div>
-                              <p className="mt-1.5 line-clamp-1 text-sm font-semibold text-text-primary">
-                                {nextBestShot.opportunity.title}
+                    {(application.status === "rejected" ||
+                      application.status === "no_response") &&
+                    rejectionPanelId === application.id ? (
+                      <div className="mt-4 rounded-2xl border border-subtle bg-surface-elevated p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-semibold text-text-primary">
+                              {
+                                CLOSURE_COPY[
+                                  application.status === "no_response"
+                                    ? "no_response"
+                                    : "rejected"
+                                ].title
+                              }
+                            </p>
+                            <p className="mt-1 text-xs leading-5 text-text-muted">
+                              {
+                                CLOSURE_COPY[
+                                  application.status === "no_response"
+                                    ? "no_response"
+                                    : "rejected"
+                                ].body
+                              }
+                            </p>
+                            {answerBankCount > 0 ? (
+                              <p className="mt-2 text-xs font-semibold text-brand">
+                                Your answer bank now holds {answerBankCount}{" "}
+                                answers you can reuse.
                               </p>
-                              <TopMatchReason reason={nextBestShot.match.reasons[0]} />
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => navigate(`/opportunity/${nextBestShot.opportunity.id}`)}
-                              className="inline-flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-xl bg-brand px-4 text-sm font-bold text-white transition hover:bg-brand-700"
-                            >
-                              View opportunity
-                              <ArrowRight size={15} />
-                            </button>
+                            ) : null}
                           </div>
-                        ) : (
-                          <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                            <p className="text-sm text-text-muted">
-                              Nothing scored highly enough right now — new opportunities land daily.
-                            </p>
-                            <button
-                              type="button"
-                              onClick={() => navigate('/opportunities')}
-                              className="inline-flex h-9 shrink-0 items-center justify-center rounded-xl border border-subtle px-3 text-sm font-bold text-text-secondary transition hover:bg-surface-layer"
-                            >
-                              Browse opportunities
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ) : null}
-                </article>
-              ))}
-            </div>
-          )}
-        </section>
+                          <button
+                            type="button"
+                            onClick={() => setRejectionPanelId(null)}
+                            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-text-muted transition hover:bg-surface-layer hover:text-text-secondary"
+                            aria-label="Dismiss reflection panel"
+                          >
+                            <X size={15} />
+                          </button>
+                        </div>
 
-        {!loading && applications.some((item) => item.status === 'offer') ? (
-          <div className="mt-5 rounded-2xl border border-success/30 bg-success/10 p-4 text-sm font-semibold text-success">
-            <Trophy className="mr-2 inline" size={17} />
-            You have an offer — congratulations! Your wins stay here so you can track next steps.
-          </div>
-        ) : null}
-      </main>
+                        {historyLoading ? (
+                          <p
+                            role="status"
+                            className="mt-3 text-sm text-text-muted"
+                          >
+                            Loading saved reflection…
+                          </p>
+                        ) : null}
+                        {historyError ? (
+                          <div className="mt-3">
+                            <InlineError
+                              message={historyError}
+                              onRetry={() =>
+                                setHistoryAttempt((value) => value + 1)
+                              }
+                            />
+                          </div>
+                        ) : null}
+                        <textarea
+                          disabled={historyLoading || Boolean(historyError)}
+                          maxLength={2000}
+                          data-release-draft-managed
+                          value={reflections[application.id] ?? ""}
+                          onChange={(event) =>
+                            saveReflection(application.id, event.target.value)
+                          }
+                          onBlur={(event) => {
+                            // The refresh flow owns this save, avoiding two ledger writes.
+                            if (!(
+                              event.relatedTarget instanceof Element &&
+                              event.relatedTarget.closest(
+                                "[data-release-refresh]",
+                              )
+                            )) {
+                              void persistReflection(application.id);
+                            }
+                          }}
+                          rows={3}
+                          placeholder="Optional: what would you try differently next time?"
+                          className="mt-3 w-full resize-none rounded-xl border border-subtle bg-surface-layer p-3 text-sm text-text-secondary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand/20"
+                        />
+                        {(reflections[application.id] ?? "").trim() ? (
+                          <p
+                            className="mt-1.5 text-xs text-text-muted"
+                            aria-live="polite"
+                          >
+                            {reflectionSavingId === application.id
+                              ? "Saving across devices…"
+                              : (reflections[application.id] ?? "").trim() ===
+                                  (persistedReflections[application.id] ?? "")
+                                ? "Saved across devices"
+                                : "Changes save when you leave this field"}
+                          </p>
+                        ) : null}
+
+                        <div className="mt-3 border-t border-subtle pt-3">
+                          <p className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-brand">
+                            <Sparkles size={13} />
+                            Your next best shot
+                          </p>
+                          {nextShotLoading ? (
+                            <div className="mt-2 flex items-center gap-2 text-sm text-text-muted">
+                              <Loader2 size={15} className="animate-spin" />
+                              Finding your strongest open match…
+                            </div>
+                          ) : nextBestShot ? (
+                            <div className="mt-2 flex flex-col gap-3 rounded-xl border border-subtle bg-surface-layer p-3.5 sm:flex-row sm:items-center sm:justify-between">
+                              <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <MatchScoreBadge
+                                    score={nextBestShot.match.score}
+                                  />
+                                  {(() => {
+                                    const badge = getDeadlineBadge(
+                                      nextBestShot.opportunity.deadline,
+                                    );
+                                    return badge.level !== "none" ? (
+                                      <span
+                                        className={`text-xs text-text-muted ${urgencyTextClasses(badge.level)}`}
+                                      >
+                                        {badge.label}
+                                      </span>
+                                    ) : null;
+                                  })()}
+                                </div>
+                                <p className="mt-1.5 line-clamp-1 text-sm font-semibold text-text-primary">
+                                  {nextBestShot.opportunity.title}
+                                </p>
+                                <TopMatchReason
+                                  reason={nextBestShot.match.reasons[0]}
+                                />
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  navigate(
+                                    `/opportunity/${nextBestShot.opportunity.id}`,
+                                  )
+                                }
+                                className="inline-flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-xl bg-brand px-4 text-sm font-bold text-white transition hover:bg-brand-700"
+                              >
+                                View opportunity
+                                <ArrowRight size={15} />
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                              <p className="text-sm text-text-muted">
+                                Nothing scored highly enough right now — new
+                                opportunities land daily.
+                              </p>
+                              <button
+                                type="button"
+                                onClick={() => navigate("/opportunities")}
+                                className="inline-flex h-9 shrink-0 items-center justify-center rounded-xl border border-subtle px-3 text-sm font-bold text-text-secondary transition hover:bg-surface-layer"
+                              >
+                                Browse opportunities
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ) : null}
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
+
+          {pageSummary?.nextCursor ? (
+            <button
+              type="button"
+              disabled={loading || loadingMore || Boolean(updatingId)}
+              onClick={() => void loadMore()}
+              className="mt-5 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-subtle bg-surface-layer px-5 text-sm font-semibold text-text-primary disabled:opacity-60"
+            >
+              {loadingMore ? "Loading more…" : "Load more applications"}
+            </button>
+          ) : null}
+
+          {!loading &&
+          (pageSummary?.counts.offer ??
+            applications.filter((item) => item.status === "offer").length) >
+            0 ? (
+            <div className="mt-5 rounded-2xl border border-success/30 bg-success/10 p-4 text-sm font-semibold text-success">
+              <Trophy className="mr-2 inline" size={17} />
+              You have an offer — congratulations! Your wins stay here so you
+              can track next steps.
+            </div>
+          ) : null}
+        </main>
       </PullToRefresh>
     </div>
   );

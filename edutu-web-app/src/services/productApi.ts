@@ -64,7 +64,7 @@ export class ProductApiError extends Error {
 export async function productApiRequest<T>(
   path: string,
   token: string,
-  options: RequestInit & { timeoutMs?: number } = {},
+  options: RequestInit & { timeoutMs?: number; maxAttempts?: number } = {},
 ): Promise<T> {
   let apiBaseUrl: string;
 
@@ -76,7 +76,7 @@ export async function productApiRequest<T>(
     );
   }
 
-  const { timeoutMs = REQUEST_TIMEOUT_MS, ...requestOptions } = options;
+  const { timeoutMs = REQUEST_TIMEOUT_MS, maxAttempts = MAX_ATTEMPTS, ...requestOptions } = options;
   const safeRead = ["GET", "HEAD"].includes(
     (options.method || "GET").toUpperCase(),
   );
@@ -171,7 +171,7 @@ export async function productApiRequest<T>(
 
   try {
     return await retry(attemptRequest, {
-      maxAttempts: safeRead ? MAX_ATTEMPTS : 1,
+      maxAttempts: safeRead ? Math.max(1, Math.min(MAX_ATTEMPTS, maxAttempts)) : 1,
       baseDelay: 1000,
       maxDelay: 10000,
       shouldRetry: (error: unknown): boolean => {
@@ -184,7 +184,9 @@ export async function productApiRequest<T>(
   } catch (error) {
     if (error instanceof NetworkAttemptError) {
       throw new ProductApiUnavailableError(
-        error.message || "Product API is unreachable",
+        /timed out|timeout/i.test(error.message)
+          ? 'The request timed out. Please try again.'
+          : 'Could not connect to Edutu. Please try again.',
       );
     }
     if (error instanceof ProductApiError) {

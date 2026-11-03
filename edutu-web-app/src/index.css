@@ -1332,13 +1332,13 @@ body {
   }
 
   .mobile-personalized-card {
-    flex: 0 0 62vw !important;
-    min-width: 62vw !important;
-    max-width: 250px !important;
+    flex: 0 0 clamp(168px, 48vw, 206px) !important;
+    min-width: 0 !important;
+    max-width: 206px !important;
     scroll-snap-align: start;
   }
 
-  .mobile-personalized-card:last-child {
+  .mobile-personalized-card:last-child:not(.opportunity-cinematic-card) {
     flex-basis: 7rem !important;
     min-width: 7rem !important;
   }

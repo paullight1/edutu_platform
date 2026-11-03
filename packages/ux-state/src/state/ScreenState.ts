@@ -146,7 +146,7 @@ export function deriveState(input: ScreenStateInput): ScreenState {
   if (error) {
     const cause = classifyError(error);
     // Offline is its own state with its own recovery, not a network error.
-    if (offline || cause === 'network') return { kind: 'offline' };
+    if (offline) return { kind: 'offline' };
     return { kind: 'error', cause };
   }
 

@@ -41,6 +41,7 @@ import { scheduleAuthChunkPrefetch } from "./lib/authWarmup";
 const AuthScreen = lazy(() => import("./components/AuthScreen"));
 const AuthCallback = lazy(() => import("./components/AuthCallback"));
 const ApplicationsPage = lazy(() => import("./components/ApplicationsPage"));
+const ApplicationFollowUpPrompt = lazy(() => import("./components/ApplicationFollowUpPrompt"));
 const MyPlanPage = lazy(() => import("./components/MyPlanPage"));
 const MyPlanDetailPage = lazy(() => import("./components/MyPlanDetailPage"));
 const Dashboard = lazy(() => import("./components/Dashboard"));
@@ -554,7 +555,7 @@ function App() {
   const coachBackground = savedBackground && savedBackground.pathname !== "/app/coach"
     ? savedBackground
     : { ...location, pathname: "/dashboard", search: "", hash: "", state: null, key: "coach-home" };
-  const { isSignedIn } = useClerkAuth();
+  const { isSignedIn, userId } = useClerkAuth();
   const { signOut } = useAppAuth();
 
   useAbsoluteSessionTimeout(signOut);
@@ -618,6 +619,7 @@ function App() {
       <ScrollToTop />
       <GoogleOneTapGate />
       {isSignedIn ? <DeadlineReminders /> : null}
+      {isSignedIn ? <Suspense fallback={null}><ApplicationFollowUpPrompt key={userId} /></Suspense> : null}
       {location.pathname === "/app/community" ||
       location.pathname.startsWith("/app/community/") ? (
         <Suspense fallback={null}>

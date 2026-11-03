@@ -711,11 +711,11 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
             title: opportunity.title,
             category: opportunity.category,
           },
-          { status: "draft" },
+          { status: "draft", openedExternally: true },
           token,
         );
 
-        if (tracked) {
+        if (tracked?.status === 'draft') {
           success("Application started — added to your tracker");
         }
       } catch (applyError) {

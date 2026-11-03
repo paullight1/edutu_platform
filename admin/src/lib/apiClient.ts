@@ -59,14 +59,41 @@ function safeTargetOrigin(apiOrigin: string): string {
 
 function buildRequestUrl(apiOrigin: string, path: string): string {
   if (!apiOrigin) return path;
-  return `${apiOrigin}${path.startsWith("/") ? path : `/${path}`}`;
+  return String(
+    developmentProxyUrl(
+      `${apiOrigin}${path.startsWith("/") ? path : `/${path}`}`,
+      apiOrigin,
+    ),
+  );
+}
+
+export function getAdminPublicApiUrl(path: string): string {
+  return buildRequestUrl(getAdminRuntimeConfig().apiOrigin, path);
+}
+
+function developmentProxyUrl(
+  url: string | URL,
+  apiOrigin: string,
+): string | URL {
+  const target = import.meta.env.VITE_LOCAL_API_PROXY_TARGET?.trim().replace(
+    /\/+$/,
+    "",
+  );
+  if (
+    !import.meta.env.DEV ||
+    !target ||
+    target !== apiOrigin.replace(/\/+$/, "")
+  )
+    return url;
+  const remote = new URL(url, apiOrigin);
+  if (remote.origin !== new URL(apiOrigin).origin) return url;
+  return `/__api${remote.pathname}${remote.search}`;
 }
 
 function isAbortError(error: unknown): boolean {
   return (
-    error instanceof DOMException && error.name === "AbortError"
-  ) || (
-    error instanceof Error && error.name === "AbortError"
+    (error instanceof DOMException && error.name === "AbortError") ||
+    (error instanceof Error && error.name === "AbortError")
   );
 }
 
@@ -199,7 +226,7 @@ export async function adminApiFetch(
   }
 
   try {
-    let response = await fetch(url, {
+    let response = await fetch(developmentProxyUrl(url, apiOrigin), {
       ...requestInit,
       headers: authenticatedHeaders,
     });
@@ -212,7 +239,7 @@ export async function adminApiFetch(
       const refreshedHeaders = await refreshAdminAuthHeaders(requestHeaders);
       if (refreshedHeaders && !externalSignal?.aborted) {
         authenticatedHeaders = refreshedHeaders;
-        response = await fetch(url, {
+        response = await fetch(developmentProxyUrl(url, apiOrigin), {
           ...requestInit,
           headers: authenticatedHeaders,
         });
@@ -288,8 +315,7 @@ async function signOutExpiredAdminSession(): Promise<void> {
 
 function canRetryRequestBody(body: BodyInit | null | undefined): boolean {
   return !(
-    typeof ReadableStream !== "undefined" &&
-    body instanceof ReadableStream
+    typeof ReadableStream !== "undefined" && body instanceof ReadableStream
   );
 }
 
@@ -336,15 +362,21 @@ export async function adminApiJson<T>(
 
   const controller = new AbortController();
   let timedOut = false;
-  const timeoutId = globalThis.setTimeout(() => {
-    timedOut = true;
-    controller.abort();
-  }, Math.max(1, timeoutMs));
+  const timeoutId = globalThis.setTimeout(
+    () => {
+      timedOut = true;
+      controller.abort();
+    },
+    Math.max(1, timeoutMs),
+  );
 
   const handleExternalAbort = () => controller.abort(externalSignal?.reason);
   if (externalSignal) {
     if (externalSignal.aborted) handleExternalAbort();
-    else externalSignal.addEventListener("abort", handleExternalAbort, { once: true });
+    else
+      externalSignal.addEventListener("abort", handleExternalAbort, {
+        once: true,
+      });
   }
 
   try {
@@ -384,8 +416,7 @@ export async function adminApiJson<T>(
       }
     }
 
-    const responseRequestId =
-      response.headers.get("x-request-id") || requestId;
+    const responseRequestId = response.headers.get("x-request-id") || requestId;
     const text = await response.text();
 
     if (!response.ok) {

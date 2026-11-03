@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { getBackendBaseUrl } from "../lib/backend";
+import { getAdminPublicApiUrl } from "../lib/apiClient";
 
 type HealthState = "checking" | "healthy" | "unreachable";
 
@@ -33,14 +34,11 @@ const BackendHealthChip = () => {
       abortRef.current?.abort();
       const controller = new AbortController();
       abortRef.current = controller;
-      const timeout = setTimeout(
-        () => controller.abort(),
-        REQUEST_TIMEOUT_MS,
-      );
+      const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
       const started = performance.now();
       try {
-        const response = await fetch(`${getBackendBaseUrl()}/health`, {
+        const response = await fetch(getAdminPublicApiUrl("/health"), {
           signal: controller.signal,
         });
         if (cancelled) return;

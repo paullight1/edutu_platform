@@ -1,5 +1,5 @@
 import type { Opportunity } from '../types/opportunity';
-import { productApiRequest } from './productApi';
+import { ProductApiError, productApiRequest } from './productApi';
 
 // App-facing status now mirrors the backend pipeline 1:1 so the true
 // draft → submitted → interview → offer journey is preserved (previously
@@ -33,6 +33,8 @@ export interface ApplicationRecord {
   status: ApplicationStatus;
   applied_at: string;
   notes: string | null;
+  application_opened_at?: string | null;
+  version?: number;
 }
 
 export interface ApplicationHistoryRecord {
@@ -60,6 +62,7 @@ type ApiApplicationRecord = Partial<ApplicationRecord> & {
   createdAt?: string;
   created_at?: string;
   metadata?: {
+    application_opened_at?: string;
     opportunity_title?: string;
     opportunityTitle?: string;
     opportunity_category?: string;
@@ -68,7 +71,13 @@ type ApiApplicationRecord = Partial<ApplicationRecord> & {
   opportunity?: Partial<Pick<Opportunity, 'id' | 'title' | 'category'>>;
 };
 
-function extractApiRows<T>(response: T[] | { data?: T[]; applications?: T[]; items?: T[] } | null | undefined): T[] {
+function extractApiRows<T>(
+  response:
+    | T[]
+    | { data?: T[]; applications?: T[]; items?: T[] }
+    | null
+    | undefined,
+): T[] {
   if (Array.isArray(response)) return response;
   return response?.applications ?? response?.items ?? response?.data ?? [];
 }
@@ -109,10 +118,15 @@ function toProductStatus(status: ApplicationStatus): ProductApplicationStatus {
 function mapApiApplication(
   row: ApiApplicationRecord,
   fallbackUserId: string,
-  fallbackOpportunity?: Pick<Opportunity, 'id' | 'title' | 'category'>
+  fallbackOpportunity?: Pick<Opportunity, 'id' | 'title' | 'category'>,
 ): ApplicationRecord {
   const opportunity = row.opportunity ?? fallbackOpportunity;
-  const opportunityId = row.opportunity_id ?? row.opportunityId ?? opportunity?.id ?? fallbackOpportunity?.id ?? '';
+  const opportunityId =
+    row.opportunity_id ??
+    row.opportunityId ??
+    opportunity?.id ??
+    fallbackOpportunity?.id ??
+    '';
 
   return {
     id: row.id ?? `${fallbackUserId}:${opportunityId}`,
@@ -142,6 +156,9 @@ function mapApiApplication(
       row.createdAt ??
       new Date().toISOString(),
     notes: row.notes ?? null,
+    application_opened_at:
+      row.application_opened_at ?? row.metadata?.application_opened_at ?? null,
+    version: row.version,
   };
 }
 
@@ -149,57 +166,176 @@ function hasToken(token?: string | null): token is string {
   return Boolean(token?.trim());
 }
 
-export async function getApplications(userId: string, token?: string | null): Promise<ApplicationRecord[]> {
+export async function getApplications(
+  userId: string,
+  token?: string | null,
+  options: { signal?: AbortSignal } = {},
+): Promise<ApplicationRecord[]> {
   if (!hasToken(token)) {
-    return [];
+    throw new ProductApiError('Sign in again to load your applications.', 401);
   }
 
-  const response = await productApiRequest<ApiApplicationRecord[] | { data?: ApiApplicationRecord[]; applications?: ApiApplicationRecord[]; items?: ApiApplicationRecord[] }>(
-    '/me/applications',
-    token
-  );
+  const response = await productApiRequest<
+    | ApiApplicationRecord[]
+    | {
+        data?: ApiApplicationRecord[];
+        applications?: ApiApplicationRecord[];
+        items?: ApiApplicationRecord[];
+      }
+  >('/me/applications', token, {
+    timeoutMs: 10_000,
+    maxAttempts: 1,
+    ...options,
+  });
   return extractApiRows(response).map((row) => mapApiApplication(row, userId));
 }
 
 export interface AddApplicationOptions {
   notes?: string;
   status?: ApplicationStatus;
+  openedExternally?: boolean;
+}
+
+export interface ApplicationPage {
+  items: ApplicationRecord[];
+  nextCursor: string | null;
+  total: number;
+  filteredTotal: number;
+  counts: Partial<Record<ApplicationStatus, number>>;
+}
+
+export async function getApplicationOpportunityIds(
+  token: string,
+): Promise<string[]> {
+  if (!hasToken(token))
+    throw new ProductApiError('Sign in again to load your applications.', 401);
+  const response = await productApiRequest<{ opportunityIds: string[] }>(
+    '/me/applications/opportunity-ids',
+    token,
+    { timeoutMs: 10_000, maxAttempts: 1 },
+  );
+  return response.opportunityIds;
+}
+
+export async function recordApplicationEvent(
+  id: string,
+  event:
+    | 'application_opened'
+    | 'application_prompt_snoozed'
+    | 'application_save_failed',
+  token: string,
+): Promise<void> {
+  try {
+    await productApiRequest(
+      `/me/applications/${encodeURIComponent(id)}/events`,
+      token,
+      {
+        method: 'POST',
+        body: JSON.stringify({ eventId: crypto.randomUUID(), event }),
+        timeoutMs: 5_000,
+      },
+    );
+  } catch {
+    /* Telemetry failure must never invent or block a saved status. */
+  }
+}
+
+export async function getApplicationPage(
+  userId: string,
+  token: string,
+  options: {
+    cursor?: string | null;
+    q?: string;
+    status?: ApplicationStatus;
+    limit?: number;
+    signal?: AbortSignal;
+    confirmationDue?: boolean;
+  } = {},
+): Promise<ApplicationPage> {
+  const params = new URLSearchParams();
+  if (options.cursor) params.set('cursor', options.cursor);
+  if (options.q) params.set('q', options.q);
+  if (options.status) params.set('status', options.status);
+  if (options.limit) params.set('limit', String(options.limit));
+  if (options.confirmationDue) params.set('confirmationDue', 'true');
+  const response = await productApiRequest<
+    Omit<ApplicationPage, 'items'> & { items: ApiApplicationRecord[] }
+  >(`/me/applications/page?${params}`, token, {
+    signal: options.signal,
+    timeoutMs: 10_000,
+    maxAttempts: 1,
+  });
+  return {
+    ...response,
+    items: response.items.map((row) => mapApiApplication(row, userId)),
+  };
+}
+
+export async function getApplication(
+  id: string,
+  userId: string,
+  token: string,
+): Promise<ApplicationRecord> {
+  const response = await productApiRequest<ApiApplicationRecord>(
+    `/me/applications/${encodeURIComponent(id)}`,
+    token,
+    { timeoutMs: 10_000, maxAttempts: 1 },
+  );
+  return mapApiApplication(response, userId);
 }
 
 export async function addApplication(
   userId: string,
   opportunity: Pick<Opportunity, 'id' | 'title' | 'category'>,
   options: AddApplicationOptions = {},
-  token?: string | null
-): Promise<ApplicationRecord | null> {
+  token?: string | null,
+): Promise<ApplicationRecord> {
   if (!hasToken(token)) {
-    return null;
+    throw new ProductApiError('Sign in again to record your application.', 401);
   }
 
   const intendedStatus = options.status ?? 'draft';
   const notes = options.notes;
-  const response = await productApiRequest<ApiApplicationRecord | null>('/me/applications', token, {
-    method: 'POST',
-    body: JSON.stringify({
-      opportunityId: opportunity.id,
-      status: toProductStatus(intendedStatus),
-      notes: notes || null,
-      metadata: {
-        opportunity_title: opportunity.title,
-        opportunity_category: opportunity.category,
-      },
-    })
-  });
-  const record = response
-    ? mapApiApplication(response, userId, opportunity)
-    : mapApiApplication({}, userId, opportunity);
-  return { ...record, status: intendedStatus };
+  const response = await productApiRequest<ApiApplicationRecord | null>(
+    '/me/applications',
+    token,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        opportunityId: opportunity.id,
+        status: toProductStatus(intendedStatus),
+        notes: notes || null,
+        metadata: {
+          opportunity_title: opportunity.title,
+          opportunity_category: opportunity.category,
+          ...(options.openedExternally
+            ? { application_opened_at: new Date().toISOString() }
+            : {}),
+        },
+      }),
+    },
+  );
+  if (!response?.id)
+    throw new ProductApiError(
+      'Your application could not be saved. Please try again.',
+      502,
+    );
+  const record = mapApiApplication(response, userId, opportunity);
+  if (options.openedExternally)
+    void recordApplicationEvent(record.id, 'application_opened', token);
+  window.dispatchEvent(
+    new CustomEvent('edutu:applications-changed', {
+      detail: { userId, application: record },
+    }),
+  );
+  return record;
 }
 
 export async function updateApplicationStatus(
   id: string,
   status: ApplicationStatus,
-  token?: string | null
+  token?: string | null,
+  expectedVersion?: number,
 ): Promise<ApplicationRecord> {
   if (!hasToken(token)) {
     throw new Error('A signed-in session is required to update applications.');
@@ -210,9 +346,17 @@ export async function updateApplicationStatus(
     token,
     {
       method: 'PATCH',
-      body: JSON.stringify({ status: toProductStatus(status) })
-    }
+      body: JSON.stringify({
+        status: toProductStatus(status),
+        expectedVersion,
+      }),
+    },
   );
+  if (!response?.id)
+    throw new ProductApiError(
+      'Your application status could not be saved. Please try again.',
+      502,
+    );
   return mapApiApplication(response, '');
 }
 
@@ -224,6 +368,7 @@ export async function getApplicationHistory(
   return productApiRequest<ApplicationHistoryRecord[]>(
     `/me/applications/${encodeURIComponent(id)}/history`,
     token,
+    { timeoutMs: 10_000, maxAttempts: 1 },
   );
 }
 
@@ -252,13 +397,15 @@ export async function addApplicationReflection(
  * session, network, unavailable route) resolves to 0 so the caller simply
  * omits the line rather than blocking or erroring the closure panel.
  */
-export async function fetchAnswerBankCount(token?: string | null): Promise<number> {
+export async function fetchAnswerBankCount(
+  token?: string | null,
+): Promise<number> {
   if (!hasToken(token)) return 0;
   try {
-    const response = await productApiRequest<{ answers?: unknown[]; count?: number }>(
-      '/copilot/answers',
-      token,
-    );
+    const response = await productApiRequest<{
+      answers?: unknown[];
+      count?: number;
+    }>('/copilot/answers', token);
     if (typeof response?.count === 'number') return response.count;
     return Array.isArray(response?.answers) ? response.answers.length : 0;
   } catch {
@@ -266,12 +413,19 @@ export async function fetchAnswerBankCount(token?: string | null): Promise<numbe
   }
 }
 
-export async function removeApplication(id: string, token?: string | null): Promise<void> {
+export async function removeApplication(
+  id: string,
+  token?: string | null,
+): Promise<void> {
   if (!hasToken(token)) {
     throw new Error('A signed-in session is required to remove applications.');
   }
 
-  await productApiRequest<void>(`/me/applications/${encodeURIComponent(id)}`, token, {
-    method: 'DELETE'
-  });
+  await productApiRequest<void>(
+    `/me/applications/${encodeURIComponent(id)}`,
+    token,
+    {
+      method: 'DELETE',
+    },
+  );
 }

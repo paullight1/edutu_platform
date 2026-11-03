@@ -10,6 +10,13 @@ describe('@edutu/ux-state/state resolves from the web app', () => {
     expect(classifyError({ status: 503 })).toBe('server');
   });
 
+  it('distinguishes an unreachable server from a device that is offline', () => {
+    expect(deriveState({ error: new Error('Network connection failed'), offline: false }))
+      .toEqual({ kind: 'error', cause: 'network' });
+    expect(deriveState({ error: new Error('Network connection failed'), offline: true }))
+      .toEqual({ kind: 'offline' });
+  });
+
   it('knows which states still render their own content', () => {
     expect(showsContent({ kind: 'ready' })).toBe(true);
     expect(showsContent({ kind: 'partial', staleAt: null })).toBe(true);

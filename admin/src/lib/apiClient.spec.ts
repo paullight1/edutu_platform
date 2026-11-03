@@ -45,10 +45,7 @@ function successfulSession() {
   });
 }
 
-function jsonResponse(
-  body: unknown,
-  init: ResponseInit = {},
-): Response {
+function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
   return new Response(JSON.stringify(body), {
     headers: { "Content-Type": "application/json", ...(init.headers || {}) },
     ...init,
@@ -140,10 +137,7 @@ describe("adminApiJson", () => {
     const fetchMock = vi
       .spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(
-        jsonResponse(
-          { message: "Invalid or expired token" },
-          { status: 401 },
-        ),
+        jsonResponse({ message: "Invalid or expired token" }, { status: 401 }),
       )
       .mockResolvedValueOnce(jsonResponse({ totalUsers: 42 }));
 
@@ -159,6 +153,28 @@ describe("adminApiJson", () => {
       new Headers(fetchMock.mock.calls[1][1]?.headers).get("Authorization"),
     ).toBe("Bearer refreshed-access-token");
     expect(mocks.refreshSession).toHaveBeenCalledTimes(1);
+  });
+
+  it("proxies authenticated local JSON and streaming requests to the configured existing backend", async () => {
+    vi.stubEnv("DEV", true);
+    vi.stubEnv("VITE_LOCAL_API_PROXY_TARGET", "https://api.example.com");
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async () => jsonResponse({ ok: true }));
+    try {
+      await adminApiJson("/api/scraper/stats");
+      await adminApiFetch("/opportunities/admin/export?format=csv");
+      expect(fetchMock.mock.calls.map((call) => String(call[0]))).toEqual([
+        "/__api/api/scraper/stats",
+        "/__api/opportunities/admin/export?format=csv",
+      ]);
+      for (const call of fetchMock.mock.calls)
+        expect(new Headers(call[1]?.headers).get("Authorization")).toBe(
+          "Bearer test-access-token",
+        );
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 
   it("shares one token refresh across concurrent requests", async () => {
@@ -207,15 +223,13 @@ describe("adminApiJson", () => {
     const fetchMock = vi
       .spyOn(globalThis, "fetch")
       .mockResolvedValue(
-        jsonResponse(
-          { message: "Invalid or expired token" },
-          { status: 401 },
-        ),
+        jsonResponse({ message: "Invalid or expired token" }, { status: 401 }),
       );
 
-    await expect(
-      adminApiJson("/admin/dashboard"),
-    ).rejects.toMatchObject({ category: "authentication", status: 401 });
+    await expect(adminApiJson("/admin/dashboard")).rejects.toMatchObject({
+      category: "authentication",
+      status: 401,
+    });
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(mocks.refreshSession).toHaveBeenCalledTimes(1);
     expect(mocks.signOut).toHaveBeenCalledWith({ scope: "local" });
