@@ -165,6 +165,26 @@ describe("RevenueCatWebhookService", () => {
     expect(persistence.records.size).toBe(1);
   });
 
+  it("durably records a signed dashboard TEST under its receiver scope", async () => {
+    const { persistence, service } = harness();
+    const input = signed(
+      envelope({
+        type: "TEST",
+        environment: "SANDBOX",
+        product_id: "test_product",
+        transaction_id: null,
+        original_transaction_id: null,
+      }),
+    );
+    await expect(
+      service.handle(input.rawBody, input.authorization, input.signature),
+    ).resolves.toMatchObject({ accepted: true, eventId: "event-one" });
+    const stored = [...persistence.records.values()][0];
+    expect(stored.environment).toBe("live");
+    expect(stored.eventType).toBe("TEST");
+    expect(stored.providerAccountId).toBe("app-ios-production");
+  });
+
   it("moves a reused event ID with different bytes to review", async () => {
     const { persistence, service } = harness();
     const first = signed(envelope());

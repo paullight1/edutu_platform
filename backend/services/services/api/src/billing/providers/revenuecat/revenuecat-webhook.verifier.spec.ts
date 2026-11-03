@@ -102,6 +102,65 @@ describe("RevenueCatWebhookVerifier", () => {
     expect(verified.deliveryEnvironment).toBe("PRODUCTION");
   });
 
+  it.each(["APP_STORE", "PLAY_STORE", undefined])(
+    "accepts authenticated dashboard TEST samples with synthetic store %p",
+    (store) => {
+      // RevenueCat's dashboard sends SANDBOX TEST samples to production
+      // integrations too; sample store may differ from the selected app.
+      const input = signedInput(
+        officialEnvelope({
+          type: "TEST",
+          app_id: "app_edutu_android",
+          environment: "SANDBOX",
+          store,
+        }),
+      );
+      const result = verifier({ allowedStores: ["PLAY_STORE"] }).verify(input);
+      expect(result.event.type).toBe("TEST");
+      expect(result.deliveryEnvironment).toBe("SANDBOX");
+    },
+  );
+
+  it.each([undefined, "another_app"])(
+    "rejects a signed TEST sample outside the app allowlist: %p",
+    (app_id) => {
+      const input = signedInput(officialEnvelope({ type: "TEST", app_id }));
+      expect(() => verifier().verify(input)).toThrow(
+        expect.objectContaining({ code: "unexpected_integration" }),
+      );
+    },
+  );
+
+  it.each(["authorization", "signature"] as const)(
+    "requires valid %s for dashboard TEST events",
+    (field) => {
+      const input = signedInput(officialEnvelope({ type: "TEST" }));
+      input[field] = "invalid";
+      expect(() => verifier().verify(input)).toThrow(
+        expect.objectContaining({ statusCode: 401 }),
+      );
+    },
+  );
+
+  it.each([
+    { environment: "SANDBOX", store: "PLAY_STORE" },
+    { environment: "PRODUCTION", store: "APP_STORE" },
+    { environment: "PRODUCTION", store: "TEST_STORE" },
+  ])(
+    "keeps purchase metadata strict for a Play-only integration: %p",
+    (changes) => {
+      const input = signedInput(
+        officialEnvelope({
+          app_id: "app_edutu_android",
+          ...changes,
+        }),
+      );
+      expect(() =>
+        verifier({ allowedStores: ["PLAY_STORE"] }).verify(input),
+      ).toThrow(expect.objectContaining({ code: "unexpected_integration" }));
+    },
+  );
+
   it("rejects the legacy nested event.data mock shape", () => {
     const legacy = {
       api_version: "1.0",

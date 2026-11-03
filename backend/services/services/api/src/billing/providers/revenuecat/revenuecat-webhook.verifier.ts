@@ -214,6 +214,12 @@ export class RevenueCatWebhookVerifier {
         "RevenueCat app does not match this integration.",
       );
     }
+    // Dashboard TEST deliveries use synthetic SANDBOX/store metadata even on
+    // production integrations. They are authenticated and app-scoped above,
+    // and the event processor completes TEST as a no-op before identity or
+    // billing effects. Paid lifecycle events retain every check below.
+    if (type === "TEST") return;
+
     const expectedEnvironment = normalizeEnvironment(
       this.config.expectedEnvironment,
     );

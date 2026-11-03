@@ -87,17 +87,16 @@ function harness(
     retry: jest.fn().mockResolvedValue({ status: "failed" }),
     review: jest.fn().mockResolvedValue(true),
   };
-  const identityResolver: RevenueCatIdentityResolver = {
-    resolve: options.identityError
-      ? jest.fn().mockRejectedValue(options.identityError)
-      : jest
-          .fn()
-          .mockResolvedValue(
-            options.resolvedIdentity === undefined
-              ? "user_clerk_one"
-              : options.resolvedIdentity,
-          ),
-  };
+  const resolveMock = options.identityError
+    ? jest.fn().mockRejectedValue(options.identityError)
+    : jest
+        .fn()
+        .mockResolvedValue(
+          options.resolvedIdentity === undefined
+            ? "user_clerk_one"
+            : options.resolvedIdentity,
+        );
+  const identityResolver: RevenueCatIdentityResolver = { resolve: resolveMock };
   const applyMock = options.applyError
     ? jest.fn().mockRejectedValue(options.applyError)
     : jest.fn().mockResolvedValue({
@@ -108,6 +107,7 @@ function harness(
   const applier: RevenueCatLifecycleApplier = { apply: applyMock };
   return {
     applyMock,
+    resolveMock,
     events,
     identityResolver,
     processor: new RevenueCatEventProcessor(
@@ -269,11 +269,16 @@ describe("RevenueCatEventProcessor", () => {
 
   it("treats a verified RevenueCat TEST event as a processed no-op", async () => {
     const event = inboxEvent("TEST", {
-      product_id: null,
+      app_user_id: "05d8ffb1-d8ba-476e-8571-69018f8a15ee",
+      environment: "SANDBOX",
+      store: "APP_STORE",
+      product_id: "test_product",
       original_transaction_id: null,
       transaction_id: null,
     });
-    const { applyMock, events, processor } = harness({ events: [event] });
+    const { applyMock, events, processor, resolveMock } = harness({
+      events: [event],
+    });
 
     await expect(processor.processBatch()).resolves.toEqual({
       processed: 1,
@@ -281,6 +286,7 @@ describe("RevenueCatEventProcessor", () => {
       reviewed: 0,
     });
     expect(applyMock).not.toHaveBeenCalled();
+    expect(resolveMock).not.toHaveBeenCalled();
     expect(events.complete).toHaveBeenCalledWith(event.id);
   });
 });
