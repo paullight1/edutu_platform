@@ -29,7 +29,7 @@ import {
   notifications,
   profiles,
 } from "../db/schema";
-import { toDatabaseUserId } from "../common/user-id";
+import { toDatabaseUserId, matchUserIdRef } from "../common/user-id";
 import { deferForQuietHours, type QuietHours } from "../common/quiet-hours";
 import type {
   BroadcastNotificationDto,
@@ -110,6 +110,7 @@ type DeliveryPreferences = {
 export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
   private readonly expo = new Expo();
+  private readonly acceptedApplicationPushes = new Set<string>();
   // Lazily-loaded web-push module (optional dependency); null when VAPID keys
   // are unset or the package isn't installed, in which case web push no-ops.
   private webpush: any = null;
@@ -702,6 +703,7 @@ export class NotificationsService {
    */
   private async loadPushBudgetUsage(
     userIds: string[],
+    excludeDedupeKey?: string,
   ): Promise<Map<string, { day: number; week: number }>> {
     const usage = new Map<string, { day: number; week: number }>();
     if (!userIds.length) return usage;
@@ -720,6 +722,7 @@ export class NotificationsService {
         )}]::uuid[])
           and n.delivered_at is not null
           and n.delivered_at >= now() - interval '7 days'
+          and (${excludeDedupeKey ?? null}::text is null or n.dedupe_key is distinct from ${excludeDedupeKey ?? null})
         group by n.user_id
       `);
 
@@ -784,6 +787,7 @@ export class NotificationsService {
     try {
       usage = await this.loadPushBudgetUsage(
         recipients.map((recipient) => recipient.userId),
+        this.applicationPushKey(dto),
       );
     } catch (error) {
       this.logger.warn(
@@ -806,7 +810,44 @@ export class NotificationsService {
   }
 
   private async deliverBroadcast(dto: BroadcastNotificationDto) {
+    // Recheck at delivery (including quiet-hour redelivery), rather than trusting
+    // yesterday's draft. Submission via My Plan and deletion also suppress it.
+    if (dto.metadata?.source === "application-confirmation") {
+      const applicationId = dto.metadata.applicationId;
+      const owner =
+        dto.audience === "specific" && dto.targetUserIds?.length === 1
+          ? dto.targetUserIds[0]
+          : null;
+      let current = false;
+      if (
+        owner &&
+        typeof applicationId === "string" &&
+        /^[0-9a-f-]{36}$/i.test(applicationId)
+      ) {
+        const result = await db.execute(sql`
+          select id from public.opportunity_applications
+          where id = ${applicationId}::uuid and ${matchUserIdRef("user_id::text", toDatabaseUserId(owner))}
+            and status = 'draft' limit 1
+        `);
+        current = (Array.isArray(result) ? result : result.rows).length > 0;
+      }
+      if (!current)
+        return {
+          queued: false,
+          recipientCount: 0,
+          insertedCount: 0,
+          push: {
+            sent: 0,
+            skipped: "application no longer awaiting confirmation",
+          },
+          email: {
+            sent: 0,
+            skipped: "application no longer awaiting confirmation",
+          },
+        };
+    }
     const channels = { ...DEFAULT_CHANNELS, ...(dto.channels || {}) };
+    const applicationPushKey = this.applicationPushKey(dto);
     let recipients = await this.resolveRecipients(dto);
 
     if (!recipients.length) {
@@ -873,22 +914,64 @@ export class NotificationsService {
     // prevent. Only applies when we actually wrote the inbox rows: the
     // quiet-hours redelivery path sets inApp:false deliberately (its row was
     // written by the original broadcast) and must still reach every recipient.
-    if (channels.inApp && dto.dedupeKey) {
+    if (applicationPushKey) {
+      // A retry still uses the original inbox row. Per-device receipts below
+      // suppress transports that already accepted this application notice.
+      const existing = await db
+        .select({
+          id: notifications.id,
+          userId: notifications.userId,
+          metadata: notifications.metadata,
+          deliveredAt: notifications.deliveredAt,
+          channelStatus: notifications.channelStatus,
+        })
+        .from(notifications)
+        .where(
+          and(
+            eq(notifications.dedupeKey, applicationPushKey),
+            inArray(
+              notifications.userId,
+              recipients.map((recipient) => recipient.userId),
+            ),
+          ),
+        );
+      const legacyUserIds = new Set(
+        existing
+          .filter(
+            (row) =>
+              row.metadata?.source === "applications" &&
+              (row.deliveredAt ||
+                Number(
+                  (row.channelStatus as { push?: { sent?: number } } | null)
+                    ?.push?.sent,
+                ) > 0),
+          )
+          .map((row) => row.userId),
+      );
+      recipients = recipients.filter(
+        (recipient) => !legacyUserIds.has(recipient.userId),
+      );
+      for (const row of existing) {
+        if (legacyUserIds.has(row.userId)) continue;
+        notificationIdByUser.set(row.userId, row.id);
+        if (!notificationIds.includes(row.id)) notificationIds.push(row.id);
+      }
+    } else if (channels.inApp && dto.dedupeKey) {
       recipients = recipients.filter((recipient) =>
         insertedUserIds.has(recipient.userId),
       );
-      if (!recipients.length) {
-        return {
-          queued: false,
-          recipientCount: 0,
-          insertedCount,
-          push: { sent: 0, skipped: "duplicate (dedupeKey already delivered)" },
-          email: {
-            sent: 0,
-            skipped: "duplicate (dedupeKey already delivered)",
-          },
-        };
-      }
+    }
+    if (!recipients.length) {
+      return {
+        queued: false,
+        recipientCount: 0,
+        insertedCount,
+        push: { sent: 0, skipped: "duplicate (dedupeKey already delivered)" },
+        email: {
+          sent: 0,
+          skipped: "duplicate (dedupeKey already delivered)",
+        },
+      };
     }
 
     // Preferences are enforced HERE rather than in each caller: every push in
@@ -1042,6 +1125,12 @@ export class NotificationsService {
       }
     }
 
+    if (applicationPushKey && this.deliveryFailed(push)) {
+      throw new Error(
+        "Application push delivery failed; retry pending devices",
+      );
+    }
+
     return {
       queued: false,
       recipientCount: recipients.length,
@@ -1064,23 +1153,28 @@ export class NotificationsService {
     dto: BroadcastNotificationDto,
   ) {
     for (const batch of this.chunk(deferred, BROADCAST_BATCH_SIZE)) {
-      await db.insert(notificationQueue).values(
-        batch.map(({ recipient, at }) => ({
-          payload: {
-            ...dto,
-            audience: "specific",
-            targetUserIds: [recipient.userId],
-            channels: { inApp: false, push: true, email: false },
-            scheduledFor: undefined,
-            metadata: {
-              ...(dto.metadata || {}),
-              quietHoursDeferred: true,
-            },
-          } as unknown as Record<string, unknown>,
-          scheduledFor: new Date(at),
-          createdBy: recipient.userId,
-        })),
-      );
+      await db
+        .insert(notificationQueue)
+        .values(
+          batch.map(({ recipient, at }) => ({
+            payload: {
+              ...dto,
+              audience: "specific",
+              targetUserIds: [recipient.userId],
+              channels: { inApp: false, push: true, email: false },
+              scheduledFor: undefined,
+              metadata: {
+                ...(dto.metadata || {}),
+                quietHoursDeferred: true,
+              },
+            } as unknown as Record<string, unknown>,
+            scheduledFor: new Date(at),
+            // System follow-ups have no operator creator. Profile user IDs
+            // may be raw Clerk subjects while recipients are derived UUIDs.
+            createdBy: null,
+          })),
+        )
+        .onConflictDoNothing();
     }
   }
 
@@ -1141,6 +1235,7 @@ export class NotificationsService {
     // Tokens Expo tells us are dead (uninstalled app, or malformed). Pruned
     // after the send loop so a broadcast never leaves rot behind.
     const staleTokens: string[] = [];
+    const deliveryKey = this.applicationPushKey(dto);
 
     for (const userBatch of this.chunk(userIds, BROADCAST_BATCH_SIZE)) {
       const tokens = await db
@@ -1181,6 +1276,7 @@ export class NotificationsService {
       // Parallel to `messages`: which user each message belongs to, so a
       // per-ticket result can be attributed back for delivery telemetry.
       const messageUserIds: string[] = [];
+      const messageTokenIds: string[] = [];
       for (const item of tokens) {
         // A token that isn't even shaped like an Expo token can never work —
         // Expo would reject the whole chunk, so drop it here instead.
@@ -1188,6 +1284,18 @@ export class NotificationsService {
           staleTokens.push(item.token);
           rejected += 1;
           continue;
+        }
+        if (deliveryKey) {
+          try {
+            if (await this.hasApplicationPushReceipt(deliveryKey, item.id)) {
+              sent += 1;
+              deliveredUserIds?.add(item.userId);
+              continue;
+            }
+          } catch (error) {
+            failures.push(this.errorMessage(error));
+            continue;
+          }
         }
         const notificationId = notificationIdByUser?.get(item.userId);
         messages.push({
@@ -1208,6 +1316,7 @@ export class NotificationsService {
           },
         });
         messageUserIds.push(item.userId);
+        messageTokenIds.push(item.id);
       }
 
       // The SDK chunks to Expo's own per-request limit; don't second-guess it.
@@ -1220,30 +1329,68 @@ export class NotificationsService {
         messageOffset += chunk.length;
         try {
           const tickets = await this.expo.sendPushNotificationsAsync(chunk);
+          if (deliveryKey) {
+            for (const [index, ticket] of tickets.entries()) {
+              if (ticket.status === "ok")
+                this.acceptedApplicationPushes.add(
+                  `${deliveryKey}\0${messageTokenIds[chunkStart + index]}`,
+                );
+            }
+          }
 
           // Expo returns HTTP 200 with per-message tickets, so a rejected
           // message looks identical to a delivered one at the transport layer.
           // Counting messages instead of "ok" tickets is what made `sent`
           // meaningless before.
-          tickets.forEach((ticket, index) => {
+          for (const [index, ticket] of tickets.entries()) {
             if (ticket.status === "ok") {
               sent += 1;
               const userId = messageUserIds[chunkStart + index];
               if (userId) deliveredUserIds?.add(userId);
-              return;
+              if (deliveryKey) {
+                try {
+                  await this.saveApplicationPushReceipt(
+                    deliveryKey,
+                    messageTokenIds[chunkStart + index],
+                  );
+                } catch (error) {
+                  failures.push(this.errorMessage(error));
+                }
+              }
+              continue;
             }
 
             rejected += 1;
+            if (deliveryKey)
+              await this.releaseApplicationPushReceipt(
+                deliveryKey,
+                messageTokenIds[chunkStart + index],
+              );
             const reason = ticket.details?.error;
             // The app was uninstalled (or the token rotated). This is the only
             // trustworthy signal for pruning, so act on it.
             if (reason === "DeviceNotRegistered") {
               const to = chunk[index]?.to;
               if (typeof to === "string") staleTokens.push(to);
+              continue;
             }
             failures.push(reason || ticket.message || "Expo rejected message");
-          });
+          }
         } catch (error) {
+          if (deliveryKey) {
+            for (const tokenId of messageTokenIds.slice(
+              chunkStart,
+              chunkStart + chunk.length,
+            )) {
+              // Never clear a reservation for a device the provider accepted.
+              if (
+                !this.acceptedApplicationPushes.has(
+                  `${deliveryKey}\0${tokenId}`,
+                )
+              )
+                await this.releaseApplicationPushReceipt(deliveryKey, tokenId);
+            }
+          }
           rejected += chunk.length;
           failures.push(
             error instanceof Error ? error.message : "Expo push failed",
@@ -1254,7 +1401,7 @@ export class NotificationsService {
 
     const pruned = await this.pruneExpoTokens(staleTokens);
 
-    if (!sent && !rejected) {
+    if (!sent && !rejected && !failures.length) {
       return { sent: 0, skipped: "no expo tokens" };
     }
 
@@ -1362,6 +1509,7 @@ export class NotificationsService {
     let sent = 0;
     const failures: string[] = [];
     const expiredIds: string[] = [];
+    const deliveryKey = this.applicationPushKey(dto);
 
     for (const userBatch of this.chunk(userIds, BROADCAST_BATCH_SIZE)) {
       const tokens = await db
@@ -1378,14 +1526,29 @@ export class NotificationsService {
         const subscription = (item.device as any)?.subscription;
         if (!subscription?.endpoint) continue;
 
+        let accepted = false;
+        let reserved = false;
         try {
+          if (deliveryKey) {
+            if (await this.hasApplicationPushReceipt(deliveryKey, item.id)) {
+              sent += 1;
+              deliveredUserIds?.add(item.userId);
+              continue;
+            }
+            reserved = true;
+          }
           await webpush.sendNotification(
             subscription,
             buildPayload(notificationIdByUser?.get(item.userId)),
           );
+          accepted = true;
           sent += 1;
           deliveredUserIds?.add(item.userId);
+          if (deliveryKey)
+            await this.saveApplicationPushReceipt(deliveryKey, item.id);
         } catch (error: any) {
+          if (deliveryKey && reserved && !accepted)
+            await this.releaseApplicationPushReceipt(deliveryKey, item.id);
           // 404/410 mean the browser subscription is gone — prune it.
           if (error?.statusCode === 404 || error?.statusCode === 410) {
             expiredIds.push(item.id);
@@ -1406,6 +1569,69 @@ export class NotificationsService {
       return { sent: 0, skipped: "no webpush subscriptions" };
     }
     return failures.length ? { sent, failed: failures.join("; ") } : { sent };
+  }
+
+  private applicationPushKey(
+    dto: BroadcastNotificationDto,
+  ): string | undefined {
+    return ["application-confirmation", "application-status"].includes(
+      String(dto.metadata?.source),
+    )
+      ? dto.dedupeKey
+      : undefined;
+  }
+
+  private deliveryFailed(value: unknown): boolean {
+    if (!value || typeof value !== "object") return false;
+    const result = value as Record<string, unknown>;
+    return (
+      Boolean(result.failed) ||
+      Object.values(result).some((item) => this.deliveryFailed(item))
+    );
+  }
+
+  private async hasApplicationPushReceipt(
+    deliveryKey: string,
+    tokenId: string,
+  ): Promise<boolean> {
+    if (this.acceptedApplicationPushes.has(`${deliveryKey}\0${tokenId}`)) {
+      await this.saveApplicationPushReceipt(deliveryKey, tokenId);
+      return true;
+    }
+    const claimed =
+      await db.execute(sql`insert into private.application_push_receipts(delivery_key, token_id, status)
+      values (${deliveryKey}, ${tokenId}::uuid, 'sending') on conflict do nothing returning token_id`);
+    if (this.rows(claimed).length) return false;
+    const result =
+      await db.execute(sql`select status from private.application_push_receipts
+      where delivery_key = ${deliveryKey} and token_id = ${tokenId}::uuid`);
+    if (
+      (this.rows(result)[0] as { status?: string } | undefined)?.status ===
+      "accepted"
+    )
+      return true;
+    throw new Error(
+      "Application push delivery is uncertain; manual review required before resending",
+    );
+  }
+
+  private async saveApplicationPushReceipt(
+    deliveryKey: string,
+    tokenId: string,
+  ): Promise<void> {
+    const key = `${deliveryKey}\0${tokenId}`;
+    this.acceptedApplicationPushes.add(key);
+    await db.execute(sql`update private.application_push_receipts set status='accepted', accepted_at=now()
+      where delivery_key=${deliveryKey} and token_id=${tokenId}::uuid`);
+    this.acceptedApplicationPushes.delete(key);
+  }
+
+  private async releaseApplicationPushReceipt(
+    deliveryKey: string,
+    tokenId: string,
+  ): Promise<void> {
+    await db.execute(sql`delete from private.application_push_receipts
+      where delivery_key=${deliveryKey} and token_id=${tokenId}::uuid and status='sending'`);
   }
 
   private chunk<T>(items: T[], size: number): T[][] {

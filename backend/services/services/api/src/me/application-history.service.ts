@@ -23,7 +23,7 @@ export class ApplicationHistoryService {
 
   async list(userId: string, applicationId: string) {
     const dbUserId = toDatabaseUserId(userId);
-    await this.assertOwnedApplication(dbUserId, applicationId);
+    await this.assertOwnedApplication(userId, applicationId);
 
     const { data, error } = await this.client
       .from("application_history")
@@ -31,7 +31,7 @@ export class ApplicationHistoryService {
         "id,application_id,event_type,previous_status,next_status,note,metadata,actor_user_id,created_at",
       )
       .eq("application_id", applicationId)
-      .eq("user_id", dbUserId)
+      .in("user_id", [userId, dbUserId])
       .order("created_at", { ascending: true });
 
     if (error) {
@@ -49,7 +49,7 @@ export class ApplicationHistoryService {
   ) {
     const dbUserId = toDatabaseUserId(userId);
     const application = await this.assertOwnedApplication(
-      dbUserId,
+      userId,
       applicationId,
     );
 
@@ -83,7 +83,7 @@ export class ApplicationHistoryService {
       .from("opportunity_applications")
       .select("id,status,user_id")
       .eq("id", applicationId)
-      .eq("user_id", userId)
+      .in("user_id", [userId, toDatabaseUserId(userId)])
       .maybeSingle();
 
     if (error) {

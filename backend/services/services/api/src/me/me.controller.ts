@@ -7,6 +7,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
 } from "@nestjs/common";
 import { CurrentUser } from "../auth";
 import { ZodValidationPipe } from "../common/zod-validation.pipe";
@@ -22,14 +23,22 @@ import {
   type CreateApplicationDto,
   type SaveBookmarkDto,
   type UpdateApplicationDto,
+  ApplicationEventSchema,
+  type ApplicationEventDto,
 } from "./dto/me.dto";
 import { MeService } from "./me.service";
+import { ApplicationListService } from "./application-list.service";
+import {
+  ApplicationListQuerySchema,
+  type ApplicationListQuery,
+} from "./dto/application-list.dto";
 
 @Controller("me")
 export class MeController {
   constructor(
     private readonly meService: MeService,
     private readonly applicationHistory: ApplicationHistoryService,
+    private readonly applicationList: ApplicationListService,
   ) {}
 
   @Get("opportunities/bookmarks")
@@ -63,30 +72,64 @@ export class MeController {
   }
 
   @Get("applications")
-  listApplications(@CurrentUser("id") userId: string) {
+  listApplications(@CurrentUser("authId") userId: string) {
     return this.meService.listApplications(userId);
   }
 
   @Post("applications")
   createApplication(
-    @CurrentUser("id") userId: string,
+    @CurrentUser("authId") userId: string,
     @Body(new ZodValidationPipe(CreateApplicationSchema))
     body: CreateApplicationDto,
   ) {
     return this.meService.createApplication(userId, body);
   }
 
+  @Get("applications/page")
+  listApplicationPage(
+    @CurrentUser("authId") userId: string,
+    @Query(new ZodValidationPipe(ApplicationListQuerySchema))
+    query: ApplicationListQuery,
+  ) {
+    return this.applicationList.page(userId, query);
+  }
+
+  @Get("applications/opportunity-ids")
+  async applicationOpportunityIds(@CurrentUser("authId") userId: string) {
+    return {
+      opportunityIds: await this.applicationList.opportunityIds(userId),
+    };
+  }
+
   @Get("applications/:id/history")
   listApplicationHistory(
-    @CurrentUser("id") userId: string,
+    @CurrentUser("authId") userId: string,
     @Param("id", new ParseUUIDPipe({ version: "4" })) applicationId: string,
   ) {
     return this.applicationHistory.list(userId, applicationId);
   }
 
+  @Get("applications/:id")
+  getApplication(
+    @CurrentUser("authId") userId: string,
+    @Param("id", new ParseUUIDPipe({ version: "4" })) applicationId: string,
+  ) {
+    return this.meService.getApplication(userId, applicationId);
+  }
+
+  @Post("applications/:id/events")
+  recordApplicationEvent(
+    @CurrentUser("authId") userId: string,
+    @Param("id", new ParseUUIDPipe({ version: "4" })) applicationId: string,
+    @Body(new ZodValidationPipe(ApplicationEventSchema))
+    body: ApplicationEventDto,
+  ) {
+    return this.meService.recordApplicationEvent(userId, applicationId, body);
+  }
+
   @Post("applications/:id/reflections")
   addApplicationReflection(
-    @CurrentUser("id") userId: string,
+    @CurrentUser("authId") userId: string,
     @Param("id", new ParseUUIDPipe({ version: "4" })) applicationId: string,
     @Body(new ZodValidationPipe(AddApplicationReflectionSchema))
     body: AddApplicationReflectionDto,
@@ -100,7 +143,7 @@ export class MeController {
 
   @Patch("applications/:id")
   updateApplication(
-    @CurrentUser("id") userId: string,
+    @CurrentUser("authId") userId: string,
     @Param("id", new ParseUUIDPipe({ version: "4" })) applicationId: string,
     @Body(new ZodValidationPipe(UpdateApplicationSchema))
     body: UpdateApplicationDto,
@@ -110,14 +153,14 @@ export class MeController {
 
   @Delete("applications/:id")
   deleteApplication(
-    @CurrentUser("id") userId: string,
+    @CurrentUser("authId") userId: string,
     @Param("id", new ParseUUIDPipe({ version: "4" })) applicationId: string,
   ) {
     return this.meService.deleteApplication(userId, applicationId);
   }
 
   @Get("deadlines")
-  listDeadlines(@CurrentUser("id") userId: string) {
+  listDeadlines(@CurrentUser("authId") userId: string) {
     return this.meService.listDeadlines(userId);
   }
 

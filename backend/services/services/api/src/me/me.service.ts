@@ -1,18 +1,18 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   Logger,
   NotFoundException,
-  Optional,
   ServiceUnavailableException,
 } from "@nestjs/common";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { toDatabaseUserId } from "../common/user-id";
-import { NotificationsService } from "../notifications/notifications.service";
 import type {
   CreateApplicationDto,
   SaveBookmarkDto,
   UpdateApplicationDto,
+  ApplicationEventDto,
 } from "./dto/me.dto";
 
 type TableRow = Record<string, unknown>;
@@ -42,10 +42,8 @@ export class MeService {
   private readonly logger = new Logger(MeService.name);
   private readonly supabase: SupabaseClient | null = null;
   private readonly notificationCountWarnings = new Set<string>();
-  private readonly notificationsService?: NotificationsService;
 
-  constructor(@Optional() notificationsService?: NotificationsService) {
-    this.notificationsService = notificationsService;
+  constructor() {
     const url = process.env.SUPABASE_URL;
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -137,19 +135,77 @@ export class MeService {
 
   async listApplications(userId: string) {
     const dbUserId = toDatabaseUserId(userId);
-    const applications = await this.fetchApplicationRows(dbUserId);
+    const applications = await this.fetchApplicationRows(userId);
     return this.hydrateApplications(applications);
+  }
+
+  async getApplication(userId: string, applicationId: string) {
+    this.assertUuid(applicationId, "Application id");
+    const { data, error } = await this.client
+      .from("opportunity_applications")
+      .select("*")
+      .in("user_id", [userId, toDatabaseUserId(userId)])
+      .eq("id", applicationId)
+      .maybeSingle();
+    this.throwIfSupabaseError(error, "Could not load application");
+    if (!data) throw new NotFoundException("Application not found");
+    const [application] = await this.hydrateApplications([data as TableRow]);
+    return application;
+  }
+
+  async recordApplicationEvent(
+    userId: string,
+    applicationId: string,
+    dto: ApplicationEventDto,
+  ) {
+    await this.getApplication(userId, applicationId);
+    const { error } = await this.client.from("application_events").upsert(
+      {
+        id: dto.eventId,
+        application_id: applicationId,
+        user_id: toDatabaseUserId(userId),
+        event: dto.event,
+      },
+      { onConflict: "id", ignoreDuplicates: true },
+    );
+    this.throwIfSupabaseError(error, "Could not record application event");
+    return { recorded: true };
   }
 
   async createApplication(userId: string, dto: CreateApplicationDto) {
     const dbUserId = toDatabaseUserId(userId);
+    // Legacy applications can use the raw authenticated Clerk subject. Find
+    // them before inserting the canonical derived ID for a new application.
+    const prior = await this.client
+      .from("opportunity_applications")
+      .select("*")
+      .in("user_id", [userId, dbUserId])
+      .eq("opportunity_id", dto.opportunityId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    this.throwIfSupabaseError(
+      prior.error,
+      "Could not read existing application",
+    );
+    if (prior.data) {
+      const [existing] = await this.hydrateApplications([
+        prior.data as TableRow,
+      ]);
+      return existing;
+    }
     const now = new Date().toISOString();
     const status = dto.status ?? "draft";
     const payload: TableRow = {
       user_id: dbUserId,
       opportunity_id: dto.opportunityId,
       status,
-      metadata: dto.metadata ?? {},
+      metadata: {
+        ...(dto.metadata ?? {}),
+        ...(dto.metadata?.application_opened_at
+          ? { application_opened_at: now }
+          : {}),
+      },
       updated_at: now,
     };
 
@@ -160,25 +216,40 @@ export class MeService {
       payload.notes = dto.notes ?? null;
     }
 
-    const { data, error } = await this.client
+    const { data: inserted, error } = await this.client
       .from("opportunity_applications")
-      .upsert(payload, { onConflict: "user_id,opportunity_id" })
+      .upsert(payload, {
+        onConflict: "user_id,opportunity_id",
+        ignoreDuplicates: true,
+      })
       .select("*")
-      .single();
+      .maybeSingle();
 
     this.throwIfSupabaseError(error, "Could not create application");
 
-    await this.recordOutcomeSignal(dbUserId, dto.opportunityId, status);
+    // Opening an external form again must never overwrite an existing outcome,
+    // notes, or submission timestamp. Status changes use the PATCH endpoint.
+    let data = inserted;
+    if (!data) {
+      const existing = await this.client
+        .from("opportunity_applications")
+        .select("*")
+        .in("user_id", [userId, dbUserId])
+        .eq("opportunity_id", dto.opportunityId)
+        .maybeSingle();
+      this.throwIfSupabaseError(
+        existing.error,
+        "Could not read existing application",
+      );
+      data = existing.data;
+      if (!data)
+        throw new ServiceUnavailableException("Could not create application");
+    }
+
+    if (inserted)
+      await this.recordOutcomeSignal(dbUserId, dto.opportunityId, status);
 
     const [application] = await this.hydrateApplications([data as TableRow]);
-    if (status === "submitted") {
-      this.queueApplicationNotification(
-        userId,
-        dto.opportunityId,
-        String((data as TableRow).id ?? ""),
-        "submitted",
-      );
-    }
     return application;
   }
 
@@ -206,16 +277,35 @@ export class MeService {
       patch.metadata = dto.metadata ?? {};
     }
 
-    const { data, error } = await this.client
+    let update = this.client
       .from("opportunity_applications")
       .update(patch)
       .eq("id", applicationId)
-      .eq("user_id", dbUserId)
-      .select("*")
-      .maybeSingle();
+      .in("user_id", [userId, dbUserId]);
+    if (dto.expectedVersion !== undefined)
+      update = update.eq("version", dto.expectedVersion);
+    const { data, error } = await update.select("*").maybeSingle();
 
     this.throwIfSupabaseError(error, "Could not update application");
-    if (!data) throw new NotFoundException("Application not found");
+    if (!data) {
+      if (dto.expectedVersion !== undefined) {
+        const existing = await this.client
+          .from("opportunity_applications")
+          .select("id,version")
+          .eq("id", applicationId)
+          .in("user_id", [userId, dbUserId])
+          .maybeSingle();
+        this.throwIfSupabaseError(
+          existing.error,
+          "Could not verify application version",
+        );
+        if (existing.data)
+          throw new ConflictException(
+            "This application changed in another session. Refresh and review its latest status before trying again.",
+          );
+      }
+      throw new NotFoundException("Application not found");
+    }
 
     if (typeof dto.status === "string") {
       await this.recordOutcomeSignal(
@@ -227,59 +317,7 @@ export class MeService {
     }
 
     const [application] = await this.hydrateApplications([data as TableRow]);
-    if (typeof dto.status === "string" && dto.status !== "draft") {
-      this.queueApplicationNotification(
-        userId,
-        String((data as TableRow).opportunity_id ?? ""),
-        applicationId,
-        dto.status,
-      );
-    }
     return application;
-  }
-
-  private queueApplicationNotification(
-    userId: string,
-    opportunityId: string,
-    applicationId: string,
-    status: string,
-  ): void {
-    if (
-      !this.notificationsService ||
-      !userId ||
-      !opportunityId ||
-      !applicationId
-    ) {
-      return;
-    }
-
-    const statusLabel = status.replace(/_/g, " ");
-    void this.notificationsService
-      .broadcast(userId, {
-        title:
-          status === "submitted"
-            ? "Application submitted"
-            : "Application updated",
-        body: `Your application status is now ${statusLabel}.`,
-        kind: "application-status",
-        severity: status === "rejected" ? "warning" : "success",
-        audience: "specific",
-        targetUserIds: [userId],
-        channels: { inApp: true, push: true, email: false },
-        dedupeKey: `application-status:${applicationId}:${status}`,
-        metadata: {
-          url: `/opportunities/${opportunityId}`,
-          opportunityId,
-          applicationId,
-          status,
-          source: "applications",
-        },
-      })
-      .catch((error: unknown) => {
-        this.logger.warn(
-          `Application notification failed: ${error instanceof Error ? error.message : String(error)}`,
-        );
-      });
   }
 
   /**
@@ -355,7 +393,7 @@ export class MeService {
       .from("opportunity_applications")
       .delete()
       .eq("id", applicationId)
-      .eq("user_id", dbUserId);
+      .in("user_id", [userId, dbUserId]);
 
     this.throwIfSupabaseError(error, "Could not delete application");
     return { success: true };
@@ -365,7 +403,7 @@ export class MeService {
     const dbUserId = toDatabaseUserId(userId);
     const [bookmarks, applications, goals] = await Promise.all([
       this.fetchBookmarkRows(dbUserId),
-      this.fetchApplicationRows(dbUserId),
+      this.fetchApplicationRows(userId),
       this.fetchGoalRows(dbUserId),
     ]);
     const opportunities = await this.fetchOpportunityMap([
@@ -413,7 +451,7 @@ export class MeService {
     const dbUserId = toDatabaseUserId(userId);
     const [bookmarks, applications, goals, notifications] = await Promise.all([
       this.fetchBookmarkRows(dbUserId),
-      this.fetchApplicationRows(dbUserId),
+      this.fetchApplicationRows(authUserId || userId),
       this.fetchGoalRows(dbUserId),
       this.fetchNotificationCounts(dbUserId, authUserId),
     ]);
@@ -499,7 +537,7 @@ export class MeService {
     const { data, error } = await this.client
       .from("opportunity_applications")
       .select("*")
-      .eq("user_id", userId)
+      .in("user_id", [userId, toDatabaseUserId(userId)])
       .order("created_at", { ascending: false });
 
     this.throwIfSupabaseError(error, "Could not load applications");

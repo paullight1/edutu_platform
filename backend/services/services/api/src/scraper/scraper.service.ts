@@ -137,6 +137,10 @@ export class ScraperService implements OnModuleInit {
   }
 
   async onModuleInit() {
+    if (!this.schedulerEnabled()) {
+      this.logger.log("Scraper scheduling and startup cleanup are disabled.");
+      return;
+    }
     // A deploy (or crash) mid-crawl leaves its scrape_logs row stuck at
     // "running" forever — nothing else ever finalizes it, and the admin's
     // reconnect polling can't tell an orphan from a live run.
@@ -146,9 +150,13 @@ export class ScraperService implements OnModuleInit {
     await this.initializeSchedule();
   }
 
-  /** Scheduling is disabled entirely when SCRAPER_SCHEDULER_ENABLED=false. */
+  /** Shared-server jobs require production or an explicit development opt-in. */
   private schedulerEnabled(): boolean {
-    return process.env.SCRAPER_SCHEDULER_ENABLED !== "false";
+    return (
+      process.env.SCRAPER_SCHEDULER_ENABLED !== "false" &&
+      (process.env.NODE_ENV === "production" ||
+        process.env.DEV_SCHEDULED_JOBS_ENABLED === "true")
+    );
   }
 
   private async initializeSchedule() {

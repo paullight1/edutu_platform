@@ -39,6 +39,7 @@ export type CreateApplicationDto = z.infer<typeof CreateApplicationSchema>;
 
 export const UpdateApplicationSchema = z
   .object({
+    expectedVersion: z.number().int().positive().optional(),
     status: ApplicationStatusSchema.optional(),
     notes: z.string().trim().max(4000).nullable().optional(),
     metadata: applicationMetadataSchema.optional(),
@@ -48,8 +49,23 @@ export const UpdateApplicationSchema = z
     reflection: z.string().trim().max(2000).nullable().optional(),
   })
   .strict()
-  .refine((value) => Object.keys(value).length > 0, {
-    message: "At least one application field is required",
-  });
+  .refine(
+    (value) => Object.keys(value).some((key) => key !== "expectedVersion"),
+    {
+      message: "At least one application field is required",
+    },
+  );
 
 export type UpdateApplicationDto = z.infer<typeof UpdateApplicationSchema>;
+
+export const ApplicationEventSchema = z
+  .object({
+    eventId: z.string().uuid(),
+    event: z.enum([
+      "application_opened",
+      "application_prompt_snoozed",
+      "application_save_failed",
+    ]),
+  })
+  .strict();
+export type ApplicationEventDto = z.infer<typeof ApplicationEventSchema>;

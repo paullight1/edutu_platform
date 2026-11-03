@@ -1,9 +1,9 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
-import * as dotenv from "dotenv";
+import { loadEnvironmentFiles } from "../config/load-environment";
 import * as schema from "./all-schema";
 
-dotenv.config();
+loadEnvironmentFiles();
 
 function optionalNumber(value: string | undefined, fallback: number) {
   const parsed = Number(value);

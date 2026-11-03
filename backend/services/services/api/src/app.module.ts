@@ -52,7 +52,13 @@ import { VoiceModule } from "./voice/voice.module";
   imports: [
     CacheModule,
     ConfigModule.forRoot({ envFilePath: [".env.local", ".env"] }),
-    ScheduleModule.forRoot(),
+    // A development process may connect to the self-hosted database. It must
+    // not run a second copy of production jobs unless explicitly enabled.
+    ScheduleModule.forRoot({
+      cronJobs:
+        process.env.NODE_ENV === "production" ||
+        process.env.DEV_SCHEDULED_JOBS_ENABLED === "true",
+    }),
     ThrottlerModule.forRoot([
       {
         ttl: 60000,

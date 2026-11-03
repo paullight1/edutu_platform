@@ -16,6 +16,201 @@ jest.mock("../db", () => ({
   },
 }));
 
+describe("application confirmation reminder delivery", () => {
+  afterEach(() => jest.restoreAllMocks());
+  it("does not repush a status already delivered by the legacy sender", async () => {
+    const service = new NotificationsService();
+    const userId = toDatabaseUserId("user_test");
+    (db.select as jest.Mock).mockReturnValue({
+      from: () => ({
+        where: async () => [
+          {
+            id: "legacy-inbox",
+            userId,
+            metadata: { source: "applications" },
+            deliveredAt: new Date(),
+          },
+        ],
+      }),
+    });
+    const send = jest.spyOn(service as any, "sendPush");
+    const result = await (service as any).deliverBroadcast({
+      title: "Status",
+      body: "Update",
+      audience: "specific",
+      targetUserIds: ["user_test"],
+      channels: { inApp: false, push: true, email: false },
+      dedupeKey: "application-status:test:submitted",
+      metadata: { source: "application-status", quietHoursDeferred: true },
+    });
+    expect(result.recipientCount).toBe(0);
+    expect(send).not.toHaveBeenCalled();
+  });
+  it("fails application delivery for transient provider errors so the queue retries", async () => {
+    const service = new NotificationsService();
+    (db.select as jest.Mock).mockReturnValue({
+      from: () => ({ where: async () => [] }),
+    });
+    jest
+      .spyOn(service as any, "loadDeliveryPreferences")
+      .mockResolvedValue(new Map());
+    jest
+      .spyOn(service as any, "filterByPushBudget")
+      .mockImplementation(async (recipients: any) => ({
+        allowed: recipients,
+        suppressed: 0,
+      }));
+    jest
+      .spyOn(service as any, "sendPush")
+      .mockResolvedValue({ sent: 0, web: { failed: "503 unavailable" } });
+    await expect(
+      (service as any).deliverBroadcast({
+        title: "Status",
+        body: "Update",
+        audience: "specific",
+        targetUserIds: ["user_test"],
+        channels: { inApp: false, push: true, email: false },
+        dedupeKey: "application-status:test:submitted",
+        metadata: { source: "application-status", quietHoursDeferred: true },
+      }),
+    ).rejects.toThrow("Application push delivery failed");
+  });
+  it("retries legacy status rows with no accepted push delivery", async () => {
+    const service = new NotificationsService();
+    const userId = toDatabaseUserId("user_test");
+    (db.select as jest.Mock).mockReturnValue({
+      from: () => ({
+        where: async () => [
+          {
+            id: "legacy-inbox",
+            userId,
+            metadata: { source: "applications" },
+            deliveredAt: null,
+            channelStatus: {
+              push: { sent: 0, failed: "provider unavailable" },
+            },
+          },
+        ],
+      }),
+    });
+    (db.update as jest.Mock).mockReturnValue({
+      set: () => ({ where: async () => undefined }),
+    });
+    jest
+      .spyOn(service as any, "loadDeliveryPreferences")
+      .mockResolvedValue(new Map());
+    jest
+      .spyOn(service as any, "filterByPushBudget")
+      .mockImplementation(async (recipients: any) => ({
+        allowed: recipients,
+        suppressed: 0,
+      }));
+    const send = jest
+      .spyOn(service as any, "sendPush")
+      .mockResolvedValue({ sent: 1 });
+    const result = await (service as any).deliverBroadcast({
+      title: "Status",
+      body: "Update",
+      audience: "specific",
+      targetUserIds: ["user_test"],
+      channels: { inApp: false, push: true, email: false },
+      dedupeKey: "application-status:test:submitted",
+      metadata: { source: "application-status", quietHoursDeferred: true },
+    });
+    expect(result.push.sent).toBe(1);
+    expect(send).toHaveBeenCalledTimes(1);
+  });
+
+  it("retries only failed web push devices after a partial provider failure", async () => {
+    const service = new NotificationsService();
+    const accepted = new Set<string>();
+    jest
+      .spyOn(service as any, "hasApplicationPushReceipt")
+      .mockImplementation(async (_key: any, id: any) => accepted.has(id));
+    jest
+      .spyOn(service as any, "saveApplicationPushReceipt")
+      .mockImplementation(async (_key: any, id: any) => {
+        accepted.add(id);
+      });
+    const sendNotification = jest
+      .fn()
+      .mockResolvedValueOnce({})
+      .mockRejectedValueOnce(new Error("503 unavailable"))
+      .mockResolvedValue({});
+    jest
+      .spyOn(service as any, "getWebpush")
+      .mockReturnValue({ sendNotification });
+    (db.select as jest.Mock).mockReturnValue({
+      from: () => ({
+        where: async () => [
+          {
+            id: "device-a",
+            userId: "u1",
+            device: { subscription: { endpoint: "https://push/a" } },
+          },
+          {
+            id: "device-b",
+            userId: "u1",
+            device: { subscription: { endpoint: "https://push/b" } },
+          },
+        ],
+      }),
+    });
+    const dto = {
+      title: "Status",
+      body: "Update",
+      dedupeKey: "application-status:test:submitted",
+      metadata: { source: "application-status" },
+    };
+    const first = await (service as any).sendWebPush([{ userId: "u1" }], dto);
+    expect(first).toMatchObject({ sent: 1, failed: "503 unavailable" });
+    const retry = await (service as any).sendWebPush([{ userId: "u1" }], dto);
+    expect(retry).toMatchObject({ sent: 2 });
+    expect(sendNotification).toHaveBeenCalledTimes(3);
+    expect(accepted.size).toBe(2);
+  });
+  it("continues delivery for an owner-scoped draft", async () => {
+    mockedDb.execute.mockResolvedValue({
+      rows: [{ id: "11111111-1111-4111-8111-111111111111" }],
+    });
+    const service = new NotificationsService();
+    const recipients = jest
+      .spyOn(service as any, "resolveRecipients")
+      .mockResolvedValue([]);
+    await (service as any).deliverBroadcast({
+      title: "Did you submit?",
+      body: "Update your tracker",
+      audience: "specific",
+      targetUserIds: ["user_test"],
+      metadata: {
+        source: "application-confirmation",
+        applicationId: "11111111-1111-4111-8111-111111111111",
+      },
+    });
+    expect(mockedDb.execute).toHaveBeenCalled();
+    expect(recipients).toHaveBeenCalled();
+    recipients.mockRestore();
+  });
+  it("suppresses reminders for applications that are no longer drafts, including deleted rows", async () => {
+    mockedDb.execute.mockResolvedValue({ rows: [] });
+    const service = new NotificationsService();
+    const recipients = jest.spyOn(service as any, "resolveRecipients");
+    const result = await (service as any).deliverBroadcast({
+      title: "Did you submit?",
+      body: "Update your tracker",
+      audience: "specific",
+      targetUserIds: ["user_test"],
+      metadata: {
+        source: "application-confirmation",
+        applicationId: "11111111-1111-4111-8111-111111111111",
+      },
+    });
+    expect(result.recipientCount).toBe(0);
+    expect(recipients).not.toHaveBeenCalled();
+    recipients.mockRestore();
+  });
+});
+
 describe("NotificationsService web push", () => {
   const OLD_ENV = process.env;
 

@@ -19,7 +19,7 @@ import {
 
 // Users table (mirrors Supabase auth.users mostly, but owned by us for app profiles)
 export const profiles = pgTable("profiles", {
-  userId: uuid("user_id").primaryKey(), // Foreign key to auth.users in concept
+  userId: text("user_id").primaryKey(), // Raw Clerk subject or legacy derived UUID.
   fullName: text("full_name"),
   email: text("email"),
   role: text("role").default("user"), // 'user', 'admin', 'moderator'
@@ -153,7 +153,7 @@ export const notificationQueue = pgTable(
     status: text("status").notNull().default("pending"),
     processedAt: timestamp("processed_at"),
     result: jsonb("result").$type<Record<string, unknown>>(),
-    createdBy: uuid("created_by"),
+    createdBy: text("created_by"),
     createdAt: timestamp("created_at").defaultNow(),
   },
   (table) => [

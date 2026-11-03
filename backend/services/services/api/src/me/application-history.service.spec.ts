@@ -5,6 +5,7 @@ function createQuery(result: unknown) {
   const query: any = {
     select: jest.fn(() => query),
     eq: jest.fn(() => query),
+    in: jest.fn(() => query),
     order: jest.fn(() => Promise.resolve(result)),
     maybeSingle: jest.fn(() => Promise.resolve(result)),
     insert: jest.fn(() => query),
@@ -47,9 +48,9 @@ describe("ApplicationHistoryService", () => {
       "application_id",
       "11111111-1111-4111-8111-111111111111",
     );
-    expect(history.eq).toHaveBeenCalledWith(
-      "user_id",
+    expect(history.in).toHaveBeenCalledWith("user_id", [
+      "user_12345678",
       "5f6199f7-4ed4-463b-a49c-3d1d6cd7aa07",
-    );
+    ]);
   });
 });
