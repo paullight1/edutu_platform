@@ -12,7 +12,7 @@ function safeNavigationTarget(candidate, fallback) {
     const target = new URL(candidate, self.location.origin);
     if (target.origin !== self.location.origin) return fallback;
     return target.href;
-  } catch (err) {
+  } catch {
     return fallback;
   }
 }
@@ -38,7 +38,7 @@ self.addEventListener("notificationclick", (event) => {
           if ("navigate" in client) {
             try {
               await client.navigate(targetUrl);
-            } catch (err) {
+            } catch {
               // Cross-origin or unsupported — ignore and keep focus.
             }
           }
@@ -57,7 +57,7 @@ self.addEventListener("push", (event) => {
   let payload = {};
   try {
     payload = event.data ? event.data.json() : {};
-  } catch (err) {
+  } catch {
     payload = {
       title: "Edutu",
       body: event.data ? event.data.text() : "",

@@ -116,6 +116,8 @@ jobs:
           node-version: '24'
           cache: 'npm'
           cache-dependency-path: backend/services/services/api/package-lock.json
+      - name: Use the supported npm installer
+        run: npm install --global npm@11.13.0
       - run: npm ci
       - run: npm run test
       - run: npm run test:e2e
@@ -138,6 +140,8 @@ jobs:
           node-version: '22'
           cache: 'npm'
           cache-dependency-path: backend/services/services/api/package-lock.json
+      - name: Use the supported npm installer
+        run: npm install --global npm@11.13.0
       - run: npm ci
       - run: npm run lint
 
@@ -216,6 +220,8 @@ jobs:
           node-version: '22'
           cache: 'npm'
           cache-dependency-path: admin/package-lock.json
+      - name: Use the supported npm installer
+        run: npm install --global npm@11.13.0
       - run: npm ci
       - run: npm run build
 
@@ -235,6 +241,8 @@ jobs:
           node-version: '22'
           cache: 'npm'
           cache-dependency-path: admin/package-lock.json
+      - name: Use the supported npm installer
+        run: npm install --global npm@11.13.0
       - run: npm ci
       - run: npm run lint
 
@@ -254,6 +262,8 @@ jobs:
           node-version: '22'
           cache: 'npm'
           cache-dependency-path: admin/package-lock.json
+      - name: Use the supported npm installer
+        run: npm install --global npm@11.13.0
       - run: npm ci
       - run: npm test
 
@@ -273,6 +283,8 @@ jobs:
           node-version: '22'
           cache: 'npm'
           cache-dependency-path: edutu-web-app/package-lock.json
+      - name: Use the supported npm installer
+        run: npm install --global npm@11.13.0
       - run: npm ci
       - run: npm run typecheck
       - run: npm run build
@@ -294,6 +306,8 @@ jobs:
           node-version: '22'
           cache: 'npm'
           cache-dependency-path: edutu-web-app/package-lock.json
+      - name: Use the supported npm installer
+        run: npm install --global npm@11.13.0
       - run: npm ci
       - run: npm run lint
 
@@ -313,6 +327,8 @@ jobs:
           node-version: '22'
           cache: 'npm'
           cache-dependency-path: edutu-web-app/package-lock.json
+      - name: Use the supported npm installer
+        run: npm install --global npm@11.13.0
       - run: npm ci
       - run: npm run test
 
@@ -349,14 +365,16 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Backend high/critical audit
-        run: cd backend/services/services/api && npm ci && npm audit --audit-level=high
-      - name: Admin high/critical audit
-        run: cd admin && npm ci && npm audit --audit-level=high
-      - name: Web production dependency audit
-        # Audit the deployed runtime graph. Build-only Tailwind/PostCSS packages
-        # currently carry upstream advisories with no compatible fixed release.
-        run: cd edutu-web-app && npm ci && npm audit --omit=dev --audit-level=high
+      - name: Use the supported npm installer
+        run: npm install --global npm@11.13.0
+      - name: Backend dependency audit
+        run: cd backend/services/services/api && npm ci && npm audit --audit-level=low
+      - name: Admin dependency audit
+        run: cd admin && npm ci && npm audit --audit-level=low
+      - name: Web dependency audit
+        run: cd edutu-web-app && npm ci && npm audit --audit-level=low
+      - name: Dependency security regressions
+        run: node --test scripts/dependency-security.test.cjs
       - name: Payment shell production dependency audit
         run: cd pay-edutu-org && npm ci && npm audit --omit=dev --audit-level=high
       - name: Mobile install

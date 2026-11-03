@@ -7,6 +7,7 @@ export default tseslint.config(
   {
     ignores: [
       'dist',
+      'vendor/**',
       'src/services/admin/index.ts',
       'src/services/admin/marketplaceAdmin.ts',
       'src/services/admin/opportunities.ts',

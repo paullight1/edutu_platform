@@ -804,7 +804,11 @@ export class SeoController {
     const description =
       truncateText(summary || descriptionText, 190) ||
       "Review this verified opportunity, its eligibility, deadline and official application source on Edutu.";
-    const providerName = firstText(opportunity, ["organization", "provider", "company"]);
+    const providerName = firstText(opportunity, [
+      "organization",
+      "provider",
+      "company",
+    ]);
     const organization = providerName || "Opportunity provider";
     const categoryName =
       normalizeCategory(
@@ -822,9 +826,18 @@ export class SeoController {
     const deadlineIso = isoDate(deadline);
     const deadlineDate = deadlineIso ? new Date(deadlineIso) : null;
     const endOfDeadline = deadlineDate
-      ? Date.UTC(deadlineDate.getUTCFullYear(), deadlineDate.getUTCMonth(), deadlineDate.getUTCDate(), 23, 59, 59, 999)
+      ? Date.UTC(
+          deadlineDate.getUTCFullYear(),
+          deadlineDate.getUTCMonth(),
+          deadlineDate.getUTCDate(),
+          23,
+          59,
+          59,
+          999,
+        )
       : null;
-    const expired = firstText(opportunity, ["status"]).toLowerCase() === "closed" ||
+    const expired =
+      firstText(opportunity, ["status"]).toLowerCase() === "closed" ||
       (endOfDeadline !== null && endOfDeadline < Date.now());
     const location = firstText(opportunity, [
       "location",
@@ -937,14 +950,20 @@ export class SeoController {
     const jsonLd: SeoJsonLd = [
       {
         "@context": "https://schema.org",
-        "@type": categoryName === "scholarships" ? "EducationalOccupationalProgram" : "WebPage",
+        "@type":
+          categoryName === "scholarships"
+            ? "EducationalOccupationalProgram"
+            : "WebPage",
         name: title,
         description,
         url: canonicalUrl,
         image,
         category: category.label,
-        ...(categoryName === "scholarships" && providerName &&
-        !/^(?:opportunity provider|(?:the |official |program )?organi[sz]er|the official organi[sz]er|unknown|not specified|not listed|n\/?a|tbd)$/i.test(providerName)
+        ...(categoryName === "scholarships" &&
+        providerName &&
+        !/^(?:opportunity provider|(?:the |official |program )?organi[sz]er|the official organi[sz]er|unknown|not specified|not listed|n\/?a|tbd)$/i.test(
+          providerName,
+        )
           ? { provider: { "@type": "Organization", name: providerName } }
           : {}),
         ...(deadlineIso && categoryName === "scholarships"
@@ -975,9 +994,10 @@ export class SeoController {
         imageUrl: image,
         imageAlt: title,
         ogType: "article",
-        robots: shareSurface || expired
-          ? "noindex, follow, max-image-preview:large"
-          : "index, follow, max-image-preview:large",
+        robots:
+          shareSurface || expired
+            ? "noindex, follow, max-image-preview:large"
+            : "index, follow, max-image-preview:large",
         bodyHtml,
         jsonLd,
       },

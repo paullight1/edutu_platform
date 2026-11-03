@@ -6,7 +6,8 @@
   "private": true,
   "license": "UNLICENSED",
   "engines": {
-    "node": ">=22.12.0"
+    "node": ">=22.12.0",
+    "npm": ">=11.13.0"
   },
   "scripts": {
     "build": "nest build",
@@ -61,17 +62,17 @@
     "pg": "^8.17.1",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
-    "sanitize-html": "2.18.0",
+    "sanitize-html": "2.18.1",
     "sharp": "^0.35.3",
     "web-push": "^3.6.7",
     "ws": "^8.21.0",
-    "zod": "^4.3.6"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.4",
     "@eslint/eslintrc": "^3.2.0",
     "@eslint/js": "^9.18.0",
-    "@nestjs/cli": "^11.0.0",
+    "@nestjs/cli": "^11.0.24",
     "@nestjs/schematics": "^11.0.0",
     "@nestjs/testing": "^11.0.1",
     "@types/adm-zip": "^0.5.8",
@@ -85,10 +86,11 @@
     "drizzle-kit": "0.31.11",
     "eslint": "^9.18.0",
     "eslint-config-prettier": "^10.0.1",
-    "eslint-plugin-prettier": "^5.2.2",
+    "eslint-plugin-prettier": "5.5.5",
     "globals": "^16.0.0",
     "jest": "^30.0.0",
-    "prettier": "^3.4.2",
+    "minimatch-engine": "npm:minimatch@11.0.4",
+    "prettier": "3.8.3",
     "source-map-support": "^0.5.21",
     "supabase": "^2.98.2",
     "supertest": "^7.0.0",
@@ -97,11 +99,15 @@
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.7.3",
-    "typescript-eslint": "^8.20.0"
+    "typescript-eslint": "8.58.2"
   },
   "overrides": {
     "esbuild": "^0.25.0",
-    "argparse": "2.0.1"
+    "argparse": "2.0.1",
+    "minimatch": "file:./vendor/minimatch-compat",
+    "multer": "^2.5.0",
+    "deepmerge": "file:./vendor/deepmerge-safe",
+    "glob@>=9 <14.0.2": "^14.0.3"
   },
   "jest": {
     "moduleFileExtensions": [
@@ -119,5 +125,6 @@
     ],
     "coverageDirectory": "../coverage",
     "testEnvironment": "node"
-  }
+  },
+  "packageManager": "npm@11.13.0"
 }

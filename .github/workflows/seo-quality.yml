@@ -79,9 +79,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
           cache: npm
           cache-dependency-path: backend/services/services/api/package-lock.json
+      - name: Use the supported npm installer
+        run: npm install --global npm@11.13.0
       - run: npm ci
       - name: Run SEO-focused tests
         run: npm test -- --runInBand --testPathPatterns="src/seo"
@@ -101,6 +103,8 @@ jobs:
           node-version: "22"
           cache: npm
           cache-dependency-path: edutu-web-app/package-lock.json
+      - name: Use the supported npm installer
+        run: npm install --global npm@11.13.0
       - run: npm ci
       - name: Run hydration-focused tests
         run: npm test -- src/components/ui/Pagination.test.tsx src/lib/seoPagination.test.ts src/services/blog.test.ts
@@ -120,6 +124,8 @@ jobs:
           node-version: "22"
           cache: npm
           cache-dependency-path: edutu-web-app/package-lock.json
+      - name: Use the supported npm installer
+        run: npm install --global npm@11.13.0
       - run: npm ci
       - run: node --test scripts/generate-sitemap.test.mjs
       - name: Generate offline fallback sitemap
