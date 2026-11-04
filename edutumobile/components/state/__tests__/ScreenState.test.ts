@@ -59,10 +59,16 @@ describe('useScreenState', () => {
     expect(state).toEqual({ kind: 'partial', staleAt: 1000 });
   });
 
-  it('treats a network error as offline, not as a generic error', () => {
+  it('keeps a network failure distinct from confirmed offline status', () => {
     expect(run({ data: [], error: new Error('Network request failed') })).toEqual({
-      kind: 'offline',
+      kind: 'error',
+      cause: 'network',
     });
+  });
+
+  it('shows offline recovery when connectivity is explicitly offline', () => {
+    expect(run({ data: [], error: new Error('Network request failed'), offline: true })).toEqual({ kind: 'offline' });
+    expect(run({ data: [], offline: true })).toEqual({ kind: 'offline' });
   });
 
   it('surfaces the error cause when there is nothing cached', () => {

@@ -112,7 +112,7 @@ beforeEach(() => {
       id: "opp-1",
       title: "Chevening Scholarship",
       organization: "Chevening",
-      deadline: "2026-11-01T00:00:00.000Z",
+      deadline: new Date(Date.now() + 90 * 86400000).toISOString(),
     },
     status: "fresh",
   });
@@ -168,6 +168,17 @@ describe("linked opportunity on a group profile", () => {
 
     fireEvent.press(getByText("Continue"));
     expect(mockPush).toHaveBeenCalledWith("/opportunities/opp-1");
+  });
+
+  it("offers viewing instead of applying when the opportunity has closed", async () => {
+    mockGetOpportunity.mockResolvedValueOnce({
+      opportunity: { id: "opp-1", title: "Chevening Scholarship", organization: "Chevening", deadline: "2000-01-01T00:00:00.000Z" },
+      status: "fresh",
+    });
+    const { getByText, queryByText } = render(<GroupAboutScreen />);
+    await waitFor(() => expect(getByText("Closed")).toBeTruthy());
+    expect(getByText("View opportunity")).toBeTruthy();
+    expect(queryByText("View and apply")).toBeNull();
   });
 
   it("lists persisted resources and resolves private access only when opened", async () => {
