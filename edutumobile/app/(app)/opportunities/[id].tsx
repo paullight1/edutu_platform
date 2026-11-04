@@ -770,7 +770,7 @@ export default function OpportunityDetailScreen() {
         // inside the callback makes the compiler infer a dependency on the
         // whole `user` object and skip optimizing the component.
         const token = await registerForPushNotificationsAsync(userId, getToken, { requireServerSync: true });
-        if (!token) return;
+        if (!token) throw new Error('Notification permission was not granted');
         await saveNotificationPreferences(getToken, { pushNotifications: true });
         await notificationService.saveSettings({ pushEnabled: true });
         await markPushOptInAsked();

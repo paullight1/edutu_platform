@@ -25,6 +25,12 @@ let mockUserState: { user: { id: string } | null };
 let mockIsSignedIn = false;
 let mockIsGuest = false;
 const mockPromptAuth = jest.fn();
+const mockCanOfferPushOptIn = jest.fn(async () => false);
+
+jest.mock('../lib/pushOptIn', () => ({
+  ...jest.requireActual('../lib/pushOptIn'),
+  canOfferPushOptIn: () => mockCanOfferPushOptIn(),
+}));
 
 jest.mock('expo-router', () => ({
   useLocalSearchParams: () => ({ id: 'opp-1' }),
@@ -342,6 +348,7 @@ describe('mobile opportunity detail route', () => {
     mockIsSignedIn = false;
     mockIsGuest = false;
     mockPromptAuth.mockClear();
+    mockCanOfferPushOptIn.mockReset().mockResolvedValue(false);
     mockOpportunity = null;
     mockGetOpportunity.mockResolvedValue(mockOpportunity);
     mockFetchOpportunityRanking.mockReset();
@@ -545,6 +552,21 @@ describe('mobile opportunity detail route', () => {
       // Was rendered twice: the decision strip's fit cell AND the fit panel.
       expect(queryAllByText('Not ranked yet')).toHaveLength(1);
     });
+  });
+
+  it('explains how to retry notifications when permission is denied after saving', async () => {
+    mockCanOfferPushOptIn.mockResolvedValue(true);
+    mockOpportunity = { ...makeOpportunity(), deadline: new Date(Date.now() + 86400000).toISOString() };
+    mockGetOpportunity.mockResolvedValue(mockOpportunity);
+    const screen = render(<OpportunityDetailScreen />);
+    await screen.findByText('Global Fellowship');
+    fireEvent.press(screen.getByLabelText('Save'));
+    fireEvent.press(await screen.findByText('Remind me'));
+    await waitFor(() => expect(alertSpy).toHaveBeenCalledWith(
+      expect.any(String),
+      'Your opportunity is saved. Notifications could not connect. Try enabling them again in Settings.',
+    ));
+    expect(mockSaveOpportunity).toHaveBeenCalledTimes(1);
   });
 
   it('renders a loaded opportunity and supports save/apply actions', async () => {
