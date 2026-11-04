@@ -40,8 +40,7 @@ import {
     PENDING_REFERRAL_KEY,
 } from "@edutu/core/src/services/referrals";
 import { FeatureMenu, FEATURE_MENU_ANIM_MS, FEATURE_MENU_WIDTH } from "../../components/ui/FeatureMenu";
-import { WelcomeHintSystem } from "../../components/ui/WelcomeHintSystem";
-import { LoginOfferModal } from "../../components/ui/LoginOfferModal";
+import { FirstRunSetup } from "../../components/ui/FirstRunSetup";
 import { WelcomeModal } from "../../components/ui/WelcomeModal";
 import { ModuleLockOverlay } from "../../components/mobile-control/ModuleLockOverlay";
 import { VoiceModeOverlay } from "../../components/chat/VoiceModeOverlay";
@@ -1587,10 +1586,11 @@ export default function AppLayout() {
             ) : null}
             </Animated.View>
 
-            <WelcomeHintSystem
+            <FirstRunSetup
                 userId={user?.id}
                 enabled={activeRoute === "home" && !pathname.includes("onboarding")}
                 isDark={isDark}
+                showLoginOffer={!isGuestBrowsing}
             />
 
             {/* Admin module locks (pro/disabled) — covers whatever route is
@@ -1601,9 +1601,6 @@ export default function AppLayout() {
                 guest). Holds the coach-marks and promo until it's dismissed. */}
             <WelcomeModal />
 
-            {/* Login-time promo interstitial — once per day for free users.
-                Skipped for guests: they have no account to upgrade yet. */}
-            {!isGuestBrowsing && <LoginOfferModal />}
 
             {/* AI voice mode — mounted once at the root so the bottom-nav hold
                 gesture and the chat composer toggles share one overlay. */}

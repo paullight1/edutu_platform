@@ -117,7 +117,8 @@ import {
   type RoadmapIntakeValue,
 } from "../../../components/roadmap/RoadmapIntake";
 import { exportRoadmapToCalendar } from "../../../lib/roadmapCalendar";
-import { registerForPushNotificationsAsync } from "../../../lib/notifications";
+import { notificationService, registerForPushNotificationsAsync } from "../../../lib/notifications";
+import { saveNotificationPreferences } from "@edutu/core/src/services/notificationPreferences";
 import { canOfferPushOptIn, hasFutureDeadline, markPushOptInAsked } from "../../../lib/pushOptIn";
 import { SuccessDialog } from "../../../components/ui/SuccessDialog";
 import { syncRoadmapToCalendar } from "../../../lib/calendarSync";
@@ -764,17 +765,23 @@ export default function OpportunityDetailScreen() {
   const handlePushOptInAccept = useCallback(() => {
     setPushOptInVisible(false);
     void (async () => {
-      await markPushOptInAsked();
       try {
         // Narrowed local (line ~428), not `user?.id`: reading the property
         // inside the callback makes the compiler infer a dependency on the
         // whole `user` object and skip optimizing the component.
-        await registerForPushNotificationsAsync(userId, getToken);
+        const token = await registerForPushNotificationsAsync(userId, getToken, { requireServerSync: true });
+        if (!token) return;
+        await saveNotificationPreferences(getToken, { pushNotifications: true });
+        await notificationService.saveSettings({ pushEnabled: true });
+        await markPushOptInAsked();
       } catch {
-        // Fail quiet: a save must never be undone by a notification failure.
+        Alert.alert(
+          t("common:states.error"),
+          t("detail.pushOptIn.failed", { defaultValue: "Your opportunity is saved. Notifications could not connect. Try enabling them again in Settings." }),
+        );
       }
     })();
-  }, [getToken, userId]);
+  }, [getToken, t, userId]);
 
   const handlePushOptInDecline = useCallback(() => {
     setPushOptInVisible(false);

@@ -435,7 +435,7 @@ describe("mobile profile routes", () => {
     mockFetchGroups.mockResolvedValue(menuGroups);
     mockLoadSettings.mockReset();
     mockSaveSettings.mockClear();
-    mockGetSettings.mockClear();
+    mockGetSettings.mockReset().mockReturnValue(DEFAULT_NOTIF_SETTINGS);
     mockTriggerHaptic.mockClear();
     mockRequestPermissions.mockClear().mockResolvedValue(true);
     mockRegisterPush.mockClear();
@@ -691,12 +691,26 @@ describe("mobile profile routes", () => {
     });
 
     await waitFor(() => expect(mockRequestPermissions).toHaveBeenCalled());
-    expect(mockRegisterPush).toHaveBeenCalled();
+    expect(mockRegisterPush).toHaveBeenCalledWith(expect.any(String), mockGetToken, { requireServerSync: true });
     await waitFor(() =>
       expect(mockSavePreferences).toHaveBeenCalledWith(expect.anything(), {
         pushNotifications: true,
       }),
     );
+  });
+
+  it("keeps push off if the server cannot register this device", async () => {
+    mockGetPreferences.mockResolvedValue({ pushNotifications: false });
+    mockGetSettings.mockReturnValue({ ...DEFAULT_NOTIF_SETTINGS, pushEnabled: false });
+    mockRegisterPush.mockRejectedValueOnce(new Error('server unavailable'));
+    const { getByText, getAllByRole } = render(<SettingsScreen />);
+    await waitFor(() => expect(getByText("Settings")).toBeTruthy());
+    await waitFor(() => expect(getAllByRole("switch")[0].props.value).toBe(false));
+    await act(async () => {
+      fireEvent(getAllByRole("switch")[0], "valueChange", true);
+    });
+    expect(mockSavePreferences).not.toHaveBeenCalled();
+    expect(getAllByRole("switch")[0].props.value).toBe(false);
   });
 
   it("does not enable push when the OS denies permission", async () => {

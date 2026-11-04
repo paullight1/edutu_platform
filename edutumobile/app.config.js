@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import validateReleaseConfig from "./scripts/validate-release-config.cjs";
 
 function loadLocalEnv() {
   const envPath = path.join(process.cwd(), ".env");
@@ -18,6 +19,7 @@ function loadLocalEnv() {
 }
 
 loadLocalEnv();
+validateReleaseConfig(process.env);
 
 process.env.EXPO_ROUTER_APP_ROOT = 'app';
 

@@ -294,7 +294,8 @@ export default function SettingsScreen() {
             }
 
             await commitNotifSettings({ pushEnabled: true }, { pushNotifications: true }, async () => {
-                await registerForPushNotificationsAsync(user?.id, getToken);
+                const token = await registerForPushNotificationsAsync(user?.id, getToken, { requireServerSync: true });
+                if (!token) throw new Error('Notification permission was not granted');
             });
         },
         [commitNotifSettings, getToken, haptic, t, user?.id],

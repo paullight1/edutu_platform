@@ -11,7 +11,7 @@ const PUSH_SYNC_COOLDOWN_MS = 5 * 60 * 1000;
 const PUSH_TOKEN_KEY = '@edutu_expo_push_token';
 
 let lastPushSyncKey: string | null = null;
-let pushSyncInFlight: Promise<void> | null = null;
+let pushSyncInFlight: { key: string; promise: Promise<boolean> } | null = null;
 let pushSyncDisabledUntil = 0;
 let hasLoggedPushSyncError = false;
 
@@ -50,15 +50,23 @@ function isNetworkError(error: unknown): boolean {
 
 type AuthTokenGetter = () => Promise<string | null | undefined>;
 
-async function syncPushToken(userId: string, getAuthToken: AuthTokenGetter, token: string): Promise<void> {
+async function syncPushToken(userId: string, getAuthToken: AuthTokenGetter, token: string, explicitRetry: boolean): Promise<boolean> {
     const apiUrl = getConfig().apiBaseUrl.replace(/\/$/, '');
-    if (!apiUrl) return;
+    if (!apiUrl) return false;
 
     const syncKey = `${userId}:${token}`;
-    if (lastPushSyncKey === syncKey || Date.now() < pushSyncDisabledUntil) return;
-    if (pushSyncInFlight) return pushSyncInFlight;
+    if (lastPushSyncKey === syncKey) return true;
+    if (!explicitRetry && Date.now() < pushSyncDisabledUntil) return false;
+    if (pushSyncInFlight) {
+        const pending = pushSyncInFlight;
+        const result = await pending.promise;
+        if (pending.key === syncKey) return result;
+        return syncPushToken(userId, getAuthToken, token, explicitRetry);
+    }
 
-    pushSyncInFlight = (async () => {
+    const promise = (async () => {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 12000);
         try {
             // Fetch the Clerk token FRESH here, immediately before the request.
             // Clerk default session tokens live ~60s, and the permission prompt
@@ -66,7 +74,7 @@ async function syncPushToken(userId: string, getAuthToken: AuthTokenGetter, toke
             // easily burn most of that window — a token captured earlier was
             // often already expired by the time we posted it, yielding a 401.
             const authToken = await getAuthToken();
-            if (!authToken) return;
+            if (!authToken) return false;
 
             const response = await fetch(`${apiUrl}/notifications/push-token`, {
                 method: 'POST',
@@ -81,6 +89,7 @@ async function syncPushToken(userId: string, getAuthToken: AuthTokenGetter, toke
                         platform: Platform.OS,
                     },
                 }),
+                signal: controller.signal,
             });
 
             if (!response.ok) {
@@ -88,7 +97,9 @@ async function syncPushToken(userId: string, getAuthToken: AuthTokenGetter, toke
             }
 
             lastPushSyncKey = syncKey;
+            pushSyncDisabledUntil = 0;
             hasLoggedPushSyncError = false;
+            return true;
         } catch (error) {
             // Push-token sync is best-effort background work. Any failure
             // (offline, 401/auth, endpoint unavailable) must degrade quietly —
@@ -103,12 +114,15 @@ async function syncPushToken(userId: string, getAuthToken: AuthTokenGetter, toke
                 console.warn(`Push token sync skipped: ${reason}`);
                 hasLoggedPushSyncError = true;
             }
+            return false;
         } finally {
+            clearTimeout(timeout);
             pushSyncInFlight = null;
         }
     })();
 
-    return pushSyncInFlight;
+    pushSyncInFlight = { key: syncKey, promise };
+    return promise;
 }
 
 export interface RegisterPushOptions {
@@ -120,6 +134,8 @@ export interface RegisterPushOptions {
      * settings toggle pass `true` (the default).
      */
     promptIfNeeded?: boolean;
+    /** Explicit opt-ins must wait for the API to accept this device. */
+    requireServerSync?: boolean;
 }
 
 async function ensureAndroidNotificationChannels(): Promise<void> {
@@ -161,7 +177,7 @@ export async function registerForPushNotificationsAsync(
     getAuthToken?: AuthTokenGetter,
     options: RegisterPushOptions = {},
 ): Promise<string | null> {
-    const { promptIfNeeded = true } = options;
+    const { promptIfNeeded = true, requireServerSync = false } = options;
     const { status: existingStatus } = await Notifications.getPermissionsAsync();
     if (existingStatus !== 'granted' && !promptIfNeeded) return null;
     // Android 13+ cannot prompt or issue a token until a channel exists.
@@ -190,13 +206,11 @@ export async function registerForPushNotificationsAsync(
         await AsyncStorage.setItem(PUSH_TOKEN_KEY, token.data).catch(() => undefined);
     }
 
-    if (userId && token) {
-        if (__DEV__) {
-            console.log('Push token registered for user:', userId);
-        }
-        if (getAuthToken) {
-            await syncPushToken(userId, getAuthToken, token.data);
-        }
+    const synced = userId && getAuthToken && token?.data
+        ? await syncPushToken(userId, getAuthToken, token.data, requireServerSync)
+        : false;
+    if (requireServerSync && !synced) {
+        throw new Error('Could not register this device for notifications. Please check your connection and try again.');
     }
 
     return token.data;
