@@ -21,7 +21,7 @@ test('backend webpack issue matcher keeps its callable matching API', () => {
   assert.equal(predicate({ file: path.join(cwd, 'src/main.js'), severity: 'error', code: '1' }), false);
 });
 
-for (const scope of ['backend/services/services/api', 'edutu-web-app', 'admin']) {
+for (const scope of ['backend/services/services/api', 'edutu-web-app', 'admin', 'pay-edutu-org']) {
   test(`${scope}: registry artifacts retain URL and integrity verification`, () => {
     const lock = JSON.parse(fs.readFileSync(path.resolve(__dirname, '..', scope, 'package-lock.json')));
     for (const [location, entry] of Object.entries(lock.packages)) {

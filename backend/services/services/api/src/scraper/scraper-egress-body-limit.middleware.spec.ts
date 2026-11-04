@@ -1,5 +1,6 @@
 import express, { type Request } from "express";
 import request from "supertest";
+import { once } from "node:events";
 import {
   createScraperEgressBodyLimitMiddleware,
   SCRAPER_EGRESS_MAX_REQUEST_BYTES,
@@ -53,27 +54,39 @@ describe("scraper egress request body limit", () => {
 
   it("rejects a chunked body over 16 KiB before the route handler", async () => {
     const { app, wasEgressHandlerCalled } = createParserApp();
-    const response = await new Promise<request.Response>((resolve, reject) => {
-      const bodyRequest = request(app)
-        .post("/internal/scraper-egress")
-        .set("content-type", "application/json")
-        .set("transfer-encoding", "chunked");
+    const server = app.listen(0, "127.0.0.1");
+    await once(server, "listening");
+    try {
+      const response = await new Promise<request.Response>(
+        (resolve, reject) => {
+          // Stream only after the listener has a real ephemeral port. Supertest
+          // resolves its lazy app listener in end(), after write() is too early.
+          const bodyRequest = request(server)
+            .post("/internal/scraper-egress")
+            .set("content-type", "application/json")
+            .set("transfer-encoding", "chunked");
 
-      bodyRequest.write(
-        Buffer.alloc(SCRAPER_EGRESS_MAX_REQUEST_BYTES / 2, 0x61),
+          bodyRequest.write(
+            Buffer.alloc(SCRAPER_EGRESS_MAX_REQUEST_BYTES / 2, 0x61),
+          );
+          bodyRequest.write(
+            Buffer.alloc(SCRAPER_EGRESS_MAX_REQUEST_BYTES / 2 + 1, 0x61),
+          );
+          bodyRequest.end((error, result) => {
+            if (error) {
+              reject(error instanceof Error ? error : new Error(String(error)));
+            } else resolve(result);
+          });
+        },
       );
-      bodyRequest.write(
-        Buffer.alloc(SCRAPER_EGRESS_MAX_REQUEST_BYTES / 2 + 1, 0x61),
-      );
-      bodyRequest.end((error, result) => {
-        if (error) {
-          reject(error instanceof Error ? error : new Error(String(error)));
-        } else resolve(result);
+
+      expect(response.status).toBe(413);
+      expect(wasEgressHandlerCalled()).toBe(false);
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => (error ? reject(error) : resolve()));
       });
-    });
-
-    expect(response.status).toBe(413);
-    expect(wasEgressHandlerCalled()).toBe(false);
+    }
   });
 
   it("preserves the global raw-body parser for billing webhooks", async () => {

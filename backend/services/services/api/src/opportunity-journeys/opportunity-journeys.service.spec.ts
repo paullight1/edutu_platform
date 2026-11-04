@@ -4,6 +4,14 @@ import { OpportunityJourneyDomainError } from "./opportunity-journey.errors";
 const USER_ID = "user_journey_service";
 const OPPORTUNITY_ID = "11111111-1111-4111-8111-111111111111";
 
+beforeEach(() => {
+  jest.useFakeTimers({ now: new Date("2026-09-03T00:00:00Z") });
+});
+
+afterEach(() => {
+  jest.useRealTimers();
+});
+
 function opportunity(overrides: Record<string, unknown> = {}) {
   return {
     id: OPPORTUNITY_ID,
