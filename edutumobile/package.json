@@ -8,13 +8,14 @@
     "android": "expo run:android",
     "ios": "RUBYOPT=-rlogger PATH=\"$HOME/.gem/ruby/2.6.0/bin:$PATH\" expo run:ios --device \"iPhone 17 Pro\"",
     "web": "expo start --web",
-    "postinstall": "node scripts/fix-react-native-gradle-settings.js",
+    "postinstall": "node scripts/fix-react-native-gradle-settings.js && node scripts/fix-query-string-decoder.cjs",
     "test": "jest",
     "lint": "eslint . --report-unused-disable-directives --max-warnings 0",
     "lint:fix": "eslint . --fix",
     "typecheck": "tsc --noEmit",
     "migrate": "supabase db push",
-    "deploy:webhook": "supabase functions deploy revenuecat-webhook"
+    "deploy:webhook": "supabase functions deploy revenuecat-webhook",
+    "test:dependency-security": "node --test scripts/dependency-security.test.cjs"
   },
   "jest": {
     "preset": "jest-expo",
@@ -64,7 +65,7 @@
       "/docs/"
     ],
     "transformIgnorePatterns": [
-      "node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|standard-navigation|@unimodules/.*|unimodules|sentry-expo|native-base|react-native-svg)"
+      "node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|standard-navigation|@unimodules/.*|unimodules|sentry-expo|native-base|react-native-svg|decode-uri-component)"
     ],
     "setupFiles": [
       "./node_modules/react-native-gesture-handler/jestSetup.js"
@@ -164,11 +165,15 @@
     "typescript": "~6.0.3"
   },
   "engines": {
-    "node": ">=22"
+    "node": ">=22.12.0"
   },
   "overrides": {
     "@grpc/grpc-js": "1.13.6",
-    "image-size": "2.0.4"
+    "image-size": "2.0.4",
+    "node-forge": "1.4.3",
+    "re2js": "2.9.1",
+    "decode-uri-component": "0.5.1",
+    "zod": "4.6.7"
   },
   "private": true
 }

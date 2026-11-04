@@ -122,6 +122,40 @@ export interface RegisterPushOptions {
     promptIfNeeded?: boolean;
 }
 
+async function ensureAndroidNotificationChannels(): Promise<void> {
+    if (Platform.OS !== 'android') return;
+    await Notifications.setNotificationChannelAsync('default', {
+        name: 'default',
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: '#171a4f',
+    });
+    // Server pushes target these via the payload channelId, so users can
+    // tune opportunity alerts and deadline reminders independently in
+    // Android settings.
+    await Notifications.setNotificationChannelAsync('opportunities', {
+        name: 'Opportunity alerts',
+        description: 'New opportunities matched to your interests',
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: '#171a4f',
+    });
+    await Notifications.setNotificationChannelAsync('deadlines', {
+        name: 'Deadline reminders',
+        description: 'Reminders before saved opportunities close',
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: '#171a4f',
+    });
+    await Notifications.setNotificationChannelAsync('community', {
+        name: 'Community messages',
+        description: 'Direct messages, group activity and invitations',
+        importance: Notifications.AndroidImportance.HIGH,
+        vibrationPattern: [0, 180, 120, 180],
+        lightColor: '#146EF5',
+    });
+}
+
 export async function registerForPushNotificationsAsync(
     userId?: string,
     getAuthToken?: AuthTokenGetter,
@@ -129,10 +163,12 @@ export async function registerForPushNotificationsAsync(
 ): Promise<string | null> {
     const { promptIfNeeded = true } = options;
     const { status: existingStatus } = await Notifications.getPermissionsAsync();
+    if (existingStatus !== 'granted' && !promptIfNeeded) return null;
+    // Android 13+ cannot prompt or issue a token until a channel exists.
+    await ensureAndroidNotificationChannels();
     let finalStatus = existingStatus;
 
     if (existingStatus !== 'granted') {
-        if (!promptIfNeeded) return null;
         const { status } = await Notifications.requestPermissionsAsync();
         finalStatus = status;
     }
@@ -161,39 +197,6 @@ export async function registerForPushNotificationsAsync(
         if (getAuthToken) {
             await syncPushToken(userId, getAuthToken, token.data);
         }
-    }
-
-    if (Platform.OS === 'android') {
-        Notifications.setNotificationChannelAsync('default', {
-            name: 'default',
-            importance: Notifications.AndroidImportance.MAX,
-            vibrationPattern: [0, 250, 250, 250],
-            lightColor: '#171a4f',
-        });
-        // Server pushes target these via the payload channelId, so users can
-        // tune opportunity alerts and deadline reminders independently in
-        // Android settings.
-        Notifications.setNotificationChannelAsync('opportunities', {
-            name: 'Opportunity alerts',
-            description: 'New opportunities matched to your interests',
-            importance: Notifications.AndroidImportance.MAX,
-            vibrationPattern: [0, 250, 250, 250],
-            lightColor: '#171a4f',
-        });
-        Notifications.setNotificationChannelAsync('deadlines', {
-            name: 'Deadline reminders',
-            description: 'Reminders before saved opportunities close',
-            importance: Notifications.AndroidImportance.MAX,
-            vibrationPattern: [0, 250, 250, 250],
-            lightColor: '#171a4f',
-        });
-        Notifications.setNotificationChannelAsync('community', {
-            name: 'Community messages',
-            description: 'Direct messages, group activity and invitations',
-            importance: Notifications.AndroidImportance.HIGH,
-            vibrationPattern: [0, 180, 120, 180],
-            lightColor: '#146EF5',
-        });
     }
 
     return token.data;
@@ -272,6 +275,7 @@ class NotificationService {
 
     async requestPermissions() {
         if (Platform.OS === 'web') return false;
+        await ensureAndroidNotificationChannels();
         const { status: existingStatus } = await Notifications.getPermissionsAsync();
         let finalStatus = existingStatus;
         if (existingStatus !== 'granted') {

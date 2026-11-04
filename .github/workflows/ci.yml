@@ -381,6 +381,8 @@ jobs:
         run: node --test scripts/dependency-security.test.cjs
       - name: Mobile install
         run: cd edutumobile && npm ci
+      - name: Mobile dependency compatibility
+        run: cd edutumobile && npm run test:dependency-security
       - name: Mobile high/critical policy audit
         run: node scripts/check-mobile-audit.mjs
 
