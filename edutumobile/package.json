@@ -15,7 +15,8 @@
     "typecheck": "tsc --noEmit",
     "migrate": "supabase db push",
     "deploy:webhook": "supabase functions deploy revenuecat-webhook",
-    "test:dependency-security": "node --test scripts/dependency-security.test.cjs"
+    "test:dependency-security": "node --test scripts/dependency-security.test.cjs",
+    "eas-build-pre-install": "npm install --global npm@11.13.0"
   },
   "jest": {
     "preset": "jest-expo",
@@ -165,7 +166,8 @@
     "typescript": "~6.0.3"
   },
   "engines": {
-    "node": ">=22.12.0"
+    "node": ">=22.12.0",
+    "npm": ">=11.13.0"
   },
   "overrides": {
     "@grpc/grpc-js": "1.13.6",
@@ -175,5 +177,6 @@
     "decode-uri-component": "0.5.1",
     "zod": "4.6.7"
   },
-  "private": true
+  "private": true,
+  "packageManager": "npm@11.13.0"
 }

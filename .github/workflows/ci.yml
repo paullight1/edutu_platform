@@ -161,6 +161,8 @@ jobs:
           node-version: '22'
           cache: 'npm'
           cache-dependency-path: edutumobile/package-lock.json
+      - name: Use the supported npm installer
+        run: npm install --global npm@11.13.0
       - run: npm ci
       - run: npm run typecheck
 
@@ -180,6 +182,8 @@ jobs:
           node-version: '22'
           cache: 'npm'
           cache-dependency-path: edutumobile/package-lock.json
+      - name: Use the supported npm installer
+        run: npm install --global npm@11.13.0
       - run: npm ci
       - run: npm run test -- --passWithNoTests
 
@@ -199,6 +203,8 @@ jobs:
           node-version: '22'
           cache: 'npm'
           cache-dependency-path: edutumobile/package-lock.json
+      - name: Use the supported npm installer
+        run: npm install --global npm@11.13.0
       - run: npm ci
       - run: npm run lint
 
