@@ -110,7 +110,7 @@ export const BannerCarousel = React.memo(function BannerCarousel({
 
   return (
     <div
-      className={`group relative w-full overflow-hidden rounded-[18px] bg-[#06152f] ${fillDesktopHeight ? "h-full" : ""}`}
+      className={`dashboard-banner group relative w-full overflow-hidden rounded-[18px] bg-[#06152f] ${fillDesktopHeight ? "h-full" : ""}`}
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
       onFocus={() => setIsPaused(true)}
@@ -128,7 +128,7 @@ export const BannerCarousel = React.memo(function BannerCarousel({
           target={isExternal ? "_blank" : undefined}
           rel={isExternal ? "noopener noreferrer" : undefined}
           aria-label={activeBanner.title}
-          className={`relative block w-full overflow-hidden ${
+          className={`dashboard-banner-slide relative block w-full overflow-hidden ${
             safeUrl ? "cursor-pointer" : "pointer-events-none"
           }`}
           style={
@@ -136,7 +136,7 @@ export const BannerCarousel = React.memo(function BannerCarousel({
               ? { height: mobileHeight }
               : fillDesktopHeight
                 ? { height: "100%" }
-                : { aspectRatio: "1200 / 300" }
+                : undefined
           }
           initial={reduceMotion ? false : { opacity: 0, scale: 1.015 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -155,17 +155,17 @@ export const BannerCarousel = React.memo(function BannerCarousel({
           />
           <div className="absolute inset-0 bg-gradient-to-r from-[#06152f]/95 via-[#06152f]/65 to-[#06152f]/5" />
           <div className="absolute inset-0 bg-gradient-to-t from-black/35 via-transparent to-black/10" />
-          <div className="absolute inset-0 flex items-center px-5 py-4 sm:px-8">
-            <div className="max-w-[72%] text-left sm:max-w-[58%]">
+          <div className="dashboard-banner-content absolute inset-0 flex items-center px-5 py-4">
+            <div className="dashboard-banner-copy text-left">
               {activeBanner.eyebrow ? (
-                <span className="text-[0.6rem] font-bold uppercase tracking-[0.2em] text-[#ffd166] sm:text-xs">
+                <span className="dashboard-banner-eyebrow text-[0.6rem] font-bold uppercase tracking-[0.2em] text-[#ffd166]">
                   {activeBanner.eyebrow}
                 </span>
               ) : null}
-              <span className="mt-1 block text-base font-bold leading-tight tracking-tight text-white drop-shadow-sm sm:text-2xl">
+              <span className="dashboard-banner-title mt-1 block text-base font-bold leading-tight tracking-tight text-white drop-shadow-sm">
                 {activeBanner.title}
               </span>
-              <span className="mt-1 block max-w-[32rem] text-[0.68rem] font-medium leading-relaxed text-white/80 drop-shadow-sm sm:text-sm">
+              <span className="dashboard-banner-subtitle mt-1 block max-w-[32rem] text-[0.68rem] font-medium leading-relaxed text-white/80 drop-shadow-sm">
                 {activeBanner.subtitle}
               </span>
             </div>

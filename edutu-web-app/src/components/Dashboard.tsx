@@ -1378,10 +1378,10 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
         </AnimatePresence>
 
         <div
-          className={`mx-auto w-full max-w-[1500px] px-4 sm:px-6 lg:px-8 transition-[padding] duration-300 ${activePanel ? "lg:pr-[420px]" : "lg:pr-8"}`}
+          className={`dashboard-content mx-auto w-full max-w-[1500px] px-4 sm:px-6 lg:px-8 transition-[padding] duration-300 ${activePanel ? "lg:pr-[420px]" : "lg:pr-8"}`}
         >
-          <main className="min-w-0 space-y-4 px-0 pt-2 pb-5 lg:grid lg:grid-cols-12 lg:items-start lg:gap-x-8 lg:gap-y-8 lg:space-y-0 lg:py-5">
-            <div className="space-y-4 lg:col-span-12 lg:col-start-1 lg:row-start-1">
+          <main className="dashboard-layout min-w-0 px-0 pt-2 pb-5 lg:py-5">
+            <div className="dashboard-intro space-y-4">
               {releaseUpdateNotice}
               <header className="hidden lg:block">
                 <h1 className="mt-2 font-display text-3xl font-bold tracking-tight text-text-primary xl:text-4xl">
@@ -1416,12 +1416,12 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
             <motion.section
               initial={prefersReducedMotion ? false : { opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              className="space-y-3 lg:col-span-12 lg:col-start-1 lg:row-start-3"
+              className="dashboard-shortcuts space-y-3"
             >
               <h2 className="text-base font-semibold tracking-tight text-text-primary">
                 Your next steps
               </h2>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 md:gap-3">
+              <div className="dashboard-shortcut-grid grid grid-cols-2 gap-2 md:gap-3">
                 {HOME_SHORTCUTS.map((shortcut) => {
                   const Icon = shortcut.icon;
                   return (
@@ -1442,7 +1442,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                       <span className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/20 bg-white/15 text-white backdrop-blur-sm">
                         <Icon size={18} strokeWidth={1.8} aria-hidden="true" />
                       </span>
-                      <span className="relative min-w-0 flex-1 truncate text-sm font-semibold text-white md:text-base">
+                      <span className="relative min-w-0 flex-1 break-words text-sm font-semibold text-white">
                         {shortcut.title}
                       </span>
                       <ChevronRight size={17} className="relative shrink-0 text-white/85" aria-hidden="true" />
@@ -1454,7 +1454,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
 
             <section
               aria-label="Dashboard priorities"
-              className="dashboard-priorities flex flex-col gap-4 lg:col-span-4 lg:col-start-1 lg:row-start-2 lg:grid lg:grid-cols-1 lg:content-start lg:items-stretch"
+              className="dashboard-priorities grid content-start items-start gap-4"
             >
               <AnimatePresence>
                 {profileScore && profileScore.score < 100 && !dismissBanner && (
@@ -1480,14 +1480,14 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                           Profile readiness
                         </span>
                         <span className="flex items-baseline justify-between gap-2">
-                          <span className="truncate text-sm font-semibold text-text-primary lg:font-display lg:text-lg lg:tracking-tight">
+                          <span className="min-w-0 break-words text-sm font-semibold text-text-primary lg:font-display lg:text-lg lg:tracking-tight">
                             {t("dashboard.completeProfile")}
                           </span>
                           <span className="shrink-0 font-mono text-xs font-semibold tabular-nums text-brand-600 lg:text-sm">
                             {profileScore.score}%
                           </span>
                         </span>
-                        <span className="mt-0.5 block truncate text-xs font-medium text-text-muted lg:mt-1 lg:whitespace-normal lg:leading-5">
+                        <span className="mt-0.5 block text-xs font-medium leading-5 text-text-muted lg:mt-1">
                           {!profileScore.isMatchEnabled
                             ? t("dashboard.needForMatches")
                             : profileScore.missingFields.length > 0
@@ -1510,7 +1510,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                             }`}
                           />
                         </span>
-                        <span className="mt-auto hidden items-center justify-between gap-3 pt-4 text-xs font-semibold text-text-secondary lg:flex">
+                        <span className="mt-auto hidden flex-wrap items-center justify-between gap-x-3 gap-y-1 pt-4 text-xs font-semibold text-text-secondary lg:flex">
                           <span>
                             {profileScore.score < 60
                               ? `${60 - profileScore.score}% to matching`
@@ -1603,19 +1603,15 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                   </section>
                 )}
 
-              <section className="sm:hidden">
-                <BannerCarousel banners={heroBanners} mobileHeight="150px" />
-              </section>
-
             </section>
 
-            <div className="dashboard-promotion hidden lg:col-span-8 lg:col-start-5 lg:row-start-2 lg:block lg:self-stretch">
-              <BannerCarousel banners={heroBanners} fillDesktopHeight />
+            <div className="dashboard-promotion min-w-0">
+              <BannerCarousel banners={heroBanners} />
             </div>
 
             {/* Content Layout — Recent Activity moved to the profile page,
                 so the feed always gets the full width. */}
-            <div className="pb-8 lg:col-span-12 lg:col-start-1 lg:row-start-4">
+            <div className="dashboard-recommendations pb-8">
               <div className="lg:col-span-12 space-y-10">
                 {/* Free browsing remains visible; the paid feature is profile
                     based ranking and insight, not access to the opportunity feed. */}
@@ -1783,7 +1779,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                   </div>
 
                   {viewMode === "grid" ? (
-                    <div className="dashboard-desktop-opportunities hidden gap-4 sm:grid sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+                    <div className="dashboard-desktop-opportunities hidden gap-4 sm:grid">
                       {opportunitiesLoading ? (
                         Array.from({ length: 6 }).map((_, i) => (
                           <div

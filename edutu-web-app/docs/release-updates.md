@@ -34,7 +34,7 @@ origin when validating hosted headers.
 
 1. Publish build A to a staging HTTPS origin and install/open it as a PWA.
 2. Keep that session open. Publish build B to the same origin.
-3. Background and resume A. Confirm “Top100 has been updated” and “Refresh now”.
+3. Background and resume A. Confirm the compact bottom-right “Edutu has been updated” notice and “Refresh now”.
 4. Edit a form and start a delayed upload. Click refresh; confirm it stays open.
 5. Edit an application reflection. Confirm refresh waits for the API save; failed
    saves keep the session open and show the error. Check the saved value after reload.

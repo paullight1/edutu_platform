@@ -131,10 +131,10 @@ export default function NextStepCard(props: NextStepCardProps) {
         <div className="relative z-10 min-w-0 flex-1 pr-10 sm:pr-0">
           {featured ? (
             <>
-              <h2 className="mt-1 truncate text-base font-semibold leading-6 text-text-primary sm:text-lg">
+              <h2 className="mt-1 break-words text-base font-semibold leading-6 text-text-primary sm:text-lg">
                 {home.nextAction?.label ?? featured.nextAction.label}
               </h2>
-              <p className="mt-1 truncate text-sm text-text-secondary">
+              <p className="mt-1 break-words text-sm text-text-secondary">
                 {t("guidanceHome.forOpportunity", { title: opportunityTitle })}
                 {dueAt
                   ? ` · ${t("guidanceHome.dueDate", { date: dueAt })}`

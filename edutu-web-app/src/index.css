@@ -6,6 +6,101 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Use the available workspace width: a tablet sidebar or open detail panel
+   can leave far less room than the viewport's desktop breakpoint suggests. */
+.dashboard-content {
+  container: dashboard / inline-size;
+}
+
+.dashboard-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  gap: 1rem;
+}
+
+.dashboard-layout > * {
+  min-width: 0;
+}
+
+.dashboard-desktop-opportunities {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@container dashboard (max-width: 399px) {
+  .dashboard-shortcut-grid > a {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding: 0.75rem;
+  }
+
+  .dashboard-shortcut-grid > a > span:last-of-type { flex-basis: 100%; }
+  .dashboard-shortcut-grid > a > svg { position: absolute; top: 1.25rem; right: 0.75rem; }
+}
+
+@container dashboard (min-width: 640px) {
+  .dashboard-priorities {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container dashboard (min-width: 800px) {
+  .dashboard-shortcut-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@container dashboard (min-width: 1000px) {
+  .dashboard-desktop-opportunities {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@container dashboard (min-width: 1100px) {
+  .dashboard-layout {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: 1.5rem;
+  }
+
+  .dashboard-intro { grid-area: 1 / 1 / auto / -1; }
+  .dashboard-priorities { grid-area: 2 / 1 / auto / 5; grid-template-columns: minmax(0, 1fr); }
+  .dashboard-promotion { grid-area: 2 / 5 / auto / -1; }
+  .dashboard-shortcuts { grid-area: 3 / 1 / auto / -1; }
+  .dashboard-recommendations { grid-area: 4 / 1 / auto / -1; }
+}
+
+@container dashboard (min-width: 1300px) {
+  .dashboard-desktop-opportunities {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* Promotional artwork keeps its own bounded height instead of stretching to
+   the combined height of profile, calendar and activity cards. */
+.dashboard-banner { container: promotion / inline-size; }
+.dashboard-banner-slide { height: clamp(160px, 28cqw, 280px); }
+.dashboard-banner-copy { max-width: 72%; overflow-wrap: anywhere; }
+
+@container promotion (min-width: 560px) {
+  .dashboard-banner-content { padding-inline: 2rem; }
+  .dashboard-banner-copy { max-width: 60%; }
+  .dashboard-banner-eyebrow { font-size: 0.75rem; }
+  .dashboard-banner-title { font-size: 1.5rem; }
+  .dashboard-banner-subtitle { font-size: 0.875rem; }
+}
+
+.release-update-toast {
+  right: max(1rem, env(safe-area-inset-right));
+  bottom: calc(5.5rem + env(safe-area-inset-bottom));
+  width: min(360px, calc(100vw - 2rem - env(safe-area-inset-left) - env(safe-area-inset-right)));
+  max-height: calc(100dvh - 10rem - env(safe-area-inset-bottom));
+  overflow-y: auto;
+}
+
+@media (min-width: 1024px) {
+  .release-update-toast { bottom: max(1rem, env(safe-area-inset-bottom)); }
+}
+
 :root {
   color-scheme: light;
   /* Display carries brand moments only (hero, page titles, wordmark). Body
