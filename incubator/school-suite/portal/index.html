@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f6f7f9">
+  <meta name="description" content="Preview the configurable SchoolSuite school management experience.">
+  <title>SchoolSuite | School Workspace Preview</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="workspace">
+    <aside class="sidebar" id="sidebar" aria-label="Primary navigation">
+      <div class="brand"><div class="brand-mark" id="brandMark">E</div><div><strong id="brandName">EVOLVE</strong><small>Schools workspace</small></div></div>
+      <div class="side-caption">WORKSPACE</div>
+      <nav id="mainNav" aria-label="School modules"></nav>
+      <div class="sidebar-bottom">
+        <div class="support-card"><div class="support-icon" aria-hidden="true">✦</div><strong>Need a clearer view?</strong><p>Switch roles and schools to preview the experience.</p></div>
+        <div class="operator"><span class="operator-avatar">EV</span><span><strong>Workspace demo</strong><small>Preview access only</small></span></div>
+      </div>
+    </aside>
+    <div class="main-shell">
+      <header class="topbar">
+        <button class="icon-button mobile-menu" id="openMenu" aria-label="Open navigation" aria-controls="sidebar" aria-expanded="false">☰</button>
+        <div class="breadcrumb"><span>SchoolSuite</span><span class="chevron">›</span><strong id="breadcrumbCurrent">Overview</strong></div>
+        <div class="header-right">
+          <span class="preview-badge"><span class="preview-dot"></span> Preview mode</span>
+          <div class="avatar" aria-label="Demo administrator">EA</div>
+        </div>
+      </header>
+      <main id="content" tabindex="-1">
+        <div class="workspace-tools">
+          <div class="school-switch"><label for="schoolSelect">SCHOOL</label><select id="schoolSelect" aria-label="Select example school"></select></div>
+          <div class="role-switch"><label for="roleSelect">VIEW AS</label><select id="roleSelect" aria-label="Preview a school role">
+            <option value="principal">Principal</option>
+            <option value="admin">School administrator</option>
+            <option value="teacher">Teacher</option>
+            <option value="bursar">Bursar</option>
+            <option value="parent">Parent</option>
+          </select></div>
+        </div>
+        <div class="hero">
+          <div><span class="eyebrow"><span class="live-point"></span> Academic year <span id="yearLabel">2026/2027</span></span><h1 id="pageHeading">Your school, at a glance.</h1><p id="pageLead">Everything that matters today, without the clutter.</p></div>
+          <button class="primary-button" id="heroAction" type="button">View attendance <span aria-hidden="true">↗</span></button>
+        </div>
+        <div class="demo-notice" role="note"><span aria-hidden="true">ⓘ</span><span><strong>Interactive preview.</strong> All people, balances and activity shown are synthetic. Changes are not stored, and this page is not connected to a live school system.</span></div>
+        <div id="viewRoot" aria-live="polite"></div>
+        <footer class="footer"><span>SchoolSuite · White-label foundation</span><span>Built for schools that want less complexity.</span></footer>
+      </main>
+    </div>
+  </div>
+  <div class="mobile-backdrop" id="backdrop" hidden></div>
+  <script src="./tenants.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
