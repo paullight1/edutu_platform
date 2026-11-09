@@ -1,10 +1,37 @@
 import { Logger } from "@nestjs/common";
+import type { SQL } from "drizzle-orm";
+import { PgDialect } from "drizzle-orm/pg-core";
 import type { BillingEventRecord } from "./billing-events.repository";
 import {
+  PostgresRevenueCatIdentityResolver,
   RevenueCatEventProcessor,
   type RevenueCatIdentityResolver,
   type RevenueCatLifecycleApplier,
 } from "./revenuecat-event.processor";
+
+describe("PostgresRevenueCatIdentityResolver", () => {
+  it.each([
+    { aliases: ["user_one"], placeholders: "$1", candidates: ["user_one"] },
+    {
+      aliases: ["$RCAnonymousID:test", "user_one", "user_two", "user_one"],
+      placeholders: "$1, $2",
+      candidates: ["user_one", "user_two"],
+    },
+  ])(
+    "binds candidates as a PostgreSQL array ($placeholders)",
+    async ({ aliases, placeholders, candidates }) => {
+      const execute = jest.fn(async (statement: SQL) => {
+        const query = new PgDialect().sqlToQuery(statement);
+        expect(query.sql).toContain(`unnest(array[${placeholders}]::text[])`);
+        expect(query.params).toEqual(candidates);
+        return { rows: [{ user_id: "user_one" }] };
+      });
+      const resolver = new PostgresRevenueCatIdentityResolver({ execute });
+
+      await expect(resolver.resolve(aliases)).resolves.toBe("user_one");
+    },
+  );
+});
 
 const SUPPORTED_EVENT_TYPES = [
   "INITIAL_PURCHASE",
