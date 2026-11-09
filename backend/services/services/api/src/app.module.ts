@@ -47,6 +47,7 @@ import { DocumentsModule } from "./documents/documents.module";
 import { UploadsModule } from "./uploads/uploads.module";
 import { SupportModule } from "./support/support.module";
 import { VoiceModule } from "./voice/voice.module";
+import { CodexMcpModule } from "./codex/codex-mcp.module";
 
 @Module({
   imports: [
@@ -106,6 +107,7 @@ import { VoiceModule } from "./voice/voice.module";
     AlertsModule,
     SupportModule,
     VoiceModule,
+    CodexMcpModule,
   ],
   controllers: [AppController],
   providers: [

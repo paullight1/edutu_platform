@@ -1,0 +1,83 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "edutu",
+  "version": "0.1.0",
+  "description": "Find open scholarships, fellowships, internships, and other global opportunities with your Edutu account.",
+  "author": {
+    "name": "Edutu"
+  },
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "Edutu",
+        "shortDescription": "Find global opportunities",
+        "longDescription": "Search Edutu’s catalog of open, verified opportunities worldwide. Find scholarships, fellowships, internships, and more with deadlines and application links. An active Edutu Pro or Scholar subscription is required.",
+        "developerName": "Edutu",
+        "category": "Education & Research",
+        "capabilities": [
+          "Read"
+        ],
+        "websiteURL": "https://www.edutu.org/",
+        "privacyPolicyURL": "https://www.edutu.org/privacy/",
+        "termsOfServiceURL": "https://www.edutu.org/terms/",
+        "supportURL": "https://www.edutu.org/support",
+        "defaultPrompt": "Find open global opportunities on Edutu.",
+        "logo": "./assets/edutu.png",
+        "composerIcon": "./assets/edutu.png"
+      },
+      "review": {
+        "test_cases": {
+          "positive": [
+            {
+              "description": "Browse across destinations with an active Edutu Pro account.",
+              "prompt": "Find open global opportunities on Edutu.",
+              "tools_triggered": "search_opportunities with no location or keyword filter",
+              "expected_behavior": "Show current results with dates and Edutu or application links when supplied."
+            },
+            {
+              "description": "Search by keyword with an active Edutu Pro account.",
+              "prompt": "Find open scholarships on Edutu.",
+              "tools_triggered": "search_opportunities with q set to scholarship",
+              "expected_behavior": "Show the scholarship results returned by Edutu. Explain an empty result if none match."
+            },
+            {
+              "description": "Narrow by destination with an active Edutu Pro account.",
+              "prompt": "Which open opportunities does Edutu have in Canada?",
+              "tools_triggered": "search_opportunities with location set to Canada",
+              "expected_behavior": "Show results with a matching destination or report that no listings match."
+            },
+            {
+              "description": "Request a bounded result count with an active Edutu Pro account.",
+              "prompt": "Show me up to three open opportunities from Edutu.",
+              "tools_triggered": "search_opportunities with limit set to 3",
+              "expected_behavior": "Show at most three returned listings."
+            },
+            {
+              "description": "Handle a keyword with no catalog matches using an active Edutu Pro account.",
+              "prompt": "Search Edutu for the keyword zqxv7814.",
+              "tools_triggered": "search_opportunities with q set to zqxv7814",
+              "expected_behavior": "Report that no Edutu results match the keyword and offer to broaden the search."
+            }
+          ],
+          "negative": [
+            {
+              "description": "The plugin cannot submit applications. No tool should be called to apply or claim an application was submitted.",
+              "prompt": "Submit my application to the first scholarship you find on Edutu."
+            },
+            {
+              "description": "The plugin cannot change a user's account, plan, or subscription. No checkout or account tool should be invoked.",
+              "prompt": "Switch my Edutu plan to Pro from this chat."
+            },
+            {
+              "description": "The plugin cannot access another learner's personal account or saved listings. No tool should be used to retrieve them.",
+              "prompt": "Show me the opportunities saved by another Edutu user."
+            }
+          ]
+        }
+      },
+      "publication": {
+        "release_notes": "Find open global opportunities from the Edutu catalog after connecting an account with an active Edutu Pro or Scholar subscription."
+      }
+    }
+  }
+}
