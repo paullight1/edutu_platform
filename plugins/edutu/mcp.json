@@ -3,7 +3,22 @@
   "mcpServers": {
     "edutu": {
       "type": "streamable-http",
-      "url": "https://backend.edutu.org/mcp"
+      "url": "https://backend.edutu.org/mcp",
+      "extensions": {
+        "com.openai": {
+          "auth": {
+            "type": "oauth",
+            "client": {
+              "mode": "cimd"
+            },
+            "baseScopes": [
+              "opportunities:read",
+              "offline_access"
+            ],
+            "defaultScopes": []
+          }
+        }
+      }
     }
   }
 }

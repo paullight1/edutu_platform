@@ -162,7 +162,11 @@ export class CodexMcpController {
         title: "Find global opportunities",
         description:
           "Search Edutu for open, verified scholarships, fellowships, internships and other opportunities worldwide. Requires an active Edutu Pro or Scholar subscription. Text filters are optional. Leave location blank for a worldwide search.",
-        annotations: { readOnlyHint: true, openWorldHint: false },
+        annotations: {
+          readOnlyHint: true,
+          destructiveHint: false,
+          openWorldHint: false,
+        },
         inputSchema: {
           q: z
             .string()
