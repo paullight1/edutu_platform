@@ -246,7 +246,11 @@ export class BillingService {
         and subscription.current_period_start <= now()
         and subscription.current_period_end > now()
     `);
-    return { subscriptions: result.rows };
+    const subscriptions = result.rows.flatMap(({ productId, expiresAt }) => {
+      const expiry = isoDate(expiresAt);
+      return expiry ? [{ productId, expiresAt: expiry }] : [];
+    });
+    return { subscriptions };
   }
 
   async getStatus(userId: string): Promise<BillingStatus> {
