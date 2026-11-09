@@ -58,6 +58,12 @@ export class BillingController {
     return this.billingService.getStatus(userId);
   }
 
+  @Get("sandbox/play-subscriptions")
+  @Header("Cache-Control", "no-store")
+  getSandboxPlaySubscriptions(@CurrentUser("authId") userId: string) {
+    return this.billingService.getSandboxPlaySubscriptions(userId);
+  }
+
   @Get("user-catalog")
   async getUserCatalog() {
     const catalog = await this.billingCheckoutService.getUserCatalog();

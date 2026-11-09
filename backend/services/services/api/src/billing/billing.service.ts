@@ -3,6 +3,7 @@ import {
   Injectable,
   InternalServerErrorException,
   Logger,
+  NotFoundException,
 } from "@nestjs/common";
 import { sql } from "drizzle-orm";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
@@ -216,6 +217,36 @@ export class BillingService {
           ? pricing.promo.yearlyPrice
           : pricing.promo.monthlyPrice;
     return promo != null && promo > 0 ? promo : base;
+  }
+
+  async getSandboxPlaySubscriptions(userId: string) {
+    const testers = (process.env.BILLING_PLAY_SANDBOX_TESTER_SUBJECTS ?? "")
+      .split(",")
+      .map((subject) => subject.trim());
+    if (!userId || !testers.includes(userId)) {
+      throw new NotFoundException();
+    }
+
+    const result = await db.execute<{
+      productId: string;
+      expiresAt: string;
+    }>(sql`
+      select product.provider_product_id as "productId",
+             subscription.current_period_end as "expiresAt"
+      from public.billing_provider_subscriptions subscription
+      join public.billing_revenuecat_store_products product
+        on product.environment = subscription.environment
+        and product.store = subscription.provider_store
+        and product.product_key = subscription.product_key
+      where subscription.user_id = ${userId}
+        and subscription.provider = 'revenuecat'
+        and subscription.environment = 'sandbox'
+        and subscription.provider_store = 'PLAY_STORE'
+        and subscription.status in ('active', 'canceled')
+        and subscription.current_period_start <= now()
+        and subscription.current_period_end > now()
+    `);
+    return { subscriptions: result.rows };
   }
 
   async getStatus(userId: string): Promise<BillingStatus> {
