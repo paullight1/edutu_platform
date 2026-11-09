@@ -72,6 +72,22 @@ describe("ClerkAuthGuard", () => {
     SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY,
   };
 
+  it("keeps resource OAuth access tokens out of the session API", async () => {
+    const { guard } = createGuard();
+    const header = Buffer.from(JSON.stringify({ typ: "at+jwt" })).toString(
+      "base64url",
+    );
+    const { context, request } = createContext({
+      authorization: `Bearer ${header}.payload.signature`,
+    });
+
+    await expect(guard.canActivate(context)).rejects.toThrow(
+      "Invalid or expired",
+    );
+    expect(request.user).toBeUndefined();
+    expect(mockedVerifyToken).not.toHaveBeenCalled();
+  });
+
   beforeEach(() => {
     jest.clearAllMocks();
     process.env.NODE_ENV = "test";

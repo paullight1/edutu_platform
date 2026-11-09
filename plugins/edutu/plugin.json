@@ -1,0 +1,26 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "edutu",
+  "version": "0.1.0",
+  "description": "Find open scholarships, fellowships, internships, and other global opportunities with your Edutu account.",
+  "author": { "name": "Edutu" },
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "Edutu",
+        "shortDescription": "Find global opportunities",
+        "longDescription": "Search Edutu’s catalog of open, verified opportunities worldwide. Find scholarships, fellowships, internships, and more with deadlines and application links. An active Edutu Pro or Scholar subscription is required.",
+        "developerName": "Edutu",
+        "category": "Education & Research",
+        "capabilities": ["Read"],
+        "websiteURL": "https://www.edutu.org/",
+        "privacyPolicyURL": "https://www.edutu.org/privacy/",
+        "termsOfServiceURL": "https://www.edutu.org/terms/",
+        "supportURL": "https://www.edutu.org/support",
+        "defaultPrompt": "Find open global opportunities on Edutu.",
+        "logo": "./assets/edutu.png",
+        "composerIcon": "./assets/edutu.png"
+      }
+    }
+  }
+}

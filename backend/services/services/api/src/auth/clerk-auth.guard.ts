@@ -10,6 +10,8 @@ import { Reflector } from "@nestjs/core";
 import type { ClerkClient } from "@clerk/backend";
 import { verifyToken } from "@clerk/backend";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { decodeProtectedHeader } from "jose";
+import { isOAuthAccessTokenType } from "./oauth-access-token";
 import { IS_PUBLIC_KEY } from "./public.decorator";
 import { db } from "../db";
 import { profiles } from "../db/schema";
@@ -76,6 +78,12 @@ export class ClerkAuthGuard implements CanActivate {
       throw new UnauthorizedException("No token provided");
     }
 
+    // Resource-scoped Clerk OAuth tokens cannot stand in for session tokens.
+    const header = token.includes(".") ? this.readProtectedHeader(token) : null;
+    if (isOAuthAccessTokenType(header?.typ)) {
+      throw new UnauthorizedException("Invalid or expired token");
+    }
+
     const clerkAuthenticated = await this.tryAuthenticateClerk(token, request);
     if (clerkAuthenticated) {
       return true;
@@ -94,6 +102,14 @@ export class ClerkAuthGuard implements CanActivate {
     }
 
     throw new UnauthorizedException("Invalid or expired token");
+  }
+
+  private readProtectedHeader(token: string) {
+    try {
+      return decodeProtectedHeader(token);
+    } catch {
+      return null;
+    }
   }
 
   private tryAuthenticateLocalAdmin(request: any): boolean {
