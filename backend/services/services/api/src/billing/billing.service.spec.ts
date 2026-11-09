@@ -1,5 +1,6 @@
-import { BadRequestException } from "@nestjs/common";
+import { BadRequestException, NotFoundException } from "@nestjs/common";
 import { createHmac } from "crypto";
+import { PgDialect } from "drizzle-orm/pg-core";
 import { BillingService } from "./billing.service";
 import { SettingsService } from "../settings/settings.service";
 import { DEFAULT_ADMIN_SETTINGS } from "../settings/settings.dto";
@@ -44,6 +45,47 @@ describe("BillingService", () => {
       originalEnv.SUPABASE_SERVICE_ROLE_KEY;
     process.env.BACHS_WEBHOOK_SECRET = originalEnv.BACHS_WEBHOOK_SECRET;
     jest.restoreAllMocks();
+  });
+
+  it("limits Play sandbox verification to allowlisted subjects and their sandbox subscriptions", async () => {
+    const env = jest.replaceProperty(process, "env", {
+      ...process.env,
+      BILLING_PLAY_SANDBOX_TESTER_SUBJECTS: "user_tester, user_other",
+    });
+    const rows = [
+      { productId: "edutu_pro_v1:monthly-auto", expiresAt: PRO_EXPIRES_ISO },
+    ];
+    const execute = jest
+      .spyOn(db, "execute")
+      .mockResolvedValue({ rows } as never);
+    const service = new BillingService(settingsStub);
+
+    await expect(
+      service.getSandboxPlaySubscriptions("user_outside"),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(execute).not.toHaveBeenCalled();
+    await expect(
+      service.getSandboxPlaySubscriptions("user_tester"),
+    ).resolves.toEqual({
+      subscriptions: rows,
+    });
+    const statement = execute.mock.calls[0][0];
+    if (typeof statement === "string")
+      throw new Error("Expected a bound SQL query");
+    const query = new PgDialect().sqlToQuery(statement.getSQL());
+    expect(query.params).toEqual(["user_tester"]);
+    expect(query.sql).toContain("subscription.environment = 'sandbox'");
+    expect(query.sql).toContain("subscription.provider_store = 'PLAY_STORE'");
+    expect(query.sql).toContain("subscription.current_period_end > now()");
+
+    env.replaceValue({
+      ...process.env,
+      BILLING_PLAY_SANDBOX_TESTER_SUBJECTS: "",
+    });
+    await expect(
+      service.getSandboxPlaySubscriptions("user_tester"),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(execute).toHaveBeenCalledTimes(1);
   });
 
   function createSupabaseMock() {
