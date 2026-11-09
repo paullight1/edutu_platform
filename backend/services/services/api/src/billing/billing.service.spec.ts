@@ -53,7 +53,10 @@ describe("BillingService", () => {
       BILLING_PLAY_SANDBOX_TESTER_SUBJECTS: "user_tester, user_other",
     });
     const rows = [
-      { productId: "edutu_pro_v1:monthly-auto", expiresAt: PRO_EXPIRES_ISO },
+      {
+        productId: "edutu_pro_v1:monthly-auto",
+        expiresAt: "2026-11-09 02:31:47.516+00",
+      },
     ];
     const execute = jest
       .spyOn(db, "execute")
@@ -67,7 +70,12 @@ describe("BillingService", () => {
     await expect(
       service.getSandboxPlaySubscriptions("user_tester"),
     ).resolves.toEqual({
-      subscriptions: rows,
+      subscriptions: [
+        {
+          productId: "edutu_pro_v1:monthly-auto",
+          expiresAt: "2026-11-09T02:31:47.516Z",
+        },
+      ],
     });
     const statement = execute.mock.calls[0][0];
     if (typeof statement === "string")
