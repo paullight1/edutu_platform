@@ -112,7 +112,10 @@ export class PostgresRevenueCatIdentityResolver implements RevenueCatIdentityRes
     if (allowed.length === 0) return null;
     const result = await this.database.execute(sql`
       select wanted.user_id
-      from unnest(${allowed}::text[]) with ordinality as wanted(user_id, position)
+      from unnest(array[${sql.join(
+        allowed.map((candidate) => sql`${candidate}`),
+        sql`, `,
+      )}]::text[]) with ordinality as wanted(user_id, position)
       where exists (
         select 1 from public.profiles profile
         where profile.user_id::text = wanted.user_id
