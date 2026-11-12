@@ -130,7 +130,10 @@ class TrendingThumbListWidgetProvider : AppWidgetProvider() {
       val deadlineRaw = item.optString("deadline")
 
       views.setViewVisibility(row.rowId, View.VISIBLE)
-      views.setViewVisibility(row.metaId, if (width < 280) View.GONE else View.VISIBLE)
+      val largeText = context.resources.configuration.fontScale > 1.3f
+      views.setViewVisibility(row.metaId, if (width < 280 || largeText) View.GONE else View.VISIBLE)
+      views.setViewVisibility(row.deadlineId, if (largeText) View.GONE else View.VISIBLE)
+      views.setViewVisibility(row.imageId, if (largeText && width < 300) View.GONE else View.VISIBLE)
       views.setTextViewText(row.titleId, item.optString("title"))
       views.setTextViewText(row.metaId, "$category · $organization")
       views.setTextViewText(row.deadlineId, WidgetSupport.formatDeadline(context, deadlineRaw))

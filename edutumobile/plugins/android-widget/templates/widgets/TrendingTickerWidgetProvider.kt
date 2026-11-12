@@ -97,12 +97,12 @@ class TrendingTickerWidgetProvider : AppWidgetProvider() {
     val items = TrendingWidgetData.load(context, TRENDING_FILE, PREFS, KEY_ITEMS)
     appWidgetIds.forEach { appWidgetId ->
       WidgetSupport.updateSafely(context, appWidgetManager, appWidgetId) { width, height ->
-        buildViews(context, items, bitmaps)
+        buildViews(context, items, bitmaps, width, height)
       }
     }
   }
 
-  private fun buildViews(context: Context, items: JSONArray, bitmaps: Map<Int, Bitmap>?): RemoteViews {
+  private fun buildViews(context: Context, items: JSONArray, bitmaps: Map<Int, Bitmap>?, width: Int, height: Int): RemoteViews {
     val views = RemoteViews(context.packageName, R.layout.edutu_trending_ticker_widget)
 
     if (items.length() == 0) {
@@ -124,6 +124,10 @@ class TrendingTickerWidgetProvider : AppWidgetProvider() {
       val category = item.optString("category").ifBlank { "Trending" }
       val organization = item.optString("organization").ifBlank { "Edutu" }
 
+      val details = WidgetSizing.showPosterDetails(height, context.resources.configuration.fontScale)
+      views.setViewVisibility(banner.metaId, if (details) View.VISIBLE else View.GONE)
+      views.setViewVisibility(banner.deadlineId, if (details) View.VISIBLE else View.GONE)
+      views.setInt(banner.titleId, "setMaxLines", WidgetSizing.titleLines(height, context.resources.configuration.fontScale, 2))
       views.setTextViewText(banner.titleId, item.optString("title"))
       views.setTextViewText(banner.metaId, "$category · $organization")
       views.setTextViewText(banner.deadlineId, WidgetSupport.formatDeadline(context, item.optString("deadline")))

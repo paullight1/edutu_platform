@@ -8,7 +8,7 @@
     android:text="@string/edutu_widget_chat_title" android:textColor="@color/edutu_widget_ink" android:textSize="15sp" android:textStyle="bold" android:maxLines="1" android:ellipsize="end" />
   <TextView android:id="@+id/edutu_cw_hint" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center"
     android:text="@string/edutu_widget_coach_hint" android:textColor="@color/edutu_widget_sub" android:textSize="10sp" android:maxLines="1" android:ellipsize="end" />
-  <TextView android:layout_width="match_parent" android:layout_height="40dp" android:gravity="center"
+  <TextView android:id="@+id/edutu_cw_action" android:layout_width="match_parent" android:layout_height="40dp" android:gravity="center"
     android:layout_marginTop="6dp" android:background="@drawable/edutu_widget_pill" android:text="@string/edutu_widget_ask_action"
     android:textColor="@color/edutu_widget_pill_ink" android:textSize="12sp" android:textStyle="bold" android:maxLines="1" android:ellipsize="end" />
 </LinearLayout>

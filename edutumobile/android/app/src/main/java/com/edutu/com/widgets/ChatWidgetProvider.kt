@@ -30,7 +30,11 @@ class ChatWidgetProvider : AppWidgetProvider() {
       WidgetSupport.updateSafely(context, appWidgetManager, appWidgetId) { width, height ->
         val views = RemoteViews(context.packageName, if (width >= 260) R.layout.edutu_chat_widget_medium else R.layout.edutu_chat_widget)
         val largeText = context.resources.configuration.fontScale > 1.3f
+        val compactLargeText = width < 260 && largeText
         views.setViewVisibility(R.id.edutu_cw_hint, if (largeText) android.view.View.GONE else android.view.View.VISIBLE)
+        views.setViewVisibility(R.id.edutu_cw_title, if (compactLargeText) android.view.View.GONE else android.view.View.VISIBLE)
+        views.setTextViewText(R.id.edutu_cw_action, context.getString(if (compactLargeText) R.string.edutu_widget_ask_short else R.string.edutu_widget_ask_action))
+        views.setContentDescription(R.id.edutu_cw_root, context.getString(R.string.edutu_widget_chat_title))
         if (width >= 260) views.setViewVisibility(R.id.edutu_cw_label, if (largeText) android.view.View.GONE else android.view.View.VISIBLE)
         views.setOnClickPendingIntent(
           R.id.edutu_cw_root,

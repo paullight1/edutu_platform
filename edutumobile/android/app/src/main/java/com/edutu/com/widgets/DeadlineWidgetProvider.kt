@@ -91,7 +91,7 @@ class DeadlineWidgetProvider : AppWidgetProvider() {
       views.setTextColor(R.id.edutu_dw_days, urgency)
       views.setTextViewText(
         R.id.edutu_dw_days_label,
-        if (days == 1) "day left" else "days left"
+        if (context.resources.configuration.fontScale > 1.3f) { if (days == 1) "day" else "days" } else { if (days == 1) "day left" else "days left" }
       )
     } else {
       views.setViewVisibility(R.id.edutu_dw_days, View.GONE)

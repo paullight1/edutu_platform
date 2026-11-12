@@ -107,12 +107,12 @@ class NewsWidgetProvider : AppWidgetProvider() {
     val items = loadItems(context)
     appWidgetIds.forEach { appWidgetId ->
       WidgetSupport.updateSafely(context, appWidgetManager, appWidgetId) { width, height ->
-        buildViews(context, items, bitmaps)
+        buildViews(context, items, bitmaps, width, height)
       }
     }
   }
 
-  private fun buildViews(context: Context, items: JSONArray, bitmaps: Map<Int, Bitmap>?): RemoteViews {
+  private fun buildViews(context: Context, items: JSONArray, bitmaps: Map<Int, Bitmap>?, width: Int, height: Int): RemoteViews {
     val views = RemoteViews(context.packageName, R.layout.edutu_news_widget)
     val blogBase = context.getString(R.string.edutu_news_blog_base).trimEnd('/')
 
@@ -131,6 +131,10 @@ class NewsWidgetProvider : AppWidgetProvider() {
       val item = items.optJSONObject(i % items.length()) ?: JSONObject()
       val category = item.optString("category").ifBlank { "News" }
 
+      val details = WidgetSizing.showPosterDetails(height, context.resources.configuration.fontScale)
+      views.setViewVisibility(banner.chipId, if (details) View.VISIBLE else View.GONE)
+      views.setViewVisibility(banner.metaId, if (details) View.VISIBLE else View.GONE)
+      views.setInt(banner.titleId, "setMaxLines", WidgetSizing.titleLines(height, context.resources.configuration.fontScale, 2))
       views.setTextViewText(banner.chipId, category.uppercase(Locale.getDefault()))
       views.setTextViewText(banner.titleId, item.optString("title"))
       views.setTextViewText(banner.metaId, formatPublished(item.optString("publishedAt")))

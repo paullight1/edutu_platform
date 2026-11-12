@@ -2,6 +2,8 @@ package com.edutu.com.widgets
 
 /** dp-based layout policy shared by all lists; keep text readable as a widget shrinks. */
 object WidgetSizing {
+  fun showPosterDetails(height: Int, fontScale: Float): Boolean = height >= 140 * fontScale.coerceAtLeast(1f)
+
   fun useHero(width: Int, height: Int): Boolean = width < 220 || height < 140
 
   fun titleLines(height: Int, fontScale: Float, maximum: Int = 3): Int {

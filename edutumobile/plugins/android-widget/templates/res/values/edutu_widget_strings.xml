@@ -57,12 +57,15 @@
 
   <string name="edutu_chat_widget_name">Ask Edutu</string>
   <string name="edutu_chat_widget_description">Jump straight into a chat with your AI opportunity coach.</string>
-  <string name="edutu_widget_chat_title">Ask Edutu AI</string>
+  <string name="edutu_widget_chat_title">Ask Edutu</string>
   <string name="edutu_widget_chat_prompt">Ask me anything…</string>
   <string name="edutu_widget_chat_prompt_2">Which scholarships fit me?</string>
   <string name="edutu_widget_chat_prompt_3">Help me plan an application</string>
   <string name="edutu_widget_chat_prompt_4">Find internships near me</string>
   <string name="edutu_widget_ask_action">Ask Edutu →</string>
+  <string name="edutu_widget_ask_short">Ask →</string>
+  <string name="edutu_widget_open_short">Open →</string>
+  <string name="edutu_next_step_label_short">NEXT</string>
   <string name="edutu_widget_coach_label">YOUR OPPORTUNITY COACH</string>
   <string name="edutu_widget_coach_hint">Your opportunity coach</string>
   <string name="edutu_widget_coach_question">What should I focus on next?</string>

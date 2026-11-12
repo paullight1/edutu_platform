@@ -18,7 +18,7 @@ public class PreviewInstrumentation extends Instrumentation {
       result.putString("failure", android.util.Log.getStackTraceString(failure[0]));
       finish(Activity.RESULT_CANCELED, result);
     } else {
-      result.putString("result", "PASS: 48 native type/size/theme/font-scale renders plus three non-ready states");
+      result.putString("result", "PASS: 228 native type/size/theme/font-scale renders plus three non-ready states");
       finish(Activity.RESULT_OK, result);
     }
   }

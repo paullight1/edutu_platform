@@ -133,6 +133,10 @@ class TrendingGridWidgetProvider : AppWidgetProvider() {
         continue
       }
 
+      val scale = context.resources.configuration.fontScale
+      val tileHeight = if (short) height else height / 2
+      views.setInt(tile.titleId, "setMaxLines", WidgetSizing.titleLines(tileHeight, scale, 2))
+      views.setViewVisibility(tile.deadlineId, if (tileHeight >= 110 * scale) View.VISIBLE else View.GONE)
       views.setTextViewText(tile.titleId, item.optString("title"))
       views.setTextViewText(tile.deadlineId, WidgetSupport.formatDeadline(context, item.optString("deadline")))
 

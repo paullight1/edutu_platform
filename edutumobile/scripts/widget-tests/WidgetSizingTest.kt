@@ -11,5 +11,9 @@ fun main() {
   check(WidgetSizing.titleLines(140, 1f) == 3)
   check(WidgetSizing.titleLines(140, 2f) == 1) { "Large text must leave space for the deadline" }
   check(WidgetSizing.titleLines(240, 1f) == 3)
-  println("WidgetSizing: 10 checks passed")
+  check(!WidgetSizing.showPosterDetails(110, 1f))
+  check(WidgetSizing.showPosterDetails(160, 1f))
+  check(!WidgetSizing.showPosterDetails(160, 2f))
+  check(WidgetSizing.showPosterDetails(340, 2f))
+  println("WidgetSizing: 14 checks passed")
 }

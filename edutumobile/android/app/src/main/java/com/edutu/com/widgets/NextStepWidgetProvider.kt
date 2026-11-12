@@ -21,6 +21,9 @@ class NextStepWidgetProvider : AppWidgetProvider() {
     val small = width < 220
     val large = !small && height >= 260
     val views = RemoteViews(context.packageName, when { small -> R.layout.edutu_next_step_widget_small; large -> R.layout.edutu_next_step_widget_large; else -> R.layout.edutu_next_step_widget_medium })
+    val compactLargeText = small && context.resources.configuration.fontScale > 1.3f
+    views.setTextViewText(R.id.edutu_ns_label, context.getString(if (compactLargeText) R.string.edutu_next_step_label_short else R.string.edutu_next_step_label))
+    if (compactLargeText) views.setTextViewText(R.id.edutu_ns_action, context.getString(R.string.edutu_widget_open_short))
     val items = data.optJSONArray("items")
     val hero = items?.optJSONObject(0)
     val usable = data.optString("state") == "ready" && hero != null && !WidgetSupport.isExpired(hero.optString("deadline"))
@@ -32,7 +35,7 @@ class NextStepWidgetProvider : AppWidgetProvider() {
       val title = when (data.optString("state")) { "signed_out" -> R.string.edutu_next_step_signed_out; "empty" -> R.string.edutu_next_step_empty; else -> R.string.edutu_next_step_unavailable }
       views.setTextViewText(R.id.edutu_ns_title, context.getString(title))
       views.setTextViewText(R.id.edutu_ns_context, context.getString(R.string.edutu_next_step_empty_hint))
-      views.setTextViewText(R.id.edutu_ns_action, context.getString(R.string.edutu_next_step_open))
+      views.setTextViewText(R.id.edutu_ns_action, context.getString(if (compactLargeText) R.string.edutu_widget_open_short else R.string.edutu_next_step_open))
       views.setViewVisibility(R.id.edutu_ns_progress, View.GONE)
       views.setViewVisibility(R.id.edutu_ns_due, View.GONE)
       return views

@@ -104,12 +104,12 @@ class TrendingSpotlightWidgetProvider : AppWidgetProvider() {
     val items = TrendingWidgetData.load(context, TRENDING_FILE, PREFS, KEY_ITEMS)
     appWidgetIds.forEach { appWidgetId ->
       WidgetSupport.updateSafely(context, appWidgetManager, appWidgetId) { width, height ->
-        buildViews(context, items, bitmaps)
+        buildViews(context, items, bitmaps, width, height)
       }
     }
   }
 
-  private fun buildViews(context: Context, items: JSONArray, bitmaps: Map<Int, Bitmap>?): RemoteViews {
+  private fun buildViews(context: Context, items: JSONArray, bitmaps: Map<Int, Bitmap>?, width: Int, height: Int): RemoteViews {
     val views = RemoteViews(context.packageName, R.layout.edutu_trending_spotlight_widget)
 
     if (items.length() == 0) {
@@ -130,6 +130,10 @@ class TrendingSpotlightWidgetProvider : AppWidgetProvider() {
       val item = items.optJSONObject(i % items.length()) ?: JSONObject()
       val deadlineRaw = item.optString("deadline")
 
+      val scale = context.resources.configuration.fontScale
+      views.setViewVisibility(poster.categoryId, if (WidgetSizing.showPosterDetails(height, scale)) View.VISIBLE else View.GONE)
+      views.setViewVisibility(poster.deadlineId, if (height >= 110 * scale) View.VISIBLE else View.GONE)
+      views.setInt(poster.titleId, "setMaxLines", WidgetSizing.titleLines(height, scale, 2))
       views.setTextViewText(
         poster.categoryId,
         item.optString("category").ifBlank { context.getString(R.string.edutu_widget_trending) }

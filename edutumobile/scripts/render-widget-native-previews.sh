@@ -8,7 +8,9 @@ TASK_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 TASK_SAVED_APK="${WIDGET_PREVIEW_APK:-/tmp/edutu-widget-preview.apk}"
 if [ "${1:-}" = "--render-only" ]; then
   "$TASK_SDK/platform-tools/adb" install -r "$TASK_SAVED_APK"
-  "$TASK_SDK/platform-tools/adb" shell am instrument -w com.edutu.widgetpreview/.PreviewInstrumentation
+  TASK_RESULT="$("$TASK_SDK/platform-tools/adb" shell am instrument -w com.edutu.widgetpreview/.PreviewInstrumentation)"
+  printf '%s\n' "$TASK_RESULT"
+  [[ "$TASK_RESULT" == *"INSTRUMENTATION_CODE: -1"* && "$TASK_RESULT" == *"result=PASS:"* ]]
   exit 0
 fi
 TASK_TMP="$(mktemp -d)"
@@ -40,5 +42,7 @@ if [ "${1:-}" = "--compile-only" ]; then
   exit 0
 fi
 "$TASK_SDK/platform-tools/adb" install -r "$TASK_TMP/preview.apk"
-"$TASK_SDK/platform-tools/adb" shell am instrument -w com.edutu.widgetpreview/.PreviewInstrumentation
+TASK_RESULT="$("$TASK_SDK/platform-tools/adb" shell am instrument -w com.edutu.widgetpreview/.PreviewInstrumentation)"
+printf '%s\n' "$TASK_RESULT"
+[[ "$TASK_RESULT" == *"INSTRUMENTATION_CODE: -1"* && "$TASK_RESULT" == *"result=PASS:"* ]]
 printf 'Isolated native render completed. Pull /sdcard/Android/data/com.edutu.widgetpreview/files/previews.\n'
