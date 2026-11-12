@@ -1,120 +1,127 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { RefreshControl, ScrollView, StyleSheet, Text, View, Pressable } from 'react-native';
 import { useAuth } from '@clerk/clerk-expo';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
+import { ArrowRight, Bookmark, CalendarDays, CheckCircle2, FolderClosed, GraduationCap } from 'lucide-react-native';
 import { StateView } from '../../../components/state';
 import { Skeleton } from '../../../components/ui/Skeleton';
 import { PlanWorkspaceHeader } from '../../../components/opportunity-path/PlanWorkspaceHeader';
+import { PlanGoalPreview } from '../../../components/opportunity-path/PlanGoalPreview';
 import { useTheme } from '../../../components/context/ThemeContext';
 import JourneyCard from '../../../components/opportunity-path/JourneyCard';
-import JourneyStageTabs from '../../../components/opportunity-path/JourneyStageTabs';
-import { listOpportunityJourneys } from '@edutu/core/src/services/opportunityJourney';
-import type { OpportunityJourneyView, OpportunityPublicStage } from '@edutu/core/src/types/opportunityJourney';
+import { PLAN_STAGES, planPalette } from '../../../components/opportunity-path/planPresentation';
+import { usePlanJourneys } from '../../../hooks/usePlanJourneys';
+import { getDeadlineBadge } from '@edutu/core/src/utils/deadline';
+import type { OpportunityJourneyView } from '@edutu/core/src/types/opportunityJourney';
 
-interface PlanState {
-  key: string;
-  journeys: OpportunityJourneyView[];
-  loading: boolean;
-  error: string | null;
-}
+const STAGES = PLAN_STAGES.map(({ key }) => key);
+const ICONS = [GraduationCap, Bookmark, CheckCircle2, FolderClosed];
 
 export default function MyPlanScreen() {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const { t } = useTranslation('home');
-  const { userId, getToken } = useAuth();
+  const { userId } = useAuth();
   const router = useRouter();
-  // Clerk may replace getToken during a render. This must not restart a load.
-  const dependencies = useRef({ getToken, t });
-  useEffect(() => { dependencies.current = { getToken, t }; }, [getToken, t]);
   const insets = useSafeAreaInsets();
-  const [stage, setStage] = useState<OpportunityPublicStage>('pursuing');
-  const [refreshIndex, setRefreshIndex] = useState(0);
-  const [state, setState] = useState<PlanState>({ key: '', journeys: [], loading: true, error: null });
-  const key = `${userId}:${stage}`;
-  useFocusEffect(useCallback(() => {
-    let active = true;
-    let timeout: ReturnType<typeof setTimeout> | undefined;
-    const loadPlan = async () => {
-      if (!active) return;
-      if (!userId) {
-        setState({ key, journeys: [], loading: false, error: 'Sign in to view your plan.' });
-        return;
-      }
-      setState((previous) => ({ ...previous, loading: true, error: null }));
-      try {
-        const result = await Promise.race([
-          listOpportunityJourneys({ userId, stage, getAuthToken: () => dependencies.current.getToken() }),
-          new Promise<never>((_, reject) => {
-            timeout = setTimeout(() => reject(new Error('Plan request timed out')), 15000);
-          }),
-        ]);
-        if (!result.data) throw new Error('Unable to load your plan. Please try again.');
-        if (active) setState({ key, journeys: result.data, loading: false,
-          error: result.isStale ? dependencies.current.t('myPlan.stale') : null });
-      } catch {
-        if (active) setState((previous) => ({ ...previous, key,
-          journeys: previous.key === key ? previous.journeys : [],
-          loading: false, error: dependencies.current.t('myPlan.loadError') }));
-      } finally { clearTimeout(timeout); }
-    };
-    void loadPlan();
-    return () => { active = false; clearTimeout(timeout); };
-  // A refresh gesture deliberately restarts the focused read.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, stage, refreshIndex, userId]));
+  const { reads, loading, signedIn, refresh } = usePlanJourneys(STAGES);
+  const palette = planPalette(isDark);
+  const pursuing = reads.pursuing?.data;
+  const unavailable = !loading && STAGES.some(stage => !reads[stage]?.data);
+  const stale = STAGES.some(stage => reads[stage]?.isStale);
+  const active = [...(pursuing ?? []), ...(reads.discover?.data ?? [])];
+  const deadlines = new Set(active.filter(item => {
+    const deadline = getDeadlineBadge(typeof item.opportunity.deadline === 'string' ? item.opportunity.deadline : null);
+    return deadline.daysLeft !== null && deadline.daysLeft >= 0 && deadline.daysLeft <= 7;
+  }).map(item => item.journey.id)).size;
+  const openJourney = (item: OpportunityJourneyView) =>
+    router.push({ pathname: '/my-plan/[id]', params: { id: item.journey.id } });
 
-  const current = state.key === key;
-  const loading = Boolean(userId) && (!current || state.loading);
-  const data = current ? state.journeys : [];
   return (
     <View style={[styles.screen, { backgroundColor: colors.background }]}>
-      <View style={{ paddingTop: insets.top }}><PlanWorkspaceHeader section="overview" /></View>
-      <JourneyStageTabs value={stage} onChange={setStage} />
-      <FlatList
-        data={data}
-        keyExtractor={(item) => item.journey.id}
-        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 130 }]}
-        refreshControl={<RefreshControl refreshing={loading && data.length > 0} onRefresh={() => setRefreshIndex((n) => n + 1)} tintColor={colors.accent} />}
-        ListHeaderComponent={current && state.error && data.length > 0 ? (
+      <View style={{ paddingTop: insets.top }}><PlanWorkspaceHeader section="overview" compact /></View>
+      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 120 }]}
+        refreshControl={<RefreshControl refreshing={loading && Boolean(pursuing)} onRefresh={refresh} tintColor={colors.accent} />}>
+        <View style={styles.stats}>
+          {PLAN_STAGES.map(({ key, label, tone }, index) => {
+            const count = reads[key]?.data?.length;
+            const swatch = palette[tone];
+            const Icon = ICONS[index];
+            return (
+              <Pressable key={key} accessibilityRole="button"
+                accessibilityLabel={`${t(`myPlan.stages.${key}`, { defaultValue: label })}, ${count ?? (loading ? 'loading' : 'count unavailable')}`}
+                accessibilityHint="Opens this list of opportunities"
+                onPress={() => router.push({ pathname: '/my-plan/stage/[stage]', params: { stage: key } })}
+                style={[styles.stat, { backgroundColor: swatch.background, borderColor: swatch.border }]}>
+                <Icon size={19} color={swatch.ink} />
+                <View pointerEvents="none" style={styles.art}><Icon size={50} color={swatch.ink} strokeWidth={1} /></View>
+                <Text style={[styles.statLabel, { color: swatch.ink }]}>{t(`myPlan.stages.${key}`, { defaultValue: label })}</Text>
+                <View style={styles.row}>
+                  {loading && count === undefined ? <Skeleton width={36} height={27} /> : <Text style={[styles.count, { color: swatch.ink }]}>{count ?? '—'}</Text>}
+                  <ArrowRight size={19} color={swatch.ink} />
+                </View>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        {(!signedIn || unavailable || stale) && (
           <View style={styles.notice}>
-            <Text accessibilityRole="alert" style={{ color: colors.textSecondary }}>{state.error}</Text>
-            <Pressable accessibilityRole="button" onPress={() => setRefreshIndex((n) => n + 1)} style={styles.retry}>
-              <Text style={{ color: colors.accent, fontWeight: '700' }}>{t('myPlan.retry')}</Text>
-            </Pressable>
+            <Text accessibilityRole="alert" style={{ color: colors.textSecondary }}>
+              {!signedIn ? 'Sign in to view your plan.' : unavailable ? t('myPlan.loadError') : t('myPlan.stale')}
+            </Text>
+            {signedIn && <Pressable accessibilityRole="button" onPress={refresh} style={styles.touch}>
+              <Text style={{ color: colors.accent, fontWeight: '600' }}>{t('myPlan.retry')}</Text>
+            </Pressable>}
           </View>
-        ) : null}
-        renderItem={({ item }) => (
-          <JourneyCard item={item} onContinue={() => router.push({ pathname: '/my-plan/[id]', params: { id: item.journey.id } })} />
-        )}
-        ItemSeparatorComponent={() => <View style={{ height: 16 }} />}
-        ListEmptyComponent={loading ? (
-          <View accessibilityLabel={t('myPlan.loading')} accessibilityState={{ busy: true }} style={{ gap: 16 }}>
-            {[0, 1].map(key => <View key={key} style={[styles.loadingCard, { borderColor: colors.border, backgroundColor: colors.card }]}>
-              <Skeleton width="35%" height={24} /><Skeleton width="90%" height={24} /><Skeleton width="65%" height={18} />
-              <Skeleton height={4} /><Skeleton width="75%" height={20} />
-            </View>)}
-          </View>
-        ) : state.error && current ? (
-          <StateView state={{ kind: 'error', cause: 'server' }} flow="applied" fill={false} sceneSize={160}
-            title={t('myPlan.reconnectTitle')} body={state.error} actionLabel={t('myPlan.retry')}
-            onRetry={() => setRefreshIndex(n => n + 1)} />
-        ) : (
-          <StateView state={{ kind: 'empty', reason: 'firstRun' }} flow="applied" fill={false} sceneSize={160}
-            title={t('myPlan.empty')} body={t(`myPlan.empty_${stage}`)} actionLabel={t('myPlan.explore')}
-            onAction={() => router.push('/opportunities')} />
         )}
 
-      />
+        {deadlines > 0 && <Pressable accessibilityRole="button" accessibilityLabel={`${deadlines} deadlines in the next 7 days`}
+          onPress={() => router.push({ pathname: '/deadlines', params: { planNav: '1' } })}
+          style={[styles.deadline, { backgroundColor: palette.peach.background, borderColor: palette.peach.border }]}>
+          <CalendarDays size={21} color={palette.peach.ink} />
+          <Text style={[styles.deadlineLabel, { color: palette.peach.ink }]}>{deadlines} {deadlines === 1 ? 'deadline' : 'deadlines'} in the next 7 days</Text>
+          <ArrowRight size={18} color={palette.peach.ink} />
+        </Pressable>}
+
+        <View style={styles.row}>
+          <Text accessibilityRole="header" style={[styles.heading, { color: colors.foreground }]}>Next steps</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel="View all pursuing opportunities" style={styles.touch}
+            onPress={() => router.push({ pathname: '/my-plan/stage/[stage]', params: { stage: 'pursuing' } })}>
+            <Text style={{ color: colors.accent, fontWeight: '600' }}>View all</Text>
+          </Pressable>
+        </View>
+        {loading && !pursuing ? <Skeleton height={100} borderRadius={16} /> :
+          pursuing?.length ? pursuing.slice(0, 2).map(item => <JourneyCard key={item.journey.id} item={item} compact onContinue={() => openJourney(item)} />) :
+          pursuing ? <StateView state={{ kind: 'empty', reason: 'firstRun' }} flow="applied" fill={false} sceneSize={100}
+            title={t('myPlan.empty')} body={t('myPlan.empty_pursuing')} actionLabel={t('myPlan.explore')} onAction={() => router.push('/opportunities')} /> : null}
+
+        {userId && <>
+          <View style={styles.row}>
+            <Text accessibilityRole="header" style={[styles.heading, { color: colors.foreground }]}>Your goals</Text>
+            <Pressable accessibilityRole="button" accessibilityLabel="View all goals" style={styles.touch}
+              onPress={() => router.push({ pathname: '/goals', params: { planNav: '1' } })}>
+              <Text style={{ color: colors.accent, fontWeight: '600' }}>View all</Text>
+            </Pressable>
+          </View>
+          <PlanGoalPreview key={userId} userId={userId} />
+        </>}
+      </ScrollView>
     </View>
   );
 }
-
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  loadingCard: { padding: 20, borderRadius: 24, borderWidth: 1, gap: 20 },
-  content: { padding: 20, flexGrow: 1 },
-  notice: { gap: 6, paddingBottom: 16 },
-  retry: { minHeight: 44, justifyContent: 'center', alignSelf: 'flex-start' },
+  content: { padding: 18, gap: 10 },
+  stats: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  stat: { flexBasis: '46%', flexGrow: 1, borderRadius: 16, padding: 13, gap: 4, minHeight: 100, borderWidth: 1, overflow: 'hidden' },
+  art: { position: 'absolute', right: 12, top: 12, opacity: 0.12 },
+  statLabel: { fontSize: 14, fontWeight: '600' },
+  count: { fontSize: 27, lineHeight: 32, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10 },
+  heading: { fontSize: 19, fontWeight: '700' },
+  touch: { minHeight: 44, justifyContent: 'center' },
+  deadline: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 9, padding: 12, borderRadius: 14, borderWidth: 1 },
+  deadlineLabel: { flex: 1, fontSize: 13, fontWeight: '600' },
+  notice: { gap: 4, paddingHorizontal: 2 },
 });

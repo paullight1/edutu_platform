@@ -1171,7 +1171,7 @@ export default function AppLayout() {
     const insets = useSafeAreaInsets();
     const pathname = usePathname();
     const params = useGlobalSearchParams<{ category?: string; planNav?: string }>();
-    const isPlanNav = pathname === '/my-plan' ||
+    const isPlanNav = pathname === '/my-plan' || pathname.startsWith('/my-plan/stage/') ||
         (params.planNav === '1' && ['/applied', '/deadlines', '/roadmaps', '/goals'].includes(pathname));
     const { unreadCount } = useNotifications(supabase, user?.id ?? null, getToken);
     const registeredPushUserRef = React.useRef<string | null>(null);
@@ -1442,8 +1442,8 @@ export default function AppLayout() {
 
     const tabs = [
         { key: "home", route: "/", label: t('tabs.home'), icon: Home, badge: undefined },
-        { key: "my-plan", route: "/my-plan", label: t('tabs.myPlan', { defaultValue: 'My Plan' }), icon: ClipboardList, badge: undefined },
         { key: "opportunities", route: "/opportunities", label: t('tabs.explore'), icon: Compass, badge: undefined },
+        { key: "my-plan", route: "/my-plan", label: t('tabs.myPlan', { defaultValue: 'My Plan' }), icon: ClipboardList, badge: undefined },
         { key: "menu", route: "/profile", label: t('tabs.more'), icon: Menu, badge: undefined },
     ];
 

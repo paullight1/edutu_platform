@@ -65,3 +65,19 @@ it('creates a pursuit from opportunity details then opens its persisted journey'
   await waitFor(() => expect(mockPush).toHaveBeenCalledWith({ pathname: '/my-plan/[id]', params: { id: 'journey-one' } }));
   expect(mockWrite.mock.calls[0][0].body.action).toBe('pursue');
 });
+
+it('expands step guidance without saving, then completes only on an explicit action', async () => {
+  const data = entry();
+  mockRead.mockResolvedValue({ data: { ...data, tasks: [{ ...data.tasks[0], description: 'Check the essay word limit.' }] }, isStale: false });
+  const screen = render(<PlanJourneyScreen />);
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Open next step' })).toBeTruthy());
+  fireEvent.press(screen.getByRole('button', { name: 'Open next step' }));
+  expect(screen.getByText('Check the essay word limit.')).toBeTruthy();
+  expect(mockWrite).not.toHaveBeenCalled();
+  fireEvent.press(screen.getByRole('button', { name: 'Ask Edutu AI' }));
+  expect(mockPush).toHaveBeenCalledWith({ pathname: '/chat', params: { prefill: expect.stringContaining('Review your essay') } });
+  expect(mockWrite).not.toHaveBeenCalled();
+  fireEvent.press(screen.getByRole('button', { name: 'Mark step complete' }));
+  await waitFor(() => expect(mockWrite).toHaveBeenCalledWith(expect.objectContaining({ action: 'tasks/task-one' })));
+  await waitFor(() => expect(screen.getByText('Open application website')).toBeTruthy());
+});

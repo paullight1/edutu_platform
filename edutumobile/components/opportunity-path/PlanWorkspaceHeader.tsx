@@ -17,7 +17,7 @@ const sections: { key: PlanSection; route: string }[] = [
 ];
 
 /** Internal workspace navigation: global destinations stay in the bottom bar. */
-export function PlanWorkspaceHeader({ section, subtitle }: { section: PlanSection; subtitle?: string }) {
+export function PlanWorkspaceHeader({ section, subtitle, compact = false }: { section: PlanSection; subtitle?: string; compact?: boolean }) {
   const { colors, isDark, highContrast } = useTheme();
   const { t } = useTranslation('home');
   const router = useRouter();
@@ -25,10 +25,10 @@ export function PlanWorkspaceHeader({ section, subtitle }: { section: PlanSectio
   const actionRoute = section === 'goals' ? '/goals/add' : section === 'roadmaps' ? '/creator-dashboard' : '/opportunities';
   const actionLabel = t(section === 'goals' ? 'myPlan.createGoal' : section === 'roadmaps' ? 'myPlan.createRoadmap' : 'myPlan.explore');
   return <View>
-    <View style={s.headingRow}>
+    <View style={[s.headingRow, compact && { paddingTop: 10, paddingBottom: 8 }]}>
       <View style={s.headingBody}>
-        <Text accessibilityRole="header" style={[s.title, { color: colors.foreground }]}>{t('myPlan.title')}</Text>
-        <Text style={[s.subtitle, { color: colors.textSecondary }]}>{subtitle ?? t('myPlan.workspaceIntro')}</Text>
+        <Text accessibilityRole="header" style={[s.title, compact && { fontSize: 26 }, { color: colors.foreground }]}>{t('myPlan.title')}</Text>
+        {!compact && <Text style={[s.subtitle, { color: colors.textSecondary }]}>{subtitle ?? t('myPlan.workspaceIntro')}</Text>}
       </View>
       <AnimatedPressable accessibilityRole="button" accessibilityLabel={actionLabel}
         scaleTo={motion.reduced ? 1 : 0.97} onPress={() => router.navigate(actionRoute)}
