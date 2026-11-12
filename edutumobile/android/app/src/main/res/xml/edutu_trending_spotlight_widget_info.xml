@@ -8,6 +8,7 @@
   android:targetCellHeight="2"
   android:updatePeriodMillis="1800000"
   android:initialLayout="@layout/edutu_trending_spotlight_widget"
+  android:previewImage="@drawable/edutu_widget_preview_spotlight"
   android:previewLayout="@layout/edutu_trending_spotlight_widget"
   android:description="@string/edutu_trending_spotlight_widget_description"
   android:resizeMode="horizontal|vertical"

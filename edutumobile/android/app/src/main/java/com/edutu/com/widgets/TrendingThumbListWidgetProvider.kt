@@ -47,6 +47,15 @@ class TrendingThumbListWidgetProvider : AppWidgetProvider() {
     Row(R.id.edutu_thl_r4, R.id.edutu_thl_r4_image, R.id.edutu_thl_r4_title, R.id.edutu_thl_r4_meta, R.id.edutu_thl_r4_deadline),
   )
 
+  override fun onAppWidgetOptionsChanged(
+    context: Context,
+    appWidgetManager: AppWidgetManager,
+    appWidgetId: Int,
+    newOptions: android.os.Bundle,
+  ) {
+    onUpdate(context, appWidgetManager, intArrayOf(appWidgetId))
+  }
+
   override fun onUpdate(
     context: Context,
     appWidgetManager: AppWidgetManager,
@@ -58,9 +67,9 @@ class TrendingThumbListWidgetProvider : AppWidgetProvider() {
 
   private fun refresh(context: Context) {
     val appContext = context.applicationContext
-    executor.execute {
-      val items = TrendingWidgetData.load(appContext, TRENDING_FILE, PREFS, KEY_ITEMS, ROW_COUNT * 2)
-      if (items.length() == 0) return@execute
+    WidgetSupport.runRefresh(this, executor) {
+      val items = TrendingWidgetData.refresh(appContext, TRENDING_FILE, PREFS, KEY_ITEMS, ROW_COUNT * 2)
+      if (items.length() == 0) return@runRefresh
 
       val bitmaps = HashMap<Int, Bitmap>()
       for (i in 0 until minOf(ROW_COUNT, items.length())) {
@@ -84,13 +93,15 @@ class TrendingThumbListWidgetProvider : AppWidgetProvider() {
     appWidgetIds: IntArray,
     bitmaps: Map<Int, Bitmap>?,
   ) {
-    val items = TrendingWidgetData.load(context, TRENDING_FILE, PREFS, KEY_ITEMS, ROW_COUNT * 2)
+    val items = TrendingWidgetData.load(context, TRENDING_FILE, PREFS, KEY_ITEMS)
     appWidgetIds.forEach { appWidgetId ->
-      appWidgetManager.updateAppWidget(appWidgetId, buildViews(context, items, bitmaps))
+      WidgetSupport.updateSafely(context, appWidgetManager, appWidgetId) { width, height ->
+        buildViews(context, items, bitmaps, width, height)
+      }
     }
   }
 
-  private fun buildViews(context: Context, items: JSONArray, bitmaps: Map<Int, Bitmap>?): RemoteViews {
+  private fun buildViews(context: Context, items: JSONArray, bitmaps: Map<Int, Bitmap>?, width: Int, height: Int): RemoteViews {
     val views = RemoteViews(context.packageName, R.layout.edutu_trending_thumblist_widget)
 
     if (items.length() == 0) {
@@ -108,7 +119,7 @@ class TrendingThumbListWidgetProvider : AppWidgetProvider() {
 
     for (i in rows.indices) {
       val row = rows[i]
-      val item = items.optJSONObject(i)
+      val item = if (i < WidgetSizing.rows(height, ROW_COUNT, context.resources.configuration.fontScale)) items.optJSONObject(i) else null
       if (item == null) {
         views.setViewVisibility(row.rowId, View.GONE)
         continue
@@ -119,6 +130,7 @@ class TrendingThumbListWidgetProvider : AppWidgetProvider() {
       val deadlineRaw = item.optString("deadline")
 
       views.setViewVisibility(row.rowId, View.VISIBLE)
+      views.setViewVisibility(row.metaId, if (width < 280) View.GONE else View.VISIBLE)
       views.setTextViewText(row.titleId, item.optString("title"))
       views.setTextViewText(row.metaId, "$category · $organization")
       views.setTextViewText(row.deadlineId, WidgetSupport.formatDeadline(context, deadlineRaw))

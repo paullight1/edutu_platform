@@ -192,6 +192,7 @@ export default {
         "expo-widgets",
         {
           widgets: [
+            { name: "NextStepWidget", displayName: "Today’s Next Step", description: "A real preparation task from your My Plan, ready to continue.", contentMarginsDisabled: true, supportedFamilies: ["systemSmall", "systemMedium", "systemLarge"] },
             {
               name: "OpportunityWidget",
               displayName: "Top Matches",
@@ -258,7 +259,7 @@ export default {
               displayName: "Ask Edutu",
               description: "Jump straight into a chat with your AI opportunity coach.",
               contentMarginsDisabled: true,
-              supportedFamilies: ["systemSmall", "accessoryCircular"]
+              supportedFamilies: ["systemSmall", "systemMedium", "accessoryCircular"]
             }
           ]
         }

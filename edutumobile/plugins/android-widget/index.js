@@ -3,6 +3,7 @@ const {
   createRunOncePlugin,
   withAndroidManifest,
   withDangerousMod,
+  withMainApplication,
 } = require("expo/config-plugins");
 const fs = require("fs");
 const path = require("path");
@@ -10,31 +11,7 @@ const path = require("path");
 const pkg = require("../../package.json");
 
 const WIDGET_CLASS_NAME = "EdutuWidgetProvider";
-const WIDGET_LAYOUT_NAME = "edutu_widget";
 const WIDGET_INFO_NAME = "edutu_widget_info";
-const WIDGET_STRING_NAME = "edutu_widget_strings";
-
-function ensureDir(dir) {
-  fs.mkdirSync(dir, { recursive: true });
-}
-
-function writeFileOnce(filePath, contents) {
-  if (fs.existsSync(filePath)) {
-    return;
-  }
-
-  ensureDir(path.dirname(filePath));
-  fs.writeFileSync(filePath, contents);
-}
-
-function escapeXml(value) {
-  return String(value)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&apos;");
-}
 
 function getAndroidPackage(config) {
   return AndroidConfig.Package.getPackage(config);
@@ -59,6 +36,7 @@ function hasReceiver(application, receiverName) {
 // Every widget receiver the app ships. Keep in step with the committed
 // AndroidManifest.xml and the provider classes under java/…/widgets/.
 const WIDGET_RECEIVERS = [
+  { className: "NextStepWidgetProvider", label: "@string/edutu_next_step_widget_name", infoName: "edutu_next_step_widget_info" },
   {
     className: WIDGET_CLASS_NAME,
     label: "@string/edutu_widget_name",
@@ -98,6 +76,11 @@ const WIDGET_RECEIVERS = [
     className: "TrendingThumbListWidgetProvider",
     label: "@string/edutu_trending_thumblist_widget_name",
     infoName: "edutu_trending_thumblist_widget_info",
+  },
+  {
+    className: "NewsWidgetProvider",
+    label: "@string/edutu_news_widget_name",
+    infoName: "edutu_news_widget_info",
   },
 ];
 
@@ -147,114 +130,24 @@ function addWidgetReceiver(androidManifest, props) {
   return androidManifest;
 }
 
-function createWidgetProvider(packageName) {
-  return `package ${packageName}.widgets
-
-import android.appwidget.AppWidgetManager
-import android.appwidget.AppWidgetProvider
-import android.content.Context
-import android.widget.RemoteViews
-import ${packageName}.R
-
-class ${WIDGET_CLASS_NAME} : AppWidgetProvider() {
-  override fun onUpdate(
-    context: Context,
-    appWidgetManager: AppWidgetManager,
-    appWidgetIds: IntArray
-  ) {
-    appWidgetIds.forEach { appWidgetId ->
-      val views = RemoteViews(context.packageName, R.layout.${WIDGET_LAYOUT_NAME})
-      views.setTextViewText(R.id.edutu_widget_title, context.getString(R.string.edutu_widget_title))
-      views.setTextViewText(R.id.edutu_widget_subtitle, context.getString(R.string.edutu_widget_subtitle))
-      appWidgetManager.updateAppWidget(appWidgetId, views)
+function copyTemplates(mainRoot, packageName) {
+  const templateRoot = path.join(__dirname, "templates");
+  function copyTree(source, destination) {
+    fs.mkdirSync(destination, { recursive: true });
+    for (const entry of fs.readdirSync(source, { withFileTypes: true })) {
+      const from = path.join(source, entry.name);
+      const to = path.join(destination, entry.name);
+      if (entry.isDirectory()) {
+        copyTree(from, to);
+      } else if (entry.name.endsWith(".kt")) {
+        fs.writeFileSync(to, fs.readFileSync(from, "utf8").replaceAll("com.edutu.com", packageName));
+      } else {
+        fs.copyFileSync(from, to);
+      }
     }
   }
-}
-`;
-}
-
-function createWidgetInfoXml(props) {
-  const minWidth = props.minWidth || "250dp";
-  const minHeight = props.minHeight || "110dp";
-  const targetCellWidth = props.targetCellWidth || "4";
-  const targetCellHeight = props.targetCellHeight || "2";
-  const updatePeriodMillis = String(props.updatePeriodMillis || 0);
-
-  return `<?xml version="1.0" encoding="utf-8"?>
-<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
-  android:minWidth="${escapeXml(minWidth)}"
-  android:minHeight="${escapeXml(minHeight)}"
-  android:targetCellWidth="${escapeXml(targetCellWidth)}"
-  android:targetCellHeight="${escapeXml(targetCellHeight)}"
-  android:updatePeriodMillis="${escapeXml(updatePeriodMillis)}"
-  android:initialLayout="@layout/${WIDGET_LAYOUT_NAME}"
-  android:resizeMode="horizontal|vertical"
-  android:widgetCategory="home_screen" />
-`;
-}
-
-function createWidgetLayoutXml() {
-  return `<?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-  android:id="@+id/edutu_widget_root"
-  android:layout_width="match_parent"
-  android:layout_height="match_parent"
-  android:orientation="vertical"
-  android:gravity="center_vertical"
-  android:padding="16dp"
-  android:background="@drawable/edutu_widget_background">
-
-  <TextView
-    android:id="@+id/edutu_widget_title"
-    android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:ellipsize="end"
-    android:maxLines="1"
-    android:text="@string/edutu_widget_title"
-    android:textColor="@android:color/white"
-    android:textSize="16sp"
-    android:textStyle="bold" />
-
-  <TextView
-    android:id="@+id/edutu_widget_subtitle"
-    android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:layout_marginTop="6dp"
-    android:ellipsize="end"
-    android:maxLines="2"
-    android:text="@string/edutu_widget_subtitle"
-    android:textColor="#D6DBFF"
-    android:textSize="13sp" />
-</LinearLayout>
-`;
-}
-
-function createWidgetBackgroundXml() {
-  return `<?xml version="1.0" encoding="utf-8"?>
-<shape xmlns:android="http://schemas.android.com/apk/res/android">
-  <solid android:color="#171A4F" />
-  <corners android:radius="18dp" />
-  <padding
-    android:left="0dp"
-    android:top="0dp"
-    android:right="0dp"
-    android:bottom="0dp" />
-</shape>
-`;
-}
-
-function createWidgetStringsXml(props) {
-  const widgetName = props.widgetName || "Edutu";
-  const title = props.title || "Edutu";
-  const subtitle = props.subtitle || "Track scholarships and next steps";
-
-  return `<?xml version="1.0" encoding="utf-8"?>
-<resources>
-  <string name="edutu_widget_name">${escapeXml(widgetName)}</string>
-  <string name="edutu_widget_title">${escapeXml(title)}</string>
-  <string name="edutu_widget_subtitle">${escapeXml(subtitle)}</string>
-</resources>
-`;
+  copyTree(path.join(templateRoot, "widgets"), path.join(mainRoot, "java", ...packageName.split("."), "widgets"));
+  copyTree(path.join(templateRoot, "res"), path.join(mainRoot, "res"));
 }
 
 function withAndroidWidget(config, props = {}) {
@@ -262,47 +155,23 @@ function withAndroidWidget(config, props = {}) {
     modConfig.modResults = addWidgetReceiver(modConfig.modResults, props);
     return modConfig;
   });
-
-  return withDangerousMod(config, [
-    "android",
-    async (modConfig) => {
-      const androidRoot = modConfig.modRequest.platformProjectRoot;
-      if (!fs.existsSync(androidRoot)) {
-        throw new Error("Android project was not generated before the widget plugin ran.");
-      }
-
-      const packageName = getAndroidPackage(modConfig);
-      const packagePath = packageName.replace(/\./g, path.sep);
-      const mainRoot = path.join(androidRoot, "app", "src", "main");
-
-      writeFileOnce(
-        path.join(mainRoot, "java", packagePath, "widgets", `${WIDGET_CLASS_NAME}.kt`),
-        createWidgetProvider(packageName)
+  config = withMainApplication(config, (modConfig) => {
+    const packageName = getAndroidPackage(modConfig);
+    const start = `${packageName}.widgets.WidgetRefreshObserver.start(this)`;
+    if (!modConfig.modResults.contents.includes(start)) {
+      modConfig.modResults.contents = modConfig.modResults.contents.replace(
+        "super.onCreate()",
+        `super.onCreate()\n    ${start}`,
       );
-      writeFileOnce(
-        path.join(mainRoot, "res", "xml", `${props.widgetInfoName || WIDGET_INFO_NAME}.xml`),
-        createWidgetInfoXml(props)
-      );
-      writeFileOnce(
-        path.join(mainRoot, "res", "layout", `${WIDGET_LAYOUT_NAME}.xml`),
-        createWidgetLayoutXml()
-      );
-      writeFileOnce(
-        path.join(mainRoot, "res", "drawable", "edutu_widget_background.xml"),
-        createWidgetBackgroundXml()
-      );
-      writeFileOnce(
-        path.join(mainRoot, "res", "values", `${WIDGET_STRING_NAME}.xml`),
-        createWidgetStringsXml(props)
-      );
-
-      return modConfig;
-    },
-  ]);
+    }
+    return modConfig;
+  });
+  return withDangerousMod(config, ["android", async (modConfig) => {
+    const androidRoot = modConfig.modRequest.platformProjectRoot;
+    if (!fs.existsSync(androidRoot)) throw new Error("Android project must exist before generating widgets.");
+    copyTemplates(path.join(androidRoot, "app", "src", "main"), getAndroidPackage(modConfig));
+    return modConfig;
+  }]);
 }
 
-module.exports = createRunOncePlugin(
-  withAndroidWidget,
-  "with-edutu-android-widget",
-  pkg.version
-);
+module.exports = createRunOncePlugin(withAndroidWidget, "with-edutu-android-widget", pkg.version);

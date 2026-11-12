@@ -32,7 +32,7 @@
         android:layout_height="match_parent"
         android:scaleType="centerCrop"
         android:contentDescription="@null" />
-      <View
+      <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:background="@drawable/edutu_widget_scrim" />
@@ -60,6 +60,7 @@
           android:paddingBottom="2dp"
           android:maxLines="1"
           android:ellipsize="end"
+          android:text="@string/edutu_widget_preview_category"
           android:textColor="#FFFFFF"
           android:textSize="10sp"
           android:textStyle="bold" />
@@ -70,6 +71,7 @@
           android:layout_marginTop="6dp"
           android:ellipsize="end"
           android:maxLines="2"
+          android:text="@string/edutu_widget_preview_title_1"
           android:textColor="#FFFFFF"
           android:textSize="16sp"
           android:textStyle="bold" />
@@ -80,6 +82,7 @@
           android:layout_marginTop="3dp"
           android:maxLines="1"
           android:ellipsize="end"
+          android:text="@string/edutu_widget_preview_deadline"
           android:textColor="#E6FFFFFF"
           android:textSize="11sp"
           android:textStyle="bold" />
@@ -98,7 +101,7 @@
         android:layout_height="match_parent"
         android:scaleType="centerCrop"
         android:contentDescription="@null" />
-      <View
+      <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:background="@drawable/edutu_widget_scrim" />
@@ -164,7 +167,7 @@
         android:layout_height="match_parent"
         android:scaleType="centerCrop"
         android:contentDescription="@null" />
-      <View
+      <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:background="@drawable/edutu_widget_scrim" />
@@ -230,7 +233,7 @@
         android:layout_height="match_parent"
         android:scaleType="centerCrop"
         android:contentDescription="@null" />
-      <View
+      <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:background="@drawable/edutu_widget_scrim" />

@@ -76,6 +76,7 @@ function mapWidgetItem(item: OpportunityWidgetItem, now?: Date) {
     tone: urgencyTone(badge.level),
     daysLeft: badge.daysLeft,
     deepLink: item.deepLink,
+    saveLink: item.id ? `edutu://widget-save?id=${encodeURIComponent(item.id)}` : undefined,
   };
 }
 
@@ -105,6 +106,7 @@ export function getOpportunityWidgetProps(
     tone: urgencyTone(heroBadge.level),
     daysLeft: heroBadge.daysLeft,
     deepLink: item?.deepLink || 'edutu://opportunities',
+    saveLink: item?.id ? `edutu://widget-save?id=${encodeURIComponent(item.id)}` : undefined,
     logoUri: extras.logoUri,
     items,
   };

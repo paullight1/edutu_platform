@@ -61,6 +61,7 @@
         android:layout_height="wrap_content"
         android:ellipsize="end"
         android:maxLines="1"
+        android:text="@string/edutu_widget_preview_title_1"
         android:textColor="@color/edutu_widget_ink"
         android:textSize="13sp"
         android:textStyle="bold" />
@@ -71,6 +72,7 @@
         android:layout_marginTop="1dp"
         android:ellipsize="end"
         android:maxLines="1"
+        android:text="@string/edutu_widget_preview_meta"
         android:textColor="@color/edutu_widget_sub"
         android:textSize="10sp" />
     </LinearLayout>
@@ -81,6 +83,7 @@
       android:layout_marginLeft="8dp"
       android:ellipsize="end"
       android:maxLines="1"
+      android:text="@string/edutu_widget_preview_deadline"
       android:textColor="@color/edutu_urgency_green"
       android:textSize="11sp"
       android:textStyle="bold" />
@@ -113,6 +116,7 @@
         android:layout_height="wrap_content"
         android:ellipsize="end"
         android:maxLines="1"
+        android:text="@string/edutu_widget_preview_title_2"
         android:textColor="@color/edutu_widget_ink"
         android:textSize="13sp"
         android:textStyle="bold" />
@@ -123,6 +127,7 @@
         android:layout_marginTop="1dp"
         android:ellipsize="end"
         android:maxLines="1"
+        android:text="@string/edutu_widget_preview_meta"
         android:textColor="@color/edutu_widget_sub"
         android:textSize="10sp" />
     </LinearLayout>
@@ -133,6 +138,7 @@
       android:layout_marginLeft="8dp"
       android:ellipsize="end"
       android:maxLines="1"
+      android:text="@string/edutu_widget_preview_deadline"
       android:textColor="@color/edutu_urgency_green"
       android:textSize="11sp"
       android:textStyle="bold" />
@@ -165,6 +171,7 @@
         android:layout_height="wrap_content"
         android:ellipsize="end"
         android:maxLines="1"
+        android:text="@string/edutu_widget_preview_title_3"
         android:textColor="@color/edutu_widget_ink"
         android:textSize="13sp"
         android:textStyle="bold" />
@@ -175,6 +182,7 @@
         android:layout_marginTop="1dp"
         android:ellipsize="end"
         android:maxLines="1"
+        android:text="@string/edutu_widget_preview_meta"
         android:textColor="@color/edutu_widget_sub"
         android:textSize="10sp" />
     </LinearLayout>
@@ -185,6 +193,7 @@
       android:layout_marginLeft="8dp"
       android:ellipsize="end"
       android:maxLines="1"
+      android:text="@string/edutu_widget_preview_deadline"
       android:textColor="@color/edutu_urgency_green"
       android:textSize="11sp"
       android:textStyle="bold" />
@@ -307,7 +316,7 @@
       android:layout_height="20dp"
       android:src="@drawable/edutu_widget_logo"
       android:contentDescription="@null" />
-    <View
+    <LinearLayout
       android:layout_width="1dp"
       android:layout_height="0dp"
       android:layout_weight="1" />

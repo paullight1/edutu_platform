@@ -59,10 +59,10 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:ellipsize="end"
-        android:maxLines="1"
+        android:maxLines="2"
         android:textColor="@color/edutu_widget_ink"
         android:textSize="14sp"
-        android:textStyle="bold" />
+        android:textStyle="bold" android:text="@string/edutu_widget_preview_title_1" />
       <TextView
         android:id="@+id/edutu_widget_r1_sub"
         android:layout_width="match_parent"
@@ -71,7 +71,7 @@
         android:ellipsize="end"
         android:maxLines="1"
         android:textColor="@color/edutu_widget_sub"
-        android:textSize="11sp" />
+        android:textSize="11sp" android:text="@string/edutu_widget_preview_meta" />
     </LinearLayout>
     <TextView
       android:id="@+id/edutu_widget_r1_deadline"
@@ -82,7 +82,8 @@
       android:maxLines="1"
       android:textColor="@color/edutu_urgency_green"
       android:textSize="11sp"
-      android:textStyle="bold" />
+      android:textStyle="bold" android:text="@string/edutu_widget_preview_deadline" />
+    <TextView android:id="@+id/edutu_widget_r1_save" android:layout_width="60dp" android:layout_height="44dp" android:layout_marginLeft="6dp" android:gravity="center" android:background="@drawable/edutu_widget_pill" android:text="@string/edutu_widget_save" android:textColor="@color/edutu_widget_pill_ink" android:textSize="11sp" android:textStyle="bold" android:maxLines="1" android:ellipsize="end" />
   </LinearLayout>
 
   <!-- Row 2 -->
@@ -109,10 +110,10 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:ellipsize="end"
-        android:maxLines="1"
+        android:maxLines="2"
         android:textColor="@color/edutu_widget_ink"
         android:textSize="14sp"
-        android:textStyle="bold" />
+        android:textStyle="bold" android:text="@string/edutu_widget_preview_title_2" />
       <TextView
         android:id="@+id/edutu_widget_r2_sub"
         android:layout_width="match_parent"
@@ -121,7 +122,7 @@
         android:ellipsize="end"
         android:maxLines="1"
         android:textColor="@color/edutu_widget_sub"
-        android:textSize="11sp" />
+        android:textSize="11sp" android:text="@string/edutu_widget_preview_meta" />
     </LinearLayout>
     <TextView
       android:id="@+id/edutu_widget_r2_deadline"
@@ -132,7 +133,8 @@
       android:maxLines="1"
       android:textColor="@color/edutu_urgency_green"
       android:textSize="11sp"
-      android:textStyle="bold" />
+      android:textStyle="bold" android:text="@string/edutu_widget_preview_deadline" />
+    <TextView android:id="@+id/edutu_widget_r2_save" android:layout_width="60dp" android:layout_height="44dp" android:layout_marginLeft="6dp" android:gravity="center" android:background="@drawable/edutu_widget_pill" android:text="@string/edutu_widget_save" android:textColor="@color/edutu_widget_pill_ink" android:textSize="11sp" android:textStyle="bold" android:maxLines="1" android:ellipsize="end" />
   </LinearLayout>
 
   <!-- Row 3 -->
@@ -159,10 +161,10 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:ellipsize="end"
-        android:maxLines="1"
+        android:maxLines="2"
         android:textColor="@color/edutu_widget_ink"
         android:textSize="14sp"
-        android:textStyle="bold" />
+        android:textStyle="bold" android:text="@string/edutu_widget_preview_title_3" />
       <TextView
         android:id="@+id/edutu_widget_r3_sub"
         android:layout_width="match_parent"
@@ -171,7 +173,7 @@
         android:ellipsize="end"
         android:maxLines="1"
         android:textColor="@color/edutu_widget_sub"
-        android:textSize="11sp" />
+        android:textSize="11sp" android:text="@string/edutu_widget_preview_meta" />
     </LinearLayout>
     <TextView
       android:id="@+id/edutu_widget_r3_deadline"
@@ -182,7 +184,8 @@
       android:maxLines="1"
       android:textColor="@color/edutu_urgency_green"
       android:textSize="11sp"
-      android:textStyle="bold" />
+      android:textStyle="bold" android:text="@string/edutu_widget_preview_deadline" />
+    <TextView android:id="@+id/edutu_widget_r3_save" android:layout_width="60dp" android:layout_height="44dp" android:layout_marginLeft="6dp" android:gravity="center" android:background="@drawable/edutu_widget_pill" android:text="@string/edutu_widget_save" android:textColor="@color/edutu_widget_pill_ink" android:textSize="11sp" android:textStyle="bold" android:maxLines="1" android:ellipsize="end" />
   </LinearLayout>
 
   <!-- Row 4 -->
@@ -209,10 +212,10 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:ellipsize="end"
-        android:maxLines="1"
+        android:maxLines="2"
         android:textColor="@color/edutu_widget_ink"
         android:textSize="14sp"
-        android:textStyle="bold" />
+        android:textStyle="bold" android:text="@string/edutu_widget_preview_title_3" />
       <TextView
         android:id="@+id/edutu_widget_r4_sub"
         android:layout_width="match_parent"
@@ -221,7 +224,7 @@
         android:ellipsize="end"
         android:maxLines="1"
         android:textColor="@color/edutu_widget_sub"
-        android:textSize="11sp" />
+        android:textSize="11sp" android:text="@string/edutu_widget_preview_meta" />
     </LinearLayout>
     <TextView
       android:id="@+id/edutu_widget_r4_deadline"
@@ -232,7 +235,8 @@
       android:maxLines="1"
       android:textColor="@color/edutu_urgency_green"
       android:textSize="11sp"
-      android:textStyle="bold" />
+      android:textStyle="bold" android:text="@string/edutu_widget_preview_deadline" />
+    <TextView android:id="@+id/edutu_widget_r4_save" android:layout_width="60dp" android:layout_height="44dp" android:layout_marginLeft="6dp" android:gravity="center" android:background="@drawable/edutu_widget_pill" android:text="@string/edutu_widget_save" android:textColor="@color/edutu_widget_pill_ink" android:textSize="11sp" android:textStyle="bold" android:maxLines="1" android:ellipsize="end" />
   </LinearLayout>
 
   <!-- Row 5 -->
@@ -259,10 +263,10 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:ellipsize="end"
-        android:maxLines="1"
+        android:maxLines="2"
         android:textColor="@color/edutu_widget_ink"
         android:textSize="14sp"
-        android:textStyle="bold" />
+        android:textStyle="bold" android:text="@string/edutu_widget_preview_title_3" />
       <TextView
         android:id="@+id/edutu_widget_r5_sub"
         android:layout_width="match_parent"
@@ -271,7 +275,7 @@
         android:ellipsize="end"
         android:maxLines="1"
         android:textColor="@color/edutu_widget_sub"
-        android:textSize="11sp" />
+        android:textSize="11sp" android:text="@string/edutu_widget_preview_meta" />
     </LinearLayout>
     <TextView
       android:id="@+id/edutu_widget_r5_deadline"
@@ -282,7 +286,8 @@
       android:maxLines="1"
       android:textColor="@color/edutu_urgency_green"
       android:textSize="11sp"
-      android:textStyle="bold" />
+      android:textStyle="bold" android:text="@string/edutu_widget_preview_deadline" />
+    <TextView android:id="@+id/edutu_widget_r5_save" android:layout_width="60dp" android:layout_height="44dp" android:layout_marginLeft="6dp" android:gravity="center" android:background="@drawable/edutu_widget_pill" android:text="@string/edutu_widget_save" android:textColor="@color/edutu_widget_pill_ink" android:textSize="11sp" android:textStyle="bold" android:maxLines="1" android:ellipsize="end" />
   </LinearLayout>
 
   <!-- Row 6 -->
@@ -309,10 +314,10 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:ellipsize="end"
-        android:maxLines="1"
+        android:maxLines="2"
         android:textColor="@color/edutu_widget_ink"
         android:textSize="14sp"
-        android:textStyle="bold" />
+        android:textStyle="bold" android:text="@string/edutu_widget_preview_title_3" />
       <TextView
         android:id="@+id/edutu_widget_r6_sub"
         android:layout_width="match_parent"
@@ -321,7 +326,7 @@
         android:ellipsize="end"
         android:maxLines="1"
         android:textColor="@color/edutu_widget_sub"
-        android:textSize="11sp" />
+        android:textSize="11sp" android:text="@string/edutu_widget_preview_meta" />
     </LinearLayout>
     <TextView
       android:id="@+id/edutu_widget_r6_deadline"
@@ -332,6 +337,7 @@
       android:maxLines="1"
       android:textColor="@color/edutu_urgency_green"
       android:textSize="11sp"
-      android:textStyle="bold" />
+      android:textStyle="bold" android:text="@string/edutu_widget_preview_deadline" />
+    <TextView android:id="@+id/edutu_widget_r6_save" android:layout_width="60dp" android:layout_height="44dp" android:layout_marginLeft="6dp" android:gravity="center" android:background="@drawable/edutu_widget_pill" android:text="@string/edutu_widget_save" android:textColor="@color/edutu_widget_pill_ink" android:textSize="11sp" android:textStyle="bold" android:maxLines="1" android:ellipsize="end" />
   </LinearLayout>
 </LinearLayout>

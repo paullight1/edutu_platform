@@ -124,10 +124,12 @@ function TrendingGridLayout(props: TrendingPosterProps, environment: WidgetEnvir
         <Tile item={items[0]} dark={dark} />
         <Tile item={items[1]} dark={dark} />
       </HStack>
+      {environment.widgetFamily === "systemLarge" ? (
       <HStack spacing={6} modifiers={[frame({ maxWidth: FILL, maxHeight: FILL })]}>
         <Tile item={items[2]} dark={dark} />
         <Tile item={items[3]} dark={dark} />
       </HStack>
+      ) : null}
     </VStack>
   );
 }
@@ -143,7 +145,10 @@ export function updateTrendingGridWidget(props: TrendingPosterProps) {
 export function updateTrendingGridWidgetTimeline(
   entries: Array<{ date: Date; props: TrendingPosterProps }>,
 ) {
-  if (!entries.length) return;
+  if (!entries.length) {
+    TrendingGridWidget.updateSnapshot(DEFAULT_PROPS);
+    return;
+  }
   TrendingGridWidget.updateTimeline(
     entries.map((entry) => ({ date: entry.date, props: { ...DEFAULT_PROPS, ...entry.props } })),
   );

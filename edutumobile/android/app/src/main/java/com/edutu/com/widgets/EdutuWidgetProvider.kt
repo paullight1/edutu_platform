@@ -36,9 +36,6 @@ class EdutuWidgetProvider : AppWidgetProvider() {
     // `Paths.document` maps to).
     private const val APP_ITEMS_FILE = "edutu_widget_items.json"
 
-    private const val SIZE_COMPACT = 0
-    private const val SIZE_EXPANDED = 1
-    private const val SIZE_LARGE = 2
 
     private val executor = Executors.newSingleThreadExecutor()
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -74,8 +71,8 @@ class EdutuWidgetProvider : AppWidgetProvider() {
     // current data to fall back to.
     val appItems = readAppItems(appContext)
     if (appItems != null && !appItems.isOlderThan(WidgetSupport.APP_ITEMS_REFRESH_AFTER_MS)) return
-    executor.execute {
-      val items = WidgetSupport.fetchOpportunities(appContext) ?: return@execute
+    WidgetSupport.runRefresh(this, executor) {
+      val items = WidgetSupport.fetchOpportunities(appContext) ?: return@runRefresh
       appContext
         .getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         .edit()
@@ -110,40 +107,30 @@ class EdutuWidgetProvider : AppWidgetProvider() {
       else -> appItems?.items ?: JSONArray()
     }
     appWidgetIds.forEach { appWidgetId ->
-      val options = appWidgetManager.getAppWidgetOptions(appWidgetId)
-      val views = buildViews(context, items, pickSize(options))
-      appWidgetManager.updateAppWidget(appWidgetId, views)
+      WidgetSupport.updateSafely(context, appWidgetManager, appWidgetId) { width, height ->
+        buildViews(context, items, width, height)
+      }
     }
   }
 
   /**
-   * Choose a layout from the widget's current cell size. Works on every API
-   * level (reads the options bundle), defaulting to expanded when the size is
-   * not yet known.
+   * Choose readable content for each size supplied by the launcher.
    */
-  private fun pickSize(options: android.os.Bundle?): Int {
-    val minWidth = options?.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 0) ?: 0
-    // MIN_HEIGHT is the guaranteed (portrait) height, so a short widget never
-    // tries to cram the 4-row list.
-    val minHeight = options?.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 0) ?: 0
+  private fun buildViews(context: Context, items: JSONArray, width: Int, height: Int): RemoteViews {
+    if (items.length() == 0 && !WidgetSizing.useHero(width, height)) return emptyViews(context, height)
     return when {
-      minHeight >= 200 -> SIZE_LARGE
-      minWidth in 1 until 180 -> SIZE_COMPACT
-      else -> SIZE_EXPANDED
+      WidgetSizing.useHero(width, height) -> compactViews(context, items, height)
+      height >= 240 -> largeViews(context, items, WidgetSizing.rows(height, 6, context.resources.configuration.fontScale))
+      else -> expandedViews(context, items, height)
     }
   }
 
-  private fun buildViews(context: Context, items: JSONArray, size: Int): RemoteViews {
-    if (items.length() == 0) return emptyViews(context)
-    return when (size) {
-      SIZE_COMPACT -> compactViews(context, items)
-      SIZE_LARGE -> largeViews(context, items)
-      else -> expandedViews(context, items)
-    }
-  }
-
-  private fun emptyViews(context: Context): RemoteViews {
+  private fun emptyViews(context: Context, height: Int): RemoteViews {
     val views = RemoteViews(context.packageName, R.layout.edutu_widget)
+    val scale = context.resources.configuration.fontScale
+    views.setInt(R.id.edutu_widget_title, "setMaxLines", WidgetSizing.titleLines(height, scale, 2))
+    views.setViewVisibility(R.id.edutu_widget_subtitle, if (scale > 1.3f) View.GONE else View.VISIBLE)
+    views.setViewVisibility(R.id.edutu_widget_match, if (scale > 1.3f) View.GONE else View.VISIBLE)
     views.setTextViewText(R.id.edutu_widget_title, context.getString(R.string.edutu_widget_title))
     views.setTextViewText(R.id.edutu_widget_subtitle, context.getString(R.string.edutu_widget_subtitle))
     views.setTextViewText(R.id.edutu_widget_match, context.getString(R.string.edutu_widget_pick))
@@ -155,8 +142,9 @@ class EdutuWidgetProvider : AppWidgetProvider() {
     return views
   }
 
-  private fun compactViews(context: Context, items: JSONArray): RemoteViews {
+  private fun compactViews(context: Context, items: JSONArray, height: Int): RemoteViews {
     val views = RemoteViews(context.packageName, R.layout.edutu_widget_compact)
+    views.setInt(R.id.edutu_widget_title, "setMaxLines", WidgetSizing.titleLines(height, context.resources.configuration.fontScale))
     val hero = items.optJSONObject(0) ?: JSONObject()
     val deadlineRaw = hero.optString("deadline")
     val id = hero.optString("id")
@@ -169,8 +157,12 @@ class EdutuWidgetProvider : AppWidgetProvider() {
     return views
   }
 
-  private fun expandedViews(context: Context, items: JSONArray): RemoteViews {
+  private fun expandedViews(context: Context, items: JSONArray, height: Int): RemoteViews {
     val views = RemoteViews(context.packageName, R.layout.edutu_widget)
+    val scale = context.resources.configuration.fontScale
+    views.setInt(R.id.edutu_widget_title, "setMaxLines", WidgetSizing.titleLines(height, scale, 2))
+    views.setViewVisibility(R.id.edutu_widget_subtitle, if (scale > 1.3f) View.GONE else View.VISIBLE)
+    views.setViewVisibility(R.id.edutu_widget_match, if (scale > 1.3f) View.GONE else View.VISIBLE)
     val hero = items.optJSONObject(0) ?: JSONObject()
     val deadlineRaw = hero.optString("deadline")
     val match = hero.optInt("match", 0)
@@ -186,6 +178,11 @@ class EdutuWidgetProvider : AppWidgetProvider() {
       if (match > 0) "$match% match" else context.getString(R.string.edutu_widget_pick)
     )
     views.setOnClickPendingIntent(R.id.edutu_widget_root, WidgetSupport.opportunityLink(context, id))
+    if (id.isNotBlank()) {
+      views.setViewVisibility(R.id.edutu_widget_save, View.VISIBLE)
+      views.setContentDescription(R.id.edutu_widget_save, "Save " + hero.optString("title"))
+      views.setOnClickPendingIntent(R.id.edutu_widget_save, WidgetSupport.deepLinkIntent(context, "edutu://widget-save?id=" + android.net.Uri.encode(id)))
+    }
     return views
   }
 
@@ -202,7 +199,7 @@ class EdutuWidgetProvider : AppWidgetProvider() {
    * The ranked list — up to six opportunities, each its own tap target and
    * marked with the opportunity icon. Mirrors the iOS systemLarge widget.
    */
-  private fun largeViews(context: Context, items: JSONArray): RemoteViews {
+  private fun largeViews(context: Context, items: JSONArray, maxRows: Int): RemoteViews {
     val views = RemoteViews(context.packageName, R.layout.edutu_widget_large)
     views.setTextViewText(R.id.edutu_widget_header, context.getString(R.string.edutu_widget_radar))
 
@@ -215,21 +212,26 @@ class EdutuWidgetProvider : AppWidgetProvider() {
       listOf(R.id.edutu_widget_r6, R.id.edutu_widget_r6_title, R.id.edutu_widget_r6_sub, R.id.edutu_widget_r6_deadline)
     )
 
+    val saveIds = listOf(R.id.edutu_widget_r1_save, R.id.edutu_widget_r2_save, R.id.edutu_widget_r3_save, R.id.edutu_widget_r4_save, R.id.edutu_widget_r5_save, R.id.edutu_widget_r6_save)
     for (i in rows.indices) {
       val (rowId, titleId, subId, deadlineId) = rows[i]
-      val item = items.optJSONObject(i)
+      val item = if (i < maxRows) items.optJSONObject(i) else null
       if (item == null) {
         views.setViewVisibility(rowId, View.GONE)
         continue
       }
       val deadlineRaw = item.optString("deadline")
-      val match = item.optInt("match", 0)
       val organization = item.optString("organization").ifEmpty { "Edutu" }
       views.setViewVisibility(rowId, View.VISIBLE)
       views.setTextViewText(titleId, item.optString("title"))
-      views.setTextViewText(subId, if (match > 0) "$match% match · $organization" else organization)
+      views.setTextViewText(subId, WidgetSupport.formatDeadline(context, deadlineRaw) + " · " + organization)
+      views.setViewVisibility(deadlineId, View.GONE)
       views.setTextViewText(deadlineId, WidgetSupport.formatDeadline(context, deadlineRaw))
       views.setTextColor(deadlineId, WidgetSupport.urgencyTextColor(context, deadlineRaw))
+      val opportunityId = item.optString("id")
+      views.setContentDescription(saveIds[i], "Save " + item.optString("title"))
+      views.setViewVisibility(saveIds[i], if (opportunityId.isBlank()) View.GONE else View.VISIBLE)
+      views.setOnClickPendingIntent(saveIds[i], WidgetSupport.deepLinkIntent(context, "edutu://widget-save?id=" + android.net.Uri.encode(opportunityId)))
       views.setOnClickPendingIntent(rowId, WidgetSupport.opportunityLink(context, item.optString("id")))
     }
 
@@ -245,7 +247,7 @@ class EdutuWidgetProvider : AppWidgetProvider() {
       val raw = context
         .getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         .getString(KEY_ITEMS, null)
-      if (raw.isNullOrEmpty()) JSONArray() else JSONArray(raw)
+      if (raw.isNullOrEmpty()) JSONArray() else TrendingWidgetData.filterActive(JSONArray(raw))
     } catch (e: Exception) {
       JSONArray()
     }

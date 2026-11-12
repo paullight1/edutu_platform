@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+  android:id="@+id/edutu_cw_root" android:layout_width="match_parent" android:layout_height="match_parent"
+  android:orientation="vertical" android:gravity="center_horizontal" android:padding="12dp" android:background="@drawable/edutu_widget_background">
+  <ImageView android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
+    android:src="@drawable/edutu_widget_mascot" android:scaleType="fitCenter" android:contentDescription="@null" />
+  <TextView android:id="@+id/edutu_cw_title" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center"
+    android:text="@string/edutu_widget_chat_title" android:textColor="@color/edutu_widget_ink" android:textSize="15sp" android:textStyle="bold" android:maxLines="1" android:ellipsize="end" />
+  <TextView android:id="@+id/edutu_cw_hint" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center"
+    android:text="@string/edutu_widget_coach_hint" android:textColor="@color/edutu_widget_sub" android:textSize="10sp" android:maxLines="1" android:ellipsize="end" />
+  <TextView android:layout_width="match_parent" android:layout_height="40dp" android:gravity="center"
+    android:layout_marginTop="6dp" android:background="@drawable/edutu_widget_pill" android:text="@string/edutu_widget_ask_action"
+    android:textColor="@color/edutu_widget_pill_ink" android:textSize="12sp" android:textStyle="bold" android:maxLines="1" android:ellipsize="end" />
+</LinearLayout>

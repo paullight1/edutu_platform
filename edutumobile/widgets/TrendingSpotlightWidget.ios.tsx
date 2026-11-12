@@ -149,7 +149,10 @@ export function updateTrendingSpotlightWidget(props: TrendingPosterProps) {
 export function updateTrendingSpotlightWidgetTimeline(
   entries: Array<{ date: Date; props: TrendingPosterProps }>,
 ) {
-  if (!entries.length) return;
+  if (!entries.length) {
+    TrendingSpotlightWidget.updateSnapshot(DEFAULT_PROPS);
+    return;
+  }
   TrendingSpotlightWidget.updateTimeline(
     entries.map((entry) => ({ date: entry.date, props: { ...DEFAULT_PROPS, ...entry.props } })),
   );

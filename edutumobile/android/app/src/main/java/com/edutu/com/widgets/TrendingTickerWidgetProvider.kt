@@ -47,6 +47,15 @@ class TrendingTickerWidgetProvider : AppWidgetProvider() {
     Banner(R.id.edutu_tk_b4, R.id.edutu_tk_b4_image, R.id.edutu_tk_b4_title, R.id.edutu_tk_b4_meta, R.id.edutu_tk_b4_deadline),
   )
 
+  override fun onAppWidgetOptionsChanged(
+    context: Context,
+    appWidgetManager: AppWidgetManager,
+    appWidgetId: Int,
+    newOptions: android.os.Bundle,
+  ) {
+    onUpdate(context, appWidgetManager, intArrayOf(appWidgetId))
+  }
+
   override fun onUpdate(
     context: Context,
     appWidgetManager: AppWidgetManager,
@@ -58,9 +67,9 @@ class TrendingTickerWidgetProvider : AppWidgetProvider() {
 
   private fun refresh(context: Context) {
     val appContext = context.applicationContext
-    executor.execute {
-      val items = TrendingWidgetData.load(appContext, TRENDING_FILE, PREFS, KEY_ITEMS, BANNER_COUNT * 2)
-      if (items.length() == 0) return@execute
+    WidgetSupport.runRefresh(this, executor) {
+      val items = TrendingWidgetData.refresh(appContext, TRENDING_FILE, PREFS, KEY_ITEMS, BANNER_COUNT * 2)
+      if (items.length() == 0) return@runRefresh
 
       val bitmaps = HashMap<Int, Bitmap>()
       for (i in 0 until BANNER_COUNT) {
@@ -85,9 +94,11 @@ class TrendingTickerWidgetProvider : AppWidgetProvider() {
     appWidgetIds: IntArray,
     bitmaps: Map<Int, Bitmap>?,
   ) {
-    val items = TrendingWidgetData.load(context, TRENDING_FILE, PREFS, KEY_ITEMS, BANNER_COUNT * 2)
+    val items = TrendingWidgetData.load(context, TRENDING_FILE, PREFS, KEY_ITEMS)
     appWidgetIds.forEach { appWidgetId ->
-      appWidgetManager.updateAppWidget(appWidgetId, buildViews(context, items, bitmaps))
+      WidgetSupport.updateSafely(context, appWidgetManager, appWidgetId) { width, height ->
+        buildViews(context, items, bitmaps)
+      }
     }
   }
 

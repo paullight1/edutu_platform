@@ -1,6 +1,7 @@
-import { AccessoryWidgetBackground, HStack, Image, Spacer, Text, VStack, ZStack } from "@expo/ui/swift-ui";
+import { AccessoryWidgetBackground, HStack, Image, Link, Spacer, Text, VStack, ZStack } from "@expo/ui/swift-ui";
 import {
   background,
+  accessibilityLabel,
   clipShape,
   cornerRadius,
   font,
@@ -64,14 +65,6 @@ function chipFill(tone?: string): string {
         : "#475569";
 }
 
-// Urgency as text (list rows, rails) — tuned per surface for >= 4.5:1.
-function urgencyInk(tone: string | undefined, dark: boolean): string {
-  if (tone === "red") return dark ? "#F87171" : "#DC2626";
-  if (tone === "amber") return dark ? "#FBBF24" : "#B45309";
-  if (tone === "green") return dark ? "#34D399" : "#047857";
-  return dark ? "#94A3B8" : "#64748B";
-}
-
 function getWidgetItems(props: OpportunityWidgetProps): OpportunityWidgetItem[] {
   const items = props.items?.length
     ? props.items
@@ -86,6 +79,7 @@ function getWidgetItems(props: OpportunityWidgetProps): OpportunityWidgetItem[] 
       tone: props.tone,
       daysLeft: props.daysLeft,
       deepLink: props.deepLink,
+      saveLink: props.saveLink,
     }];
 
   return items.slice(0, 6);
@@ -229,94 +223,45 @@ function SystemSmall(props: OpportunityWidgetProps & { dark: boolean }) {
   );
 }
 
-/** Medium: hero on the left, "Up next" rail on the right. */
+/** Medium: readable hero with separate View and authenticated Save targets. */
 function SystemMedium(props: OpportunityWidgetProps & { dark: boolean }) {
   const p = palette(props.dark);
-  const items = getWidgetItems(props);
-  const hero = items[0];
-  const second = items[1];
-  const third = items[2];
-
+  const hero = getWidgetItems(props)[0];
   return (
-    <HStack
-      spacing={12}
-      modifiers={[
-        padding({ all: 14 }),
-        background(p.bg),
-        widgetURL(getWidgetLink(props, hero)),
-      ]}
-    >
-      <VStack alignment="leading" spacing={7}>
-        <HStack spacing={7}>
-          <LogoMark uri={props.logoUri} size={18} color={p.accent} />
-          <MatchPill match={hero.match} dark={props.dark} />
-        </HStack>
-        <Text
-          modifiers={[
-            font({ size: 17, weight: "bold" }),
-            foregroundStyle(p.ink),
-            lineLimit(2),
-            truncationMode("tail"),
-          ]}
-        >
-          {hero.title}
-        </Text>
-        <Text modifiers={[font({ size: 12 }), foregroundStyle(p.sub), lineLimit(1), truncationMode("tail")]}>
-          {hero.provider}
-        </Text>
+    <VStack alignment="leading" spacing={4} modifiers={[padding({ all: 12 }), background(p.bg), widgetURL(getWidgetLink(props, hero))]}>
+      <HStack spacing={8}>
+        <LogoMark uri={props.logoUri} size={18} color={p.accent} />
+        <Text modifiers={[font({ size: 11 }), foregroundStyle(p.sub), lineLimit(1)]}>{hero.provider}</Text>
         <Spacer />
+        <MatchPill match={hero.match} dark={props.dark} />
+      </HStack>
+      <Text modifiers={[font({ size: 16, weight: "bold" }), foregroundStyle(p.ink), lineLimit(2), truncationMode("tail")]}>{hero.title}</Text>
+      <Spacer />
+      <HStack spacing={10}>
         <DeadlineChip tone={hero.tone}>{hero.deadline}</DeadlineChip>
-      </VStack>
-      {second ? (
-        <VStack
-          alignment="leading"
-          spacing={8}
-          modifiers={[
-            padding({ all: 10 }),
-            background(p.bgInset),
-            cornerRadius(14),
-            frame({ width: 122 }),
-          ]}
-        >
-          <Text modifiers={[font({ size: 10, weight: "semibold" }), foregroundStyle(p.faint), lineLimit(1)]}>
-            Up next
-          </Text>
-          <RailRow item={second} dark={props.dark} />
-          {third ? <RailRow item={third} dark={props.dark} /> : null}
-          <Spacer />
-        </VStack>
-      ) : null}
-    </HStack>
+        <Spacer />
+        {hero.saveLink ? <SaveLink destination={hero.saveLink} title={hero.title} dark={props.dark} /> : null}
+      </HStack>
+    </VStack>
   );
 }
 
-function RailRow({ item, dark }: { item: OpportunityWidgetItem; dark: boolean }) {
+function SaveLink({ destination, title, dark }: { destination: string; title: string; dark: boolean }) {
   const p = palette(dark);
-  return (
-    <VStack
-      alignment="leading"
-      spacing={2}
-      modifiers={[widgetURL(item.deepLink || "edutu://opportunities")]}
-    >
-      <Text modifiers={[font({ size: 11, weight: "semibold" }), foregroundStyle(p.ink), lineLimit(2), truncationMode("tail")]}>
-        {item.title}
-      </Text>
-      <Text modifiers={[font({ size: 10, weight: "semibold" }), foregroundStyle(urgencyInk(item.tone, dark)), lineLimit(1)]}>
-        {item.deadline}
-      </Text>
-    </VStack>
-  );
+  return <Link destination={destination} modifiers={[accessibilityLabel(`Save ${title}`), frame({ minWidth: 64, minHeight: 44 }), background(p.bgInset), cornerRadius(12)]}>
+    <Text modifiers={[font({ size: 12, weight: "bold" }), foregroundStyle(p.accent), lineLimit(1)]}>Save</Text>
+  </Link>;
 }
 
 /** Large: ranked list of the user's top matches, every row a tap target. */
 function SystemLarge(props: OpportunityWidgetProps & { dark: boolean }) {
   const p = palette(props.dark);
-  const items = getWidgetItems(props);
+  const items = getWidgetItems(props).slice(0, 4);
 
   return (
     <VStack
       alignment="leading"
-      spacing={12}
+      spacing={10}
       modifiers={[
         padding({ all: 16 }),
         background(p.bg),
@@ -352,17 +297,15 @@ function ListRow({ item, dark }: { item: OpportunityWidgetItem; dark: boolean })
         modifiers={[frame({ width: 18 })]}
       />
       <VStack alignment="leading" spacing={2}>
-        <Text modifiers={[font({ size: 14, weight: "semibold" }), foregroundStyle(p.ink), lineLimit(1), truncationMode("tail")]}>
+        <Text modifiers={[font({ size: 14, weight: "semibold" }), foregroundStyle(p.ink), lineLimit(2), truncationMode("tail")]}>
           {item.title}
         </Text>
         <Text modifiers={[font({ size: 11 }), foregroundStyle(p.sub), lineLimit(1), truncationMode("tail")]}>
-          {item.match ? `${item.match}% match · ${item.provider}` : item.provider}
+          {`${item.deadline} · ${item.provider}`}
         </Text>
       </VStack>
       <Spacer />
-      <Text modifiers={[font({ size: 11, weight: "semibold" }), foregroundStyle(urgencyInk(item.tone, dark)), lineLimit(1)]}>
-        {item.deadline}
-      </Text>
+      {item.saveLink ? <SaveLink destination={item.saveLink} title={item.title} dark={dark} /> : null}
     </HStack>
   );
 }
@@ -406,7 +349,10 @@ export function updateOpportunityWidget(props: OpportunityWidgetProps) {
 export function updateOpportunityWidgetTimeline(
   entries: Array<{ date: Date; props: OpportunityWidgetProps }>,
 ) {
-  if (!entries.length) return;
+  if (!entries.length) {
+    OpportunityWidget.updateSnapshot(DEFAULT_OPPORTUNITY);
+    return;
+  }
   OpportunityWidget.updateTimeline(
     entries.map((entry) => ({
       date: entry.date,

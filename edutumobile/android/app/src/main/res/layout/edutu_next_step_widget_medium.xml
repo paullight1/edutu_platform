@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+ android:id="@+id/edutu_ns_root" android:layout_width="match_parent" android:layout_height="match_parent"
+ android:orientation="vertical" android:padding="14dp" android:background="@drawable/edutu_widget_background">
+ <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical">
+  <TextView android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="@string/edutu_next_step_label" android:textColor="@color/edutu_widget_accent" android:textSize="9sp" android:textStyle="bold" android:maxLines="1" android:ellipsize="end" />
+  <ImageView android:layout_width="20dp" android:layout_height="20dp" android:src="@drawable/edutu_widget_mascot" android:contentDescription="@null" />
+ </LinearLayout>
+ <TextView android:id="@+id/edutu_ns_title" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:text="@string/edutu_next_step_preview_task" android:textColor="@color/edutu_widget_ink" android:textSize="16sp" android:textStyle="bold" android:maxLines="2" android:ellipsize="end" />
+ <TextView android:id="@+id/edutu_ns_context" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="5dp" android:text="@string/edutu_next_step_preview_context" android:textColor="@color/edutu_widget_sub" android:textSize="11sp" android:maxLines="1" android:ellipsize="end" android:visibility="visible" />
+ <ProgressBar android:id="@+id/edutu_ns_progress" style="?android:attr/progressBarStyleHorizontal" android:layout_width="match_parent" android:layout_height="4dp" android:layout_marginTop="8dp" android:max="100" android:progress="33" android:progressTint="@color/edutu_widget_accent" android:visibility="gone" />
+ <TextView android:id="@+id/edutu_ns_due" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="5dp" android:textColor="@color/edutu_widget_sub" android:textSize="10sp" android:maxLines="1" android:ellipsize="end" />
+ <LinearLayout android:layout_width="1dp" android:layout_height="0dp" android:layout_weight="1" />
+ <TextView android:id="@+id/edutu_ns_secondary" android:layout_width="match_parent" android:layout_height="0dp" android:padding="10dp" android:background="@drawable/edutu_widget_inset" android:textColor="@color/edutu_widget_ink" android:textSize="12sp" android:maxLines="2" android:ellipsize="end" android:visibility="gone" />
+ <TextView android:id="@+id/edutu_ns_action" android:layout_width="match_parent" android:layout_height="44dp" android:layout_marginTop="6dp" android:gravity="center" android:background="@drawable/edutu_widget_pill" android:text="@string/edutu_widget_continue" android:textColor="@color/edutu_widget_pill_ink" android:textSize="12sp" android:textStyle="bold" android:maxLines="1" android:ellipsize="end" />
+</LinearLayout>

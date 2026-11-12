@@ -8,7 +8,7 @@
   <string name="edutu_widget_radar">Top matches for you</string>
   <string name="edutu_widget_description">Your best-matched opportunities and their deadlines.</string>
   <!-- Product API base the widget fetches opportunities from (no trailing slash). -->
-  <string name="edutu_widget_api_base" translatable="false">https://edutu-platform.onrender.com</string>
+  <string name="edutu_widget_api_base" translatable="false">https://backend.edutu.org</string>
 
   <string name="edutu_deadline_widget_name">Edutu Deadlines</string>
   <string name="edutu_deadline_widget_description">A calendar of your applied and saved opportunity deadlines.</string>
@@ -22,6 +22,20 @@
   <string name="edutu_widget_trending">Trending now</string>
   <string name="edutu_widget_trending_empty">Discover what\'s hot</string>
   <string name="edutu_widget_trending_empty_hint">Open Edutu to load trending opportunities.</string>
+  <!-- Static sample content keeps the Android widget picker useful before a
+       provider has had a chance to run. Live data replaces every value. -->
+  <string name="edutu_widget_preview_title_1">Global scholarship opportunities</string>
+  <string name="edutu_widget_preview_title_2">Student leadership programme</string>
+  <string name="edutu_widget_preview_title_3">International internship</string>
+  <string name="edutu_widget_preview_category">Scholarship</string>
+  <string name="edutu_widget_preview_meta">Matched for you</string>
+  <string name="edutu_widget_preview_deadline">Open now</string>
+  <string name="edutu_widget_preview_days">12</string>
+  <string name="edutu_widget_preview_days_label">days</string>
+  <string name="edutu_widget_preview_month">DEC</string>
+  <string name="edutu_widget_preview_day">16</string>
+  <string name="edutu_widget_preview_news">NEW</string>
+  <string name="edutu_widget_preview_news_meta">Edutu insights · Today</string>
 
   <string name="edutu_trending_spotlight_widget_name">Edutu Trending Spotlight</string>
   <string name="edutu_trending_spotlight_widget_description">A rotating photo spotlight of the hottest opportunities on Edutu.</string>
@@ -48,4 +62,22 @@
   <string name="edutu_widget_chat_prompt_2">Which scholarships fit me?</string>
   <string name="edutu_widget_chat_prompt_3">Help me plan an application</string>
   <string name="edutu_widget_chat_prompt_4">Find internships near me</string>
+  <string name="edutu_widget_ask_action">Ask Edutu →</string>
+  <string name="edutu_widget_coach_label">YOUR OPPORTUNITY COACH</string>
+  <string name="edutu_widget_coach_hint">Your opportunity coach</string>
+  <string name="edutu_widget_coach_question">What should I focus on next?</string>
+  <string name="edutu_widget_save">Save</string>
+  <string name="edutu_widget_continue">Continue →</string>
+  <string name="edutu_next_step_widget_name">Today’s Next Step</string>
+  <string name="edutu_next_step_widget_description">A real preparation task from your My Plan, ready to continue.</string>
+  <string name="edutu_next_step_label">TODAY’S NEXT STEP</string>
+  <string name="edutu_next_step_empty">Make room for your next opportunity</string>
+  <string name="edutu_next_step_empty_hint">Add an application to My Plan to see your next task.</string>
+  <string name="edutu_next_step_signed_out">Sign in to see your next step</string>
+  <string name="edutu_next_step_unavailable">Your plan needs a refresh</string>
+  <string name="edutu_next_step_cached">Cached plan · Open to refresh</string>
+  <string name="edutu_next_step_progress">%1$d of %2$d steps complete</string>
+  <string name="edutu_next_step_open">Open My Plan →</string>
+  <string name="edutu_next_step_preview_task">Review your personal statement</string>
+  <string name="edutu_next_step_preview_context">Global scholarship · 1 of 3 steps complete</string>
 </resources>

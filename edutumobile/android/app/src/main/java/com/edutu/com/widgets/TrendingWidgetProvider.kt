@@ -27,9 +27,6 @@ class TrendingWidgetProvider : AppWidgetProvider() {
     private const val KEY_ITEMS = "items_json"
     private const val APP_ITEMS_FILE = "edutu_widget_trending.json"
 
-    private const val SIZE_SMALL = 0
-    private const val SIZE_MEDIUM = 1
-    private const val SIZE_LARGE = 2
 
     private val executor = Executors.newSingleThreadExecutor()
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -57,8 +54,8 @@ class TrendingWidgetProvider : AppWidgetProvider() {
     val appContext = context.applicationContext
     val appItems = WidgetSupport.readAppItemsFile(appContext, APP_ITEMS_FILE)
     if (appItems != null && !appItems.isOlderThan(WidgetSupport.APP_ITEMS_REFRESH_AFTER_MS)) return
-    executor.execute {
-      val items = WidgetSupport.fetchOpportunities(appContext, limit = 8) ?: return@execute
+    WidgetSupport.runRefresh(this, executor) {
+      val items = WidgetSupport.fetchOpportunities(appContext, limit = 8) ?: return@runRefresh
       appContext
         .getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         .edit()
@@ -82,9 +79,9 @@ class TrendingWidgetProvider : AppWidgetProvider() {
   ) {
     val items = pickItems(context)
     appWidgetIds.forEach { appWidgetId ->
-      val options = appWidgetManager.getAppWidgetOptions(appWidgetId)
-      val views = buildViews(context, items, pickSize(options))
-      appWidgetManager.updateAppWidget(appWidgetId, views)
+      WidgetSupport.updateSafely(context, appWidgetManager, appWidgetId) { width, height ->
+        buildViews(context, items, width, height)
+      }
     }
   }
 
@@ -107,26 +104,19 @@ class TrendingWidgetProvider : AppWidgetProvider() {
     return fresh
   }
 
-  private fun pickSize(options: android.os.Bundle?): Int {
-    val minWidth = options?.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 0) ?: 0
-    val minHeight = options?.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 0) ?: 0
-    return when {
-      minHeight >= 200 -> SIZE_LARGE
-      minWidth in 1 until 180 -> SIZE_SMALL
-      else -> SIZE_MEDIUM
-    }
-  }
-
-  private fun buildViews(context: Context, items: JSONArray, size: Int): RemoteViews {
-    return if (size == SIZE_SMALL) {
-      smallViews(context, items)
+  private fun buildViews(context: Context, items: JSONArray, width: Int, height: Int): RemoteViews {
+    return if (WidgetSizing.useHero(width, height)) {
+      smallViews(context, items, height)
     } else {
-      listViews(context, items, if (size == SIZE_LARGE) 5 else 3)
+      listViews(context, items, WidgetSizing.rows(height, 5, context.resources.configuration.fontScale))
     }
   }
 
-  private fun smallViews(context: Context, items: JSONArray): RemoteViews {
+  private fun smallViews(context: Context, items: JSONArray, height: Int): RemoteViews {
     val views = RemoteViews(context.packageName, R.layout.edutu_trending_widget_small)
+    val scale = context.resources.configuration.fontScale
+    views.setInt(R.id.edutu_tw_title, "setMaxLines", WidgetSizing.titleLines(height, scale))
+    views.setViewVisibility(R.id.edutu_tw_category, if (height < 180 || scale > 1.3f) View.GONE else View.VISIBLE)
     val hero = items.optJSONObject(0)
     if (hero == null) {
       views.setViewVisibility(R.id.edutu_tw_content, View.GONE)

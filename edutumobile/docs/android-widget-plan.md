@@ -1,5 +1,7 @@
 # Android Widget Implementation Plan
 
+> Historical scaffold plan. For the current nine-provider implementation, see [the widget review and fixes](widget-review-2026-11-12.md) and [the config plugin guide](../plugins/android-widget/README.md).
+
 ## Current Assessment
 
 - The active mobile app is `edutumobile`, an Expo SDK 55 app using CNG-friendly `app.config.js`.

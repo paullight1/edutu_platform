@@ -32,6 +32,9 @@ import {
 import { updateOpportunityWidgetTimeline } from '../widgets/OpportunityWidget';
 import { getWidgetImageUri } from './widgetImageCache';
 import { getWidgetLogoUri } from './widgetLogo';
+import { getWidgetMascotUri } from './widgetMascot';
+import { updateNextStepWidget, type NextStepWidgetProps } from '../widgets/NextStepWidget';
+import { selectNextSteps } from './nextStepWidget';
 
 /**
  * One entry point that refreshes the whole home-screen widget suite:
@@ -43,6 +46,10 @@ import { getWidgetLogoUri } from './widgetLogo';
  * Everything is best-effort and independent: one widget failing to sync never
  * blocks the others, and nothing here may block app startup.
  */
+
+const ANDROID_NEXT_STEP_FILE = 'edutu_widget_next_step.json';
+let widgetDataGeneration = 0;
+let nextStepOwner: string | null = null;
 
 const ANDROID_DEADLINES_FILE = 'edutu_widget_deadlines.json';
 const ANDROID_TRENDING_FILE = 'edutu_widget_trending.json';
@@ -65,6 +72,11 @@ const CHAT_PROMPTS = [
 
 /** Remove personalized widget state before a different account uses the device. */
 export async function clearWidgetSuiteData(): Promise<void> {
+  widgetDataGeneration += 1;
+  nextStepOwner = null;
+  lastWidgetSyncOwner = null;
+  lastWidgetSyncAt = 0;
+  publishNextStepWidget({ items: [], state: 'signed_out' });
   await Promise.all([
     AsyncStorage.removeItem(DEADLINES_CACHE_KEY),
     AsyncStorage.removeItem('@edutu_opportunity_widget_snapshot:v1'),
@@ -72,7 +84,7 @@ export async function clearWidgetSuiteData(): Promise<void> {
   try {
     if (Platform.OS === 'android') {
       const { File, Paths } = require('expo-file-system') as typeof import('expo-file-system');
-      for (const fileName of [ANDROID_DEADLINES_FILE, ANDROID_TRENDING_FILE, ANDROID_NEWS_FILE]) {
+      for (const fileName of ['edutu_widget_items.json', ANDROID_DEADLINES_FILE, ANDROID_TRENDING_FILE, ANDROID_NEWS_FILE]) {
         const file = new File(Paths.document, fileName);
         if (file.exists) file.delete();
       }
@@ -463,9 +475,9 @@ export function getChatPrompt(now: Date = new Date()): string {
   return CHAT_PROMPTS[dayOfYear % CHAT_PROMPTS.length];
 }
 
-export function syncChatWidget(extras: { logoUri?: string; now?: Date } = {}): void {
+export function syncChatWidget(extras: { logoUri?: string; mascotUri?: string; now?: Date } = {}): void {
   try {
-    updateChatWidget({ prompt: getChatPrompt(extras.now), logoUri: extras.logoUri });
+    updateChatWidget({ prompt: getChatPrompt(extras.now), logoUri: extras.logoUri, mascotUri: extras.mascotUri });
   } catch {
     // Best effort.
   }
@@ -508,13 +520,85 @@ export interface SyncWidgetSuiteOptions {
   getToken?: () => Promise<string | null>;
 }
 
+export async function syncNextStepWidget(options: SyncWidgetSuiteOptions & { mascotUri?: string } = {}): Promise<void> {
+  // Headless refresh has no Clerk session; preserve the last task snapshot.
+  if (!options.userId && !options.getToken) return;
+  const generation = widgetDataGeneration;
+  let props: NextStepWidgetProps = { items: [], state: 'signed_out', mascotUri: options.mascotUri };
+  if (options.userId && options.getToken) {
+    try {
+      const { listOpportunityJourneys } = require('../packages/core/src/services/opportunityJourney') as typeof import('../packages/core/src/services/opportunityJourney');
+      const result = await listOpportunityJourneys({ userId: options.userId, stage: 'pursuing', getAuthToken: options.getToken });
+      const items = selectNextSteps(result.data ?? []);
+      props = { ...props, items, state: result.data === null ? 'unavailable' : items.length ? 'ready' : 'empty', stale: result.isStale };
+    } catch { props = { ...props, state: 'unavailable' }; }
+  }
+  if (generation !== widgetDataGeneration) return;
+  publishNextStepWidget(props);
+}
+
+function publishNextStepWidget(props: NextStepWidgetProps): void {
+  try { updateNextStepWidget(props); } catch { /* Keep platform failures independent. */ }
+  if (Platform.OS === 'android') {
+    try {
+      const { File, Paths } = require('expo-file-system') as typeof import('expo-file-system');
+      const file = new File(Paths.document, ANDROID_NEXT_STEP_FILE);
+      if (file.exists) file.delete();
+      file.create();
+      file.write(JSON.stringify({ syncedAt: Date.now(), ...props, mascotUri: undefined }));
+    } catch { /* Widget keeps its last snapshot until the next successful sync. */ }
+  }
+}
+
+const WIDGET_SYNC_MIN_INTERVAL_MS = 60_000;
+let widgetSyncRequest: Promise<void> | null = null;
+let widgetSyncOwner: string | null = null;
+let lastWidgetSyncOwner: string | null = null;
+let lastWidgetSyncAt = 0;
+
 export async function syncWidgetSuite(options: SyncWidgetSuiteOptions = {}): Promise<void> {
-  const logoUri = await getWidgetLogoUri();
-  await Promise.all([
-    syncAndUpdateOpportunityWidgetSnapshot({ userId: options.userId, logoUri }).catch(() => undefined),
-    syncDeadlineWidget({ userId: options.userId, getToken: options.getToken, logoUri }),
-    syncTrendingWidget({ logoUri }),
-    syncNewsWidget(),
-    Promise.resolve(syncChatWidget({ logoUri })),
-  ]);
+  const owner = options.userId ?? 'guest';
+  if (options.getToken && nextStepOwner !== owner) {
+    nextStepOwner = owner;
+    widgetDataGeneration += 1;
+    publishNextStepWidget({ items: [], state: options.userId ? 'unavailable' : 'signed_out' });
+  }
+
+  if (widgetSyncRequest) {
+    if (widgetSyncOwner === owner) return widgetSyncRequest;
+    // Account changed while the old snapshot was still being written. Let it
+    // finish, then replace those shared native files with the new owner.
+    await widgetSyncRequest;
+  }
+
+  if (lastWidgetSyncOwner === owner && Date.now() - lastWidgetSyncAt < WIDGET_SYNC_MIN_INTERVAL_MS) {
+    return;
+  }
+
+  widgetSyncOwner = owner;
+  const generation = widgetDataGeneration;
+  const request = (async () => {
+    const [logoUri, mascotUri] = await Promise.all([getWidgetLogoUri(), getWidgetMascotUri()]);
+    if (generation !== widgetDataGeneration) return;
+    await Promise.all([
+      syncAndUpdateOpportunityWidgetSnapshot({ userId: options.userId, logoUri }).catch(() => undefined),
+      syncDeadlineWidget({ userId: options.userId, getToken: options.getToken, logoUri }),
+      syncTrendingWidget({ logoUri }),
+      syncNewsWidget(),
+      syncNextStepWidget({ ...options, mascotUri }),
+      Promise.resolve(syncChatWidget({ logoUri, mascotUri })),
+    ]);
+    if (generation !== widgetDataGeneration) return;
+    lastWidgetSyncOwner = owner;
+    lastWidgetSyncAt = Date.now();
+  })().catch(() => undefined);
+  widgetSyncRequest = request;
+  try {
+    await request;
+  } finally {
+    if (widgetSyncRequest === request) {
+      widgetSyncRequest = null;
+      widgetSyncOwner = null;
+    }
+  }
 }

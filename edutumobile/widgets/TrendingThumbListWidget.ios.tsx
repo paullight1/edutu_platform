@@ -109,7 +109,7 @@ function TrendingThumbListLayout(props: TrendingPosterProps, environment: Widget
   if (!merged.items.length) return <EmptyState props={merged} dark={dark} />;
 
   const p = palette(dark);
-  const maxRows = environment.widgetFamily === "systemLarge" ? 5 : 3;
+  const maxRows = environment.widgetFamily === "systemLarge" ? 5 : 2;
   const rows = merged.items.slice(0, maxRows);
 
   return (
@@ -154,7 +154,10 @@ export function updateTrendingThumbListWidget(props: TrendingPosterProps) {
 export function updateTrendingThumbListWidgetTimeline(
   entries: Array<{ date: Date; props: TrendingPosterProps }>,
 ) {
-  if (!entries.length) return;
+  if (!entries.length) {
+    TrendingThumbListWidget.updateSnapshot(DEFAULT_PROPS);
+    return;
+  }
   TrendingThumbListWidget.updateTimeline(
     entries.map((entry) => ({ date: entry.date, props: { ...DEFAULT_PROPS, ...entry.props } })),
   );

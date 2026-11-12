@@ -1,13 +1,22 @@
 package com.edutu.com.widgets
 
 import android.app.PendingIntent
+import android.appwidget.AppWidgetManager
+import android.appwidget.AppWidgetProvider
+import android.os.Handler
+import android.os.Looper
+import java.util.concurrent.Executor
+import java.util.concurrent.ConcurrentHashMap
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Build
-import androidx.core.content.ContextCompat
+import android.content.res.Configuration
+import android.util.Log
+import android.util.SizeF
+import android.widget.RemoteViews
 import com.edutu.com.R
 import org.json.JSONArray
 import org.json.JSONObject
@@ -81,6 +90,92 @@ object WidgetSupport {
     return deepLinkIntent(context, link)
   }
 
+  /**
+   * Build and submit a widget update defensively. Provider data/layout bugs
+   * should degrade to a small tappable Edutu card rather than leave the host
+   * with no RemoteViews at all. Launcher-side inflation failures are outside
+   * the provider process, so every shipped layout is still resource-compiled.
+   */
+  fun updateSafely(
+    context: Context,
+    manager: AppWidgetManager,
+    appWidgetId: Int,
+    build: (width: Int, height: Int) -> RemoteViews,
+  ) {
+    try {
+      val options = manager.getAppWidgetOptions(appWidgetId)
+      val views = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        val sizes = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+          options.getParcelableArrayList(AppWidgetManager.OPTION_APPWIDGET_SIZES, SizeF::class.java)
+        } else {
+          @Suppress("DEPRECATION")
+          options.getParcelableArrayList<SizeF>(AppWidgetManager.OPTION_APPWIDGET_SIZES)
+        }
+        if (!sizes.isNullOrEmpty()) {
+          RemoteViews(sizes.distinct().take(16).associateWith { size ->
+            build(size.width.toInt(), size.height.toInt())
+          })
+        } else {
+          val (width, height) = legacySize(context, options)
+          build(width, height)
+        }
+      } else {
+        val (width, height) = legacySize(context, options)
+        build(width, height)
+      }
+      manager.updateAppWidget(appWidgetId, views)
+      return
+    } catch (error: Exception) {
+      Log.e("EdutuWidgets", "Widget $appWidgetId update failed", error)
+      // Fall through to the dependency-free base layout.
+    }
+
+    try {
+      val fallback = RemoteViews(context.packageName, R.layout.edutu_widget_compact)
+      fallback.setTextViewText(R.id.edutu_widget_title, context.getString(R.string.edutu_widget_title))
+      fallback.setInt(R.id.edutu_widget_title, "setMaxLines", 1)
+      fallback.setTextViewText(R.id.edutu_widget_deadline, context.getString(R.string.edutu_widget_open_now))
+      fallback.setOnClickPendingIntent(
+        R.id.edutu_widget_root,
+        deepLinkIntent(context, "edutu://opportunities")
+      )
+      manager.updateAppWidget(appWidgetId, fallback)
+    } catch (_: Exception) {
+      // The OS owns the final host transaction; a later scheduled update can retry.
+    }
+  }
+
+  private fun legacySize(context: Context, options: android.os.Bundle): Pair<Int, Int> {
+    val landscape = context.resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val widthKey = if (landscape) AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH else AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH
+    val heightKey = if (landscape) AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT else AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT
+    val width = options.getInt(widthKey, 300).takeIf { it > 0 } ?: 300
+    val height = options.getInt(heightKey, options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 160)).takeIf { it > 0 } ?: 160
+    return width to height
+  }
+
+  private val activeRefreshes = ConcurrentHashMap<String, Boolean>()
+  private val mainHandler = Handler(Looper.getMainLooper())
+
+  /** Keep the broadcast alive until queued rendering finishes; coalesce repeated updates. */
+  fun runRefresh(provider: AppWidgetProvider, executor: Executor, block: () -> Unit) {
+    val key = provider.javaClass.name
+    if (activeRefreshes.putIfAbsent(key, true) != null) return
+    val pending = provider.goAsync()
+    executor.execute {
+      try {
+        block()
+      } catch (error: Exception) {
+        Log.w("EdutuWidgets", "Refresh failed for $key", error)
+      } finally {
+        mainHandler.post {
+          activeRefreshes.remove(key)
+          pending?.finish()
+        }
+      }
+    }
+  }
+
   // ---- Network fallback (unauthenticated product API) -----------------------
 
   /**
@@ -94,8 +189,8 @@ object WidgetSupport {
     try {
       connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
         requestMethod = "GET"
-        connectTimeout = 10000
-        readTimeout = 10000
+        connectTimeout = 2000
+        readTimeout = 2000
         setRequestProperty("Accept", "application/json")
       }
       if (connection.responseCode !in 200..299) return null
@@ -140,21 +235,41 @@ object WidgetSupport {
     return try {
       connection = (URL(urlString).openConnection() as HttpURLConnection).apply {
         requestMethod = "GET"
-        connectTimeout = 8000
-        readTimeout = 8000
+        connectTimeout = 1500
+        readTimeout = 1500
         instanceFollowRedirects = true
         setRequestProperty("Accept", "image/*")
       }
       if (connection.responseCode !in 200..299) return null
-      val bytes = connection.inputStream.use { it.readBytes() }
+      val bytes = connection.inputStream.use { input ->
+        val output = java.io.ByteArrayOutputStream()
+        val buffer = ByteArray(8192)
+        var total = 0
+        while (true) {
+          val count = input.read(buffer)
+          if (count < 0) break
+          total += count
+          if (total > 2 * 1024 * 1024) return null
+          output.write(buffer, 0, count)
+        }
+        output.toByteArray()
+      }
       if (bytes.isEmpty()) return null
 
       val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
       BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
       val decode = BitmapFactory.Options().apply {
-        inSampleSize = sampleSizeFor(bounds.outWidth, reqWidth)
+        inSampleSize = sampleSizeFor(maxOf(bounds.outWidth, bounds.outHeight), reqWidth)
+        inPreferredConfig = Bitmap.Config.RGB_565
       }
-      BitmapFactory.decodeByteArray(bytes, 0, bytes.size, decode)
+      val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, decode) ?: return null
+      val longest = maxOf(bitmap.width, bitmap.height)
+      if (longest <= reqWidth) bitmap else {
+        val ratio = reqWidth.toFloat() / longest
+        Bitmap.createScaledBitmap(bitmap, (bitmap.width * ratio).toInt().coerceAtLeast(1), (bitmap.height * ratio).toInt().coerceAtLeast(1), true).also {
+          if (it !== bitmap) bitmap.recycle()
+        }
+      }
     } catch (e: Exception) {
       null
     } finally {
@@ -278,7 +393,7 @@ object WidgetSupport {
 
   /** Text colour for a deadline countdown, resolved against the current theme. */
   fun urgencyTextColor(context: Context, deadline: String?): Int {
-    return ContextCompat.getColor(context, urgencyColorRes(deadline))
+    return context.getColor(urgencyColorRes(deadline))
   }
 
   private fun urgencyColorRes(deadline: String?): Int {

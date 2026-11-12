@@ -51,6 +51,15 @@ class TrendingSpotlightWidgetProvider : AppWidgetProvider() {
     Poster(R.id.edutu_ts_p4, R.id.edutu_ts_p4_image, R.id.edutu_ts_p4_category, R.id.edutu_ts_p4_title, R.id.edutu_ts_p4_deadline),
   )
 
+  override fun onAppWidgetOptionsChanged(
+    context: Context,
+    appWidgetManager: AppWidgetManager,
+    appWidgetId: Int,
+    newOptions: android.os.Bundle,
+  ) {
+    onUpdate(context, appWidgetManager, intArrayOf(appWidgetId))
+  }
+
   override fun onUpdate(
     context: Context,
     appWidgetManager: AppWidgetManager,
@@ -63,9 +72,9 @@ class TrendingSpotlightWidgetProvider : AppWidgetProvider() {
 
   private fun refresh(context: Context) {
     val appContext = context.applicationContext
-    executor.execute {
-      val items = TrendingWidgetData.load(appContext, TRENDING_FILE, PREFS, KEY_ITEMS, POSTER_COUNT * 2)
-      if (items.length() == 0) return@execute
+    WidgetSupport.runRefresh(this, executor) {
+      val items = TrendingWidgetData.refresh(appContext, TRENDING_FILE, PREFS, KEY_ITEMS, POSTER_COUNT * 2)
+      if (items.length() == 0) return@runRefresh
 
       // Download a poster image per unique opportunity we will show.
       val bitmaps = HashMap<Int, Bitmap>()
@@ -92,10 +101,11 @@ class TrendingSpotlightWidgetProvider : AppWidgetProvider() {
     appWidgetIds: IntArray,
     bitmaps: Map<Int, Bitmap>?,
   ) {
-    val items = TrendingWidgetData.load(context, TRENDING_FILE, PREFS, KEY_ITEMS, POSTER_COUNT * 2)
+    val items = TrendingWidgetData.load(context, TRENDING_FILE, PREFS, KEY_ITEMS)
     appWidgetIds.forEach { appWidgetId ->
-      val views = buildViews(context, items, bitmaps)
-      appWidgetManager.updateAppWidget(appWidgetId, views)
+      WidgetSupport.updateSafely(context, appWidgetManager, appWidgetId) { width, height ->
+        buildViews(context, items, bitmaps)
+      }
     }
   }
 

@@ -15,6 +15,8 @@ export type OpportunityWidgetItem = {
   /** Whole days until the deadline (for lock-screen countdowns); null when undated. */
   daysLeft?: number | null;
   deepLink?: string;
+  /** Opens the authenticated save receipt; never implies an inline save. */
+  saveLink?: string;
 };
 
 export type OpportunityWidgetProps = {
@@ -28,6 +30,8 @@ export type OpportunityWidgetProps = {
   tone?: WidgetUrgencyTone;
   daysLeft?: number | null;
   deepLink?: string;
+  /** Opens the authenticated save receipt; never implies an inline save. */
+  saveLink?: string;
   /** file:// URI of the shared logo mark (see lib/widgetLogo.ts); SF-symbol fallback when absent. */
   logoUri?: string;
   items?: OpportunityWidgetItem[];

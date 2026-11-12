@@ -1,3 +1,7 @@
+import { updateNextStepWidget } from '../widgets/NextStepWidget';
+import { listOpportunityJourneys } from '../packages/core/src/services/opportunityJourney';
+import { Platform } from 'react-native';
+import { File } from 'expo-file-system';
 import { updateDeadlineWidgetTimeline } from '../widgets/DeadlineWidget';
 import { updateChatWidget } from '../widgets/ChatWidget';
 import {
@@ -7,12 +11,25 @@ import {
   getChatPrompt,
   syncDeadlineWidget,
   syncChatWidget,
+  clearWidgetSuiteData,
+  syncNextStepWidget,
 } from '../lib/widgetSuiteSync';
 import type { DeadlineItem } from '../packages/core/src/services/deadlines';
 
 jest.mock('@react-native-async-storage/async-storage', () => ({
   getItem: jest.fn(),
   setItem: jest.fn(),
+  removeItem: jest.fn().mockResolvedValue(undefined),
+}));
+
+jest.mock('../widgets/NextStepWidget', () => ({ updateNextStepWidget: jest.fn() }));
+jest.mock('../packages/core/src/services/opportunityJourney', () => ({ listOpportunityJourneys: jest.fn() }));
+
+jest.mock('../lib/widgetMascot', () => ({ getWidgetMascotUri: jest.fn().mockResolvedValue(undefined) }));
+
+jest.mock('expo-file-system', () => ({
+  Paths: { document: 'file:///documents' },
+  File: jest.fn().mockImplementation(() => ({ exists: true, delete: jest.fn(), create: jest.fn(), write: jest.fn() })),
 }));
 
 jest.mock('expo-constants', () => ({
@@ -173,5 +190,58 @@ describe('chat widget', () => {
     expect(updateChatWidget).toHaveBeenCalledWith(
       expect.objectContaining({ prompt: promptA }),
     );
+  });
+});
+
+
+describe('widget sign-out cleanup', () => {
+  it('clears every Android snapshot, including personalized Top Matches', async () => {
+    const platform = jest.replaceProperty(Platform, 'OS', 'android');
+    const fileMock = File as unknown as jest.Mock;
+    fileMock.mockClear();
+    try {
+      await clearWidgetSuiteData();
+      expect(fileMock.mock.calls.map((args: unknown[]) => args[1]).slice(-5)).toEqual([
+        'edutu_widget_next_step.json',
+        'edutu_widget_items.json',
+        'edutu_widget_deadlines.json',
+        'edutu_widget_trending.json',
+        'edutu_widget_news.json',
+      ]);
+      for (const result of fileMock.mock.results.slice(-5)) {
+        expect(result.value.delete).toHaveBeenCalledTimes(1);
+      }
+    } finally {
+      platform.restore();
+    }
+  });
+});
+
+
+describe('next step snapshot session safety', () => {
+  beforeEach(() => jest.clearAllMocks());
+  it('preserves the snapshot during headless refresh without an auth session', async () => {
+    await syncNextStepWidget({});
+    expect(listOpportunityJourneys).not.toHaveBeenCalled();
+    expect(updateNextStepWidget).not.toHaveBeenCalled();
+  });
+  it('distinguishes an unavailable plan from a genuinely empty plan', async () => {
+    const read = listOpportunityJourneys as jest.Mock;
+    read.mockResolvedValueOnce({ data: null, isStale: false });
+    await syncNextStepWidget({ userId: 'a', getToken: async () => 'session' });
+    expect(updateNextStepWidget).toHaveBeenLastCalledWith(expect.objectContaining({ state: 'unavailable' }));
+    read.mockResolvedValueOnce({ data: [], isStale: false });
+    await syncNextStepWidget({ userId: 'a', getToken: async () => 'session' });
+    expect(updateNextStepWidget).toHaveBeenLastCalledWith(expect.objectContaining({ state: 'empty' }));
+  });
+  it('cannot republish a task snapshot after sign-out clears widget data', async () => {
+    let finish!: (value: unknown) => void;
+    (listOpportunityJourneys as jest.Mock).mockReturnValue(new Promise(resolve => { finish = resolve; }));
+    const pending = syncNextStepWidget({ userId: 'a', getToken: async () => 'session' });
+    await clearWidgetSuiteData();
+    (updateNextStepWidget as jest.Mock).mockClear();
+    finish({ data: [], isStale: false });
+    await pending;
+    expect(updateNextStepWidget).not.toHaveBeenCalled();
   });
 });

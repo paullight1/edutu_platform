@@ -67,6 +67,7 @@ describe('opportunity widget sync bridge', () => {
       daysLeft: expect.any(Number),
       logoUri: undefined,
       deepLink: 'edutu://opportunity/opp-1',
+        saveLink: 'edutu://widget-save?id=opp-1',
       items: [
         {
           title: 'Global Fellowship',
@@ -79,6 +80,7 @@ describe('opportunity widget sync bridge', () => {
           tone: 'green',
           daysLeft: expect.any(Number),
           deepLink: 'edutu://opportunity/opp-1',
+        saveLink: 'edutu://widget-save?id=opp-1',
         },
       ],
     });

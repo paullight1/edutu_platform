@@ -75,7 +75,13 @@ export default function PlanJourneyScreen() {
         ...(create ? {} : { journeyId: id, action }),
         body: { ...body, ...(create ? {} : { expectedVersion: item.journey.version }), idempotencyKey },
       });
-      if (owner.current === key) setState({ key, item: updated, stale: false });
+      if (owner.current === key) {
+        setState({ key, item: updated, stale: false });
+        try {
+          const { syncNextStepWidget } = require('../../../lib/widgetSuiteSync') as typeof import('../../../lib/widgetSuiteSync');
+          void syncNextStepWidget({ userId, getToken }).catch(() => undefined);
+        } catch { /* Widget availability must not affect a confirmed plan update. */ }
+      }
       requests.current.delete(signature);
     } catch (e) {
       if (owner.current === key) setError(e instanceof Error ? e.message : 'Unable to save. Please retry.');

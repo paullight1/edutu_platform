@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Adaptive-navy widget palette (light variant). Mirrors widgets/theme.ts on
+  the iOS side and values-night/edutu_widget_colors.xml for dark mode.
+  Every text colour keeps >= 4.5:1 contrast on its surface.
+-->
+<resources>
+  <color name="edutu_widget_bg">#FFFFFF</color>
+  <color name="edutu_widget_bg_inset">#EEF2FF</color>
+  <color name="edutu_widget_ink">#101828</color>
+  <color name="edutu_widget_sub">#475467</color>
+  <color name="edutu_widget_faint">#667085</color>
+  <color name="edutu_widget_accent">#3563E9</color>
+  <color name="edutu_widget_pill_bg">#E2EAFF</color>
+  <color name="edutu_widget_pill_ink">#173B8F</color>
+
+  <color name="edutu_urgency_red">#DC2626</color>
+  <color name="edutu_urgency_amber">#B45309</color>
+  <color name="edutu_urgency_green">#047857</color>
+  <color name="edutu_urgency_slate">#64748B</color>
+
+  <!-- Deadline chips: same fills in both themes, always white text. -->
+  <color name="edutu_chip_red">#E5484D</color>
+  <color name="edutu_chip_amber">#B45309</color>
+  <color name="edutu_chip_green">#047857</color>
+  <color name="edutu_chip_slate">#475569</color>
+</resources>

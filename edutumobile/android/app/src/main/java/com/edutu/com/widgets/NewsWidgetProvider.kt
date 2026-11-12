@@ -57,6 +57,15 @@ class NewsWidgetProvider : AppWidgetProvider() {
     Banner(R.id.edutu_nw_b3, R.id.edutu_nw_b3_image, R.id.edutu_nw_b3_chip, R.id.edutu_nw_b3_title, R.id.edutu_nw_b3_meta),
   )
 
+  override fun onAppWidgetOptionsChanged(
+    context: Context,
+    appWidgetManager: AppWidgetManager,
+    appWidgetId: Int,
+    newOptions: android.os.Bundle,
+  ) {
+    onUpdate(context, appWidgetManager, intArrayOf(appWidgetId))
+  }
+
   override fun onUpdate(
     context: Context,
     appWidgetManager: AppWidgetManager,
@@ -68,9 +77,9 @@ class NewsWidgetProvider : AppWidgetProvider() {
 
   private fun refresh(context: Context) {
     val appContext = context.applicationContext
-    executor.execute {
-      val items = loadItems(appContext)
-      if (items.length() == 0) return@execute
+    WidgetSupport.runRefresh(this, executor) {
+      val items = refreshItems(appContext)
+      if (items.length() == 0) return@runRefresh
 
       val bitmaps = HashMap<Int, Bitmap>()
       for (i in 0 until BANNER_COUNT) {
@@ -97,7 +106,9 @@ class NewsWidgetProvider : AppWidgetProvider() {
   ) {
     val items = loadItems(context)
     appWidgetIds.forEach { appWidgetId ->
-      appWidgetManager.updateAppWidget(appWidgetId, buildViews(context, items, bitmaps))
+      WidgetSupport.updateSafely(context, appWidgetManager, appWidgetId) { width, height ->
+        buildViews(context, items, bitmaps)
+      }
     }
   }
 
@@ -171,18 +182,29 @@ class NewsWidgetProvider : AppWidgetProvider() {
 
   private fun loadItems(context: Context): JSONArray {
     val fromFile = WidgetSupport.readAppItemsFile(context, NEWS_FILE)
-    if (fromFile != null && fromFile.items.length() > 0) return fromFile.items
+    if (fromFile != null && !fromFile.isOlderThan(WidgetSupport.APP_ITEMS_TRUST_FOR_MS) && fromFile.items.length() > 0) return fromFile.items
 
     val cached = readCache(context)
     if (cached.length() > 0) return cached
 
+    return JSONArray()
+  }
+
+  private fun refreshItems(context: Context): JSONArray {
+    val current = loadItems(context)
+    val appItems = WidgetSupport.readAppItemsFile(context, NEWS_FILE)
+    val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+    val stamp = prefs.getLong("synced_at", 0L)
+    if (current.length() > 0 && (
+        (appItems != null && !appItems.isOlderThan(WidgetSupport.APP_ITEMS_REFRESH_AFTER_MS)) ||
+        System.currentTimeMillis() - stamp < WidgetSupport.APP_ITEMS_REFRESH_AFTER_MS
+      )) return current
     val fetched = fetchNews(context)
     if (fetched != null && fetched.length() > 0) {
-      context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        .edit().putString(KEY_ITEMS, fetched.toString()).apply()
+      prefs.edit().putString(KEY_ITEMS, fetched.toString()).putLong("synced_at", System.currentTimeMillis()).apply()
       return fetched
     }
-    return JSONArray()
+    return current
   }
 
   private fun readCache(context: Context): JSONArray {
@@ -203,8 +225,8 @@ class NewsWidgetProvider : AppWidgetProvider() {
     try {
       connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
         requestMethod = "GET"
-        connectTimeout = 10000
-        readTimeout = 10000
+        connectTimeout = 2000
+        readTimeout = 2000
         setRequestProperty("Accept", "application/json")
       }
       if (connection.responseCode !in 200..299) return null

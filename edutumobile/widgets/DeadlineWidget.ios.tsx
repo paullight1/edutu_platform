@@ -232,7 +232,7 @@ function DeadlineWidgetLayout(props: DeadlineWidgetProps, environment: WidgetEnv
   }
 
   if (environment.widgetFamily === "systemMedium") {
-    return <Agenda {...merged} dark={dark} maxRows={3} />;
+    return <Agenda {...merged} dark={dark} maxRows={2} />;
   }
 
   return <Agenda {...merged} dark={dark} maxRows={6} />;
@@ -249,7 +249,10 @@ export function updateDeadlineWidget(props: DeadlineWidgetProps) {
 export function updateDeadlineWidgetTimeline(
   entries: Array<{ date: Date; props: DeadlineWidgetProps }>,
 ) {
-  if (!entries.length) return;
+  if (!entries.length) {
+    DeadlineWidget.updateSnapshot(DEFAULT_PROPS);
+    return;
+  }
   DeadlineWidget.updateTimeline(
     entries.map((entry) => ({
       date: entry.date,

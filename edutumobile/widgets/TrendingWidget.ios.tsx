@@ -201,7 +201,10 @@ export function updateTrendingWidget(props: TrendingWidgetProps) {
 export function updateTrendingWidgetTimeline(
   entries: Array<{ date: Date; props: TrendingWidgetProps }>,
 ) {
-  if (!entries.length) return;
+  if (!entries.length) {
+    TrendingWidget.updateSnapshot(DEFAULT_PROPS);
+    return;
+  }
   TrendingWidget.updateTimeline(
     entries.map((entry) => ({
       date: entry.date,

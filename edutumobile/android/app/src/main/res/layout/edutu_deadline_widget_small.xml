@@ -23,7 +23,7 @@
         android:layout_height="20dp"
         android:src="@drawable/edutu_widget_logo"
         android:contentDescription="@null" />
-      <View
+      <LinearLayout
         android:layout_width="0dp"
         android:layout_height="1dp"
         android:layout_weight="1" />
@@ -37,7 +37,7 @@
         android:textStyle="bold" />
     </LinearLayout>
 
-    <View
+    <LinearLayout
       android:layout_width="1dp"
       android:layout_height="0dp"
       android:layout_weight="1" />
@@ -52,6 +52,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:maxLines="1"
+        android:text="@string/edutu_widget_preview_days"
         android:textColor="@color/edutu_urgency_green"
         android:textSize="32sp"
         android:textStyle="bold" />
@@ -62,6 +63,7 @@
         android:layout_marginLeft="4dp"
         android:layout_marginBottom="5dp"
         android:maxLines="1"
+        android:text="@string/edutu_widget_preview_days_label"
         android:textColor="@color/edutu_widget_sub"
         android:textSize="12sp"
         android:textStyle="bold" />
@@ -74,6 +76,7 @@
       android:layout_marginTop="2dp"
       android:ellipsize="end"
       android:maxLines="2"
+      android:text="@string/edutu_widget_preview_title_1"
       android:textColor="@color/edutu_widget_ink"
       android:textSize="12sp"
       android:textStyle="bold" />
@@ -91,7 +94,7 @@
       android:layout_height="20dp"
       android:src="@drawable/edutu_widget_logo"
       android:contentDescription="@null" />
-    <View
+    <LinearLayout
       android:layout_width="1dp"
       android:layout_height="0dp"
       android:layout_weight="1" />

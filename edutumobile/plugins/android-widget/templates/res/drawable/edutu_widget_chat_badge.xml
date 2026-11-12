@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Soft inset badge that cradles the logo on the Ask Edutu widget. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+  android:shape="rectangle">
+  <solid android:color="@color/edutu_widget_bg_inset" />
+  <corners android:radius="18dp" />
+</shape>

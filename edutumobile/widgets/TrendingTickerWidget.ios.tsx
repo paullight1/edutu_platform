@@ -128,7 +128,10 @@ export function updateTrendingTickerWidget(props: TrendingPosterProps) {
 export function updateTrendingTickerWidgetTimeline(
   entries: Array<{ date: Date; props: TrendingPosterProps }>,
 ) {
-  if (!entries.length) return;
+  if (!entries.length) {
+    TrendingTickerWidget.updateSnapshot(DEFAULT_PROPS);
+    return;
+  }
   TrendingTickerWidget.updateTimeline(
     entries.map((entry) => ({ date: entry.date, props: { ...DEFAULT_PROPS, ...entry.props } })),
   );

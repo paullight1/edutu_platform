@@ -1,6 +1,10 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { GetAuthToken, requestProductApi } from './productApi';
 import { toSafeUUID } from '../utils/auth';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const SAVED_CACHE_PREFIX = '@edutu_saved_opportunities:';
+const savedMemory = new Map<string, SavedOpportunity[]>();
 
 export interface SavedOpportunity {
   id: string;
@@ -14,6 +18,15 @@ export interface SavedOpportunity {
   location?: string;
   image?: string;
   match_score?: number;
+}
+
+function savedCacheKey(userId: string): string {
+  return `${SAVED_CACHE_PREFIX}${userId}`;
+}
+
+async function invalidateSavedOpportunities(userId: string): Promise<void> {
+  savedMemory.delete(userId);
+  await AsyncStorage.removeItem(savedCacheKey(userId)).catch(() => undefined);
 }
 
 function getUserLookupIds(userId: string): string[] {
@@ -279,4 +292,18 @@ export async function getSavedCount(
     .in('user_id', getUserLookupIds(userId));
 
   return error ? 0 : new Set(data?.map(row => row.opportunity_id) || []).size;
+}
+
+/** Widget actions require a server acknowledgement; never fall back to a direct DB write. */
+export async function saveOpportunityFromWidget(
+  userId: string, opportunityId: string, getAuthToken: GetAuthToken,
+): Promise<void> {
+  if (!userId || !opportunityId.trim() || opportunityId.length > 200) {
+    throw new Error('Sign in and select a valid opportunity to save.');
+  }
+  const result = await requestProductApi(
+    `/me/opportunities/${encodeURIComponent(opportunityId)}/bookmark`, { method: 'POST' }, getAuthToken,
+  );
+  if (result === null) throw new Error('Unable to confirm your save. Check your connection and try again.');
+  await invalidateSavedOpportunities(userId);
 }

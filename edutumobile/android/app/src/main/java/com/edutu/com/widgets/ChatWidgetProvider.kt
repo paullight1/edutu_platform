@@ -12,18 +12,32 @@ import com.edutu.com.R
  */
 class ChatWidgetProvider : AppWidgetProvider() {
 
+  override fun onAppWidgetOptionsChanged(
+    context: Context,
+    appWidgetManager: AppWidgetManager,
+    appWidgetId: Int,
+    newOptions: android.os.Bundle,
+  ) {
+    onUpdate(context, appWidgetManager, intArrayOf(appWidgetId))
+  }
+
   override fun onUpdate(
     context: Context,
     appWidgetManager: AppWidgetManager,
     appWidgetIds: IntArray
   ) {
     appWidgetIds.forEach { appWidgetId ->
-      val views = RemoteViews(context.packageName, R.layout.edutu_chat_widget)
-      views.setOnClickPendingIntent(
-        R.id.edutu_cw_root,
-        WidgetSupport.deepLinkIntent(context, "edutu://chat")
-      )
-      appWidgetManager.updateAppWidget(appWidgetId, views)
+      WidgetSupport.updateSafely(context, appWidgetManager, appWidgetId) { width, height ->
+        val views = RemoteViews(context.packageName, if (width >= 260) R.layout.edutu_chat_widget_medium else R.layout.edutu_chat_widget)
+        val largeText = context.resources.configuration.fontScale > 1.3f
+        views.setViewVisibility(R.id.edutu_cw_hint, if (largeText) android.view.View.GONE else android.view.View.VISIBLE)
+        if (width >= 260) views.setViewVisibility(R.id.edutu_cw_label, if (largeText) android.view.View.GONE else android.view.View.VISIBLE)
+        views.setOnClickPendingIntent(
+          R.id.edutu_cw_root,
+          WidgetSupport.deepLinkIntent(context, "edutu://chat")
+        )
+        views
+      }
     }
   }
 }

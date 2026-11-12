@@ -41,6 +41,15 @@ class TrendingGridWidgetProvider : AppWidgetProvider() {
     Tile(R.id.edutu_tg_t4, R.id.edutu_tg_t4_image, R.id.edutu_tg_t4_title, R.id.edutu_tg_t4_deadline),
   )
 
+  override fun onAppWidgetOptionsChanged(
+    context: Context,
+    appWidgetManager: AppWidgetManager,
+    appWidgetId: Int,
+    newOptions: android.os.Bundle,
+  ) {
+    onUpdate(context, appWidgetManager, intArrayOf(appWidgetId))
+  }
+
   override fun onUpdate(
     context: Context,
     appWidgetManager: AppWidgetManager,
@@ -52,9 +61,9 @@ class TrendingGridWidgetProvider : AppWidgetProvider() {
 
   private fun refresh(context: Context) {
     val appContext = context.applicationContext
-    executor.execute {
-      val items = TrendingWidgetData.load(appContext, TRENDING_FILE, PREFS, KEY_ITEMS, TILE_COUNT * 2)
-      if (items.length() == 0) return@execute
+    WidgetSupport.runRefresh(this, executor) {
+      val items = TrendingWidgetData.refresh(appContext, TRENDING_FILE, PREFS, KEY_ITEMS, TILE_COUNT * 2)
+      if (items.length() == 0) return@runRefresh
 
       val bitmaps = HashMap<Int, Bitmap>()
       for (i in 0 until minOf(TILE_COUNT, items.length())) {
@@ -78,13 +87,15 @@ class TrendingGridWidgetProvider : AppWidgetProvider() {
     appWidgetIds: IntArray,
     bitmaps: Map<Int, Bitmap>?,
   ) {
-    val items = TrendingWidgetData.load(context, TRENDING_FILE, PREFS, KEY_ITEMS, TILE_COUNT * 2)
+    val items = TrendingWidgetData.load(context, TRENDING_FILE, PREFS, KEY_ITEMS)
     appWidgetIds.forEach { appWidgetId ->
-      appWidgetManager.updateAppWidget(appWidgetId, buildViews(context, items, bitmaps))
+      WidgetSupport.updateSafely(context, appWidgetManager, appWidgetId) { width, height ->
+        buildViews(context, items, bitmaps, width, height)
+      }
     }
   }
 
-  private fun buildViews(context: Context, items: JSONArray, bitmaps: Map<Int, Bitmap>?): RemoteViews {
+  private fun buildViews(context: Context, items: JSONArray, bitmaps: Map<Int, Bitmap>?, width: Int, height: Int): RemoteViews {
     val views = RemoteViews(context.packageName, R.layout.edutu_trending_grid_widget)
 
     if (items.length() == 0) {
@@ -100,9 +111,16 @@ class TrendingGridWidgetProvider : AppWidgetProvider() {
     views.setViewVisibility(R.id.edutu_tg_content, View.VISIBLE)
     views.setViewVisibility(R.id.edutu_tg_empty, View.GONE)
 
+    val narrow = width < 220
+    val short = height < 220 * context.resources.configuration.fontScale
+    views.setViewVisibility(R.id.edutu_tg_row2, if (short) View.GONE else View.VISIBLE)
+    var itemIndex = 0
     for (i in tiles.indices) {
       val tile = tiles[i]
-      val item = items.optJSONObject(i)
+      val visible = !(narrow && i % 2 == 1) && !(short && i >= 2)
+      views.setViewVisibility(tile.frameId, if (visible) View.VISIBLE else View.GONE)
+      if (!visible) continue
+      val item = items.optJSONObject(itemIndex++)
       if (item == null) {
         // Fewer than four trending items: leave the empty tiles as brand surface.
         views.setViewVisibility(tile.imageId, View.GONE)
@@ -118,7 +136,7 @@ class TrendingGridWidgetProvider : AppWidgetProvider() {
       views.setTextViewText(tile.titleId, item.optString("title"))
       views.setTextViewText(tile.deadlineId, WidgetSupport.formatDeadline(context, item.optString("deadline")))
 
-      val bitmap = bitmaps?.get(i)
+      val bitmap = bitmaps?.get(itemIndex - 1)
       if (bitmap != null) {
         views.setImageViewBitmap(tile.imageId, bitmap)
         views.setViewVisibility(tile.imageId, View.VISIBLE)

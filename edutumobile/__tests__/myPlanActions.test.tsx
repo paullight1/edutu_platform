@@ -4,6 +4,8 @@ import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import PlanJourneyScreen from '../app/(app)/my-plan/[id]';
 import PlanOpportunityActions from '../components/opportunity-path/PlanOpportunityActions';
 const mockPush = jest.fn();
+const mockWidgetSync = jest.fn().mockResolvedValue(undefined);
+jest.mock('../lib/widgetSuiteSync', () => ({ syncNextStepWidget: (...args: unknown[]) => mockWidgetSync(...args) }));
 const mockToken = jest.fn().mockResolvedValue('token');
 const mockRead = jest.fn();
 const mockWrite = jest.fn();
@@ -19,6 +21,7 @@ it('saves task completion with the server version and renders the returned next 
   fireEvent.press(screen.getByRole('checkbox', { name: 'Review your essay' }));
   await waitFor(() => expect(mockWrite).toHaveBeenCalledWith(expect.objectContaining({ action: 'tasks/task-one', body: { status: 'completed', expectedVersion: 1, idempotencyKey: 'stable-request-key' } })));
   await waitFor(() => expect(screen.getByText('Open application website')).toBeTruthy());
+  await waitFor(() => expect(mockWidgetSync).toHaveBeenCalledWith({ userId: 'member', getToken: mockToken }));
 });
 it('records browser opening separately and only confirms after an explicit choice', async () => {
   mockRead.mockResolvedValue({ data: entry('ready_to_apply'), isStale: false });

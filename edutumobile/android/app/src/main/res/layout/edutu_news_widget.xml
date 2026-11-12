@@ -31,7 +31,7 @@
         android:layout_height="match_parent"
         android:scaleType="centerCrop"
         android:contentDescription="@null" />
-      <View
+      <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:background="@drawable/edutu_widget_scrim" />
@@ -48,6 +48,7 @@
         android:paddingRight="8dp"
         android:paddingTop="3dp"
         android:paddingBottom="3dp"
+        android:text="@string/edutu_widget_preview_news"
         android:textColor="#FFFFFF"
         android:textSize="9sp"
         android:textStyle="bold" />
@@ -66,6 +67,7 @@
           android:layout_height="wrap_content"
           android:ellipsize="end"
           android:maxLines="2"
+          android:text="@string/edutu_widget_preview_title_1"
           android:textColor="#FFFFFF"
           android:textSize="15sp"
           android:textStyle="bold" />
@@ -76,6 +78,7 @@
           android:layout_marginTop="3dp"
           android:ellipsize="end"
           android:maxLines="1"
+          android:text="@string/edutu_widget_preview_news_meta"
           android:textColor="#DCE2FF"
           android:textSize="11sp" />
       </LinearLayout>
@@ -92,7 +95,7 @@
         android:layout_height="match_parent"
         android:scaleType="centerCrop"
         android:contentDescription="@null" />
-      <View
+      <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:background="@drawable/edutu_widget_scrim" />
@@ -153,7 +156,7 @@
         android:layout_height="match_parent"
         android:scaleType="centerCrop"
         android:contentDescription="@null" />
-      <View
+      <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:background="@drawable/edutu_widget_scrim" />
