@@ -34,12 +34,16 @@ def sheet(paths, destination, title, dark):
 
 cards = []
 for theme in ('light', 'dark'):
-    installed = folder/('installed-final-'+theme)
+    installed = folder/('installed-v23-'+theme)
+    version = 'v23'
+    if not installed.exists():
+        installed = folder/('installed-final-'+theme)
+        version = 'v22'
     if not installed.exists():
         installed = folder/('installed-v22-'+theme)
     paths = sorted(installed.glob('*.png'))
     if paths:
-        sheet(paths, folder/('installed-'+theme+'.jpg'), 'Edutu installed APK · '+theme+' · real provider captures', theme=='dark')
+        sheet(paths, folder/('installed-'+theme+'.jpg'), 'Edutu installed APK '+version+' · '+theme+' · real provider captures', theme=='dark')
     for path in paths:
         label = path.stem
         for key, value in labels.items():
