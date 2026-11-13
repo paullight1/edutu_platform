@@ -1,5 +1,5 @@
 import { SupabaseClient } from '@supabase/supabase-js';
-import { GetAuthToken, requestProductApi } from './productApi';
+import { GetAuthToken, ProductApiRequestError, requestProductApi } from './productApi';
 import { toSafeUUID } from '../utils/auth';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -296,14 +296,34 @@ export async function getSavedCount(
 
 /** Widget actions require a server acknowledgement; never fall back to a direct DB write. */
 export async function saveOpportunityFromWidget(
-  userId: string, opportunityId: string, getAuthToken: GetAuthToken,
+  userId: string, opportunityId: string, getAuthToken: GetAuthToken, signal?: AbortSignal,
 ): Promise<void> {
   if (!userId || !opportunityId.trim() || opportunityId.length > 200) {
     throw new Error('Sign in and select a valid opportunity to save.');
   }
-  const result = await requestProductApi(
-    `/me/opportunities/${encodeURIComponent(opportunityId)}/bookmark`, { method: 'POST' }, getAuthToken,
-  );
-  if (result === null) throw new Error('Unable to confirm your save. Check your connection and try again.');
-  await invalidateSavedOpportunities(userId);
+  // The API upserts (user, opportunity), so a lost response can be retried
+  // without toggling the bookmark off or creating a second saved item.
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const result = await requestProductApi(
+        `/me/opportunities/${encodeURIComponent(opportunityId)}/bookmark`,
+        signal ? { method: 'POST', signal } : { method: 'POST' }, getAuthToken, 12000,
+        { throwOnError: true, forceRefreshToken: attempt > 0 },
+      );
+      if (result === null) throw new Error('Unable to confirm your save. Check your connection and try again.');
+      await invalidateSavedOpportunities(userId);
+      return;
+    } catch (error) {
+      const retryable = error instanceof ProductApiRequestError && (
+        error.kind === 'auth' || error.kind === 'network' || error.status === 401 ||
+        [408, 500, 502, 503, 504].includes(error.status)
+      );
+      if (error instanceof ProductApiRequestError && error.kind !== 'cancelled') {
+        // No tokens, account IDs or opportunity IDs in transport diagnostics.
+        console.warn('[widget-save] confirmation failed', error.kind, error.status, 'attempt', attempt + 1);
+      }
+      if (attempt > 0 || signal?.aborted || !retryable) throw error;
+      await new Promise(resolve => setTimeout(resolve, 350));
+    }
+  }
 }

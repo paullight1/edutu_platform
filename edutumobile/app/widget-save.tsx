@@ -25,15 +25,17 @@ export default function WidgetSaveScreen() {
     let active = true;
     if (!isLoaded || !userId || !opportunityId) return;
     const capturedUser = userId;
-    void saveOpportunityFromWidget(capturedUser, opportunityId, async () => {
-      const token = await tokenGetter.current();
+    const controller = new AbortController();
+    void saveOpportunityFromWidget(capturedUser, opportunityId, async (options) => {
+      if (!active || owner.current !== capturedUser) return null;
+      const token = await tokenGetter.current(options);
       return owner.current === capturedUser ? token : null;
-    }).then(() => {
+    }, controller.signal).then(() => {
       if (active && owner.current === capturedUser) setResult({ key, status: 'saved', message: 'Added to your saved opportunities.' });
     }).catch(error => {
       if (active && owner.current === capturedUser) setResult({ key, status: 'error', message: error instanceof Error ? error.message : 'Unable to save. Try again.' });
     });
-    return () => { active = false; };
+    return () => { active = false; controller.abort(); };
   }, [key, isLoaded, userId, opportunityId]);
   const signedOut = isLoaded && !userId;
   const invalid = !opportunityId;
