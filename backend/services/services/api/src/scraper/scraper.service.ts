@@ -3021,7 +3021,11 @@ ${text}`;
       $('meta[property="twitter:image"]').attr("content");
     push(this.extractImageCandidate(og, baseUrl));
 
-    $("article img, .entry-content img, .post-content img, main img").each(
+    // Prefer explicit article containers. A broad "main img" includes
+    // unrelated scholarship recommendations when the article has no photo.
+    const articleImages = "article img, .entry-content img, .post-content img, main .content img";
+    const hasArticleContainer = $("article, .entry-content, .post-content, main .content").length > 0;
+    $(hasArticleContainer ? articleImages : "main img").each(
       (_, el) => {
         if (candidates.length >= 5) return;
         // Related-post grids and sidebars nest their own <article>/<img>
@@ -3031,7 +3035,7 @@ ${text}`;
         if (
           $(el).closest(
             ".elementor-post, .elementor-posts, .jp-relatedposts, " +
-              '[class*="related"], [class*="widget"], aside, nav, footer',
+              '[class*="related"], [class*="widget"], .icad-slot, .advertisement, [data-ad-slot], aside, nav, footer',
           ).length > 0
         ) {
           return;

@@ -672,6 +672,24 @@ describe("ScraperService", () => {
       expect(retry).toBe(image);
     });
 
+    it("does not adopt recommendation thumbnails or advertisements when an article has no image", () => {
+      const html = `<main class="pw">
+        <section class="box content"><h2>Chevron internship details</h2>
+          <div class="icad-slot"><a href="https://advertiser.example"><img src="/advert.png"></a></div>
+        </section>
+        <section class="box fund"><h2>Fully funded abroad</h2>
+          <a href="/tongji-scholarship"><img src="/tongji.png"></a>
+        </section>
+      </main>`;
+      expect((service as any).extractImageCandidatesFromHTML(html, "https://www.icanstudent.com/chevron-internship")).toEqual([]);
+    });
+
+    it("keeps an actual article image while excluding images linked to other posts", () => {
+      const html = `<main><section class="content"><img src="/chevron.jpg"></section>
+        <a href="/unrelated-scholarship"><img src="/other.jpg"></a></main>`;
+      expect((service as any).extractImageCandidatesFromHTML(html, "https://source.example.com/chevron")).toEqual(["https://source.example.com/chevron.jpg"]);
+    });
+
     it("extractImageCandidatesFromHTML returns og:image first, then article images", () => {
       const html = `
         <html><head>
