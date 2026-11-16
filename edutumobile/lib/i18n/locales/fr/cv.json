@@ -1,0 +1,284 @@
+{
+    "header": {
+        "title": "Créateur de CV"
+    },
+    "loading": "Chargement du Créateur de CV...",
+    "defaults": {
+        "myCv": "Mon CV",
+        "untitled": "CV sans titre",
+        "aiDraft": "Brouillon de CV IA"
+    },
+    "proBanner": {
+        "upgrade": "Passez à Pro pour des CV illimités",
+        "trial": "Essai gratuit disponible - Testez les fonctionnalités Pro !"
+    },
+    "quickActions": {
+        "title": "Créez plus vite",
+        "subtitle": "Partez d'un CV vierge, générez depuis LinkedIn ou adaptez votre brouillon à une vraie opportunité.",
+        "create": {
+            "title": "Créer un nouveau CV",
+            "subtitle": "Commencez avec un éditeur structuré et choisissez un modèle après avoir prévisualisé des exemples."
+        },
+        "linkedIn": {
+            "title": "Importer depuis LinkedIn",
+            "subtitle": "Utilisez le contexte de votre profil pour rédiger une première version plus solide avec l'IA."
+        },
+        "tailor": {
+            "title": "Adapter à une opportunité",
+            "subtitle": "Confrontez votre CV aux bourses, stages et programmes de votre banque."
+        }
+    },
+    "sections": {
+        "yourCvs": "Vos CV",
+        "chooseTemplate": "Choisissez un modèle"
+    },
+    "alerts": {
+        "aiDraftReadyTitle": "Brouillon IA prêt",
+        "draftReadyOfflineTitle": "Brouillon prêt (mode hors ligne)",
+        "draftReadyWithSuggestions": "Votre brouillon de CV est dans l'éditeur. Prochaines étapes suggérées :\n{{suggestions}}",
+        "draftReadyMessage": "Votre brouillon de CV a été généré à partir du contexte de votre profil.",
+        "generateFailed": "Échec de la génération du brouillon de CV.",
+        "summaryUpdatedTitle": "Résumé mis à jour",
+        "summaryUpdatedOffline": "Amélioré hors ligne à partir de vos informations existantes. Connectez-vous à internet pour la réécriture IA complète.",
+        "improveSummaryFailed": "Impossible d'améliorer le résumé pour le moment.",
+        "saveSuccess": "CV enregistré avec succès !",
+        "saveFailed": "Échec de l'enregistrement du CV",
+        "deleteTitle": "Supprimer le CV",
+        "deleteMessage": "Voulez-vous vraiment supprimer ce CV ?",
+        "sharedAsTextTitle": "Partagé en texte",
+        "sharedAsTextMessage": "L'export PDF était indisponible, le CV a donc été partagé au format texte.",
+        "exportFailed": "Échec de l'export du CV",
+        "tailoredTitle": "CV adapté — {{score}} % de correspondance",
+        "tailorFailed": "Échec de l'adaptation du CV à cette opportunité."
+    },
+    "upgrade": {
+        "templateFeature": "Modèle {{name}}"
+    },
+    "templates": {
+        "badgeFallback": "Modèle",
+        "proBadge": "Pro",
+        "unlock": "Débloquer le modèle",
+        "use": "Utiliser ce modèle",
+        "tapToPreview": "Touchez pour voir un exemple",
+        "samples": {
+            "academic": {
+                "name": "Amara Okafor",
+                "headline": "Candidate au MSc en santé publique",
+                "summary": "Profil axé recherche, avec études, publications, projets de terrain et réussites académiques placés avant l'expérience professionnelle.",
+                "bullets": [
+                    "Études et recherche en premier",
+                    "Publications et distinctions visibles",
+                    "Idéal pour bourses et admissions en master"
+                ]
+            },
+            "professional": {
+                "name": "Daniel Mensah",
+                "headline": "Analyste des opérations",
+                "summary": "Profil axé résultats pour stages, emplois, fellowships et programmes de début de carrière, avec un impact professionnel mesurable.",
+                "bullets": [
+                    "Impact professionnel avant les cours",
+                    "Section compétences et chiffres solide",
+                    "Idéal pour stages et emplois"
+                ]
+            },
+            "creative": {
+                "name": "Leah Adeyemi",
+                "headline": "Designer produit",
+                "summary": "Structure adaptée au portfolio qui met en avant projets, outils, liens et réalisations visuelles sans perdre la lisibilité ATS.",
+                "bullets": [
+                    "Projets et liens de portfolio",
+                    "Outils et études de cas en avant",
+                    "Idéal pour les métiers du design et des médias"
+                ]
+            },
+            "general": {
+                "name": "Edutu Student",
+                "headline": "Candidat aux opportunités",
+                "summary": "Structure équilibrée pour les étudiants qui postulent à des bourses, programmes scolaires, stages et opportunités communautaires.",
+                "bullets": [
+                    "Profil étudiant épuré",
+                    "Ordre des sections flexible",
+                    "Idéal pour des candidatures variées"
+                ]
+            }
+        }
+    },
+    "linkedInModal": {
+        "title": "Créer un CV avec l'IA",
+        "description": "Collez l'URL de votre profil LinkedIn ci-dessous et notre IA rassemblera automatiquement votre expérience pour créer votre CV.",
+        "generate": "Générer le CV"
+    },
+    "tailorModal": {
+        "title": "Adaptation de CV par IA",
+        "subtitle": "Sélectionnez une opportunité dans votre banque et adaptez ce CV en conséquence.",
+        "empty": "Aucune opportunité disponible pour le moment. Chargez d'abord des opportunités, puis adaptez ce CV."
+    },
+    "listItem": {
+        "updated": "Mis à jour le {{date}}",
+        "primary": "Principal"
+    },
+    "editor": {
+        "sections": {
+            "personalInfo": "Informations personnelles",
+            "summary": "Résumé professionnel",
+            "skills": "Compétences",
+            "experience": "Expérience",
+            "education": "Formation",
+            "projects": "Projets",
+            "achievements": "Réalisations"
+        },
+        "personal": {
+            "fullName": {
+                "label": "Nom complet",
+                "placeholder": "Jean Dupont"
+            },
+            "email": {
+                "label": "E-mail",
+                "placeholder": "jean@exemple.com"
+            },
+            "phone": {
+                "label": "Téléphone",
+                "placeholder": "+1 234 567 8900"
+            },
+            "location": {
+                "label": "Lieu",
+                "placeholder": "Lagos, Nigeria"
+            },
+            "linkedin": {
+                "label": "LinkedIn",
+                "placeholder": "linkedin.com/in/jeandupont"
+            },
+            "portfolio": {
+                "label": "Portfolio",
+                "placeholder": "portfolio.site"
+            }
+        },
+        "summaryPlaceholder": "Rédigez un résumé professionnel concis...",
+        "improving": "Amélioration…",
+        "improveWithAi": "Améliorer avec l'IA",
+        "unlockAiAssist": "Débloquer l'assistant IA",
+        "aiSummaryFeature": "Générateur de résumé IA",
+        "skillsPlaceholder": "JavaScript, Recherche, Excel, Prise de parole...",
+        "add": "Ajouter",
+        "newExperience": "Nouvelle expérience",
+        "newEducation": "Nouvelle formation",
+        "newProject": "Nouveau projet",
+        "newAchievement": "Nouvelle réalisation",
+        "fields": {
+            "role": {
+                "label": "Poste",
+                "placeholder": "Stagiaire en développement"
+            },
+            "company": {
+                "label": "Entreprise",
+                "placeholder": "Entreprise / Organisation"
+            },
+            "location": {
+                "label": "Lieu",
+                "placeholder": "À distance / Ville"
+            },
+            "startDate": {
+                "label": "Date de début",
+                "placeholder": "2024-01"
+            },
+            "endDate": {
+                "label": "Date de fin",
+                "placeholder": "2025-01"
+            },
+            "currentlyWorkHere": "J'y travaille actuellement",
+            "description": {
+                "label": "Description",
+                "placeholder": "Décrivez ce que vous avez fait"
+            },
+            "highlights": {
+                "label": "Points forts (un par ligne)",
+                "placeholder": "Augmentation des inscriptions de 30 %\nDirection d'une équipe de 4"
+            },
+            "institution": {
+                "label": "Établissement",
+                "placeholder": "Université / École"
+            },
+            "degree": {
+                "label": "Diplôme",
+                "placeholder": "Licence / Master / Diplôme"
+            },
+            "fieldOfStudy": {
+                "label": "Domaine",
+                "placeholder": "Informatique"
+            },
+            "eduStartDate": {
+                "placeholder": "2021-09"
+            },
+            "eduEndDate": {
+                "placeholder": "2025-06 (ou prévu)"
+            },
+            "projectName": {
+                "label": "Nom du projet",
+                "placeholder": "App de recherche de bourses"
+            },
+            "projectDescription": {
+                "placeholder": "Décrivez l'impact du projet"
+            },
+            "technologies": {
+                "label": "Technologies",
+                "placeholder": "React, Node.js"
+            },
+            "achievementTitle": {
+                "label": "Titre",
+                "placeholder": "Tableau d'honneur"
+            },
+            "issuer": {
+                "label": "Émetteur",
+                "placeholder": "Université / Organisation"
+            },
+            "achievementDescription": {
+                "placeholder": "Pourquoi c'est important"
+            }
+        },
+        "tailor": {
+            "title": "Adapter à une opportunité",
+            "subtitle": "Confrontez ce CV aux opportunités de votre banque"
+        },
+        "save": "Enregistrer le CV",
+        "preparing": "Préparation…",
+        "downloadPdf": "Télécharger en PDF"
+    },
+    "preview": {
+        "backToEdit": "Retour à l'édition",
+        "downloadAccessibility": "Télécharger le CV en PDF",
+        "preparing": "Préparation…",
+        "pdf": "PDF",
+        "yourName": "Votre nom",
+        "sections": {
+            "summary": "Résumé",
+            "skills": "Compétences",
+            "experience": "Expérience",
+            "education": "Formation",
+            "projects": "Projets",
+            "achievements": "Réalisations"
+        },
+        "startFallback": "Début",
+        "present": "- Aujourd'hui"
+    },
+    "proUpgrade": {
+        "title": "Débloquer {{feature}}",
+        "subtitle": "Profitez d'un accès illimité à toutes les fonctionnalités premium",
+        "priceFrom": "À partir de",
+        "price": "5,99 $",
+        "pricePeriod": "/mois",
+        "features": {
+            "roadmaps": "Génération de parcours IA illimitée",
+            "templates": "Modèles de CV premium",
+            "tailoring": "Adaptation de CV par IA",
+            "creatorListing": "Mise en avant prioritaire des créateurs",
+            "filters": "Filtres d'opportunités avancés",
+            "pdfExport": "Export et téléchargements PDF"
+        },
+        "upgradeCta": "Passer à Pro",
+        "trialActivatedTitle": "Essai activé",
+        "trialActivatedMessage": "Vous avez maintenant accès aux fonctionnalités Pro pendant 7 jours !",
+        "trialCta": "Essayer gratuitement 7 jours",
+        "secure": "Sécurisé",
+        "cancelAnytime": "Annulable à tout moment"
+    }
+}

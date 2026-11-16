@@ -1,0 +1,497 @@
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, RefreshControl, Image } from "react-native";
+import React, { useState, useCallback, useEffect, useMemo } from "react";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useAuth, useUser } from "@clerk/clerk-expo";
+import { useRouter } from "expo-router";
+import { useTranslation } from "react-i18next";
+import { Bookmark, Clock, Trash2, ExternalLink, Target, AlertCircle } from "lucide-react-native";
+import { useTheme } from "../../../components/context/ThemeContext";
+import { supabase } from "../../../lib/supabase";
+import { fetchSavedOpportunities, unsaveOpportunity } from "../../../packages/core/src/services/bookmarks";
+import { getDeadlineBadge, urgencyColor } from "../../../packages/core/src/utils/deadline";
+import Animated, { FadeInDown } from "react-native-reanimated";
+import { ScreenHeader } from "../../../components/ui/ScreenHeader";
+import { ErrorBoundary } from "../../../components/ui/ErrorBoundary";
+import { StateView, useScreenState } from "../../../components/state";
+import { OpportunityCardSkeleton } from "../../../components/ui/Skeleton";
+
+interface SavedOpportunity {
+    id: string;
+    bookmark_id: string;
+    title: string;
+    organization: string;
+    deadline: string;
+    category: string;
+    location: string;
+    image: string;
+    match: number;
+    created_at: string;
+    daysRemaining: number;
+}
+
+export default function SavedScreen() {
+    const { t } = useTranslation('opps');
+    const { isDark, colors } = useTheme();
+    const { user } = useUser();
+    const { getToken } = useAuth();
+    const router = useRouter();
+
+    const [savedOpps, setSavedOpps] = useState<SavedOpportunity[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
+    const [filter, setFilter] = useState<'all' | 'urgent' | 'upcoming'>('all');
+
+    // Clerk's getToken / user references change on every render. Keep getToken
+    // in a ref so it never destabilizes fetchSaved (which must only re-create
+    // when the signed-in user id changes) — otherwise the effect loops forever.
+    const getTokenRef = React.useRef(getToken);
+    React.useEffect(() => {
+        // Post-commit write: keeps discarded concurrent renders from leaking
+        // their getToken into the ref.
+        getTokenRef.current = getToken;
+    });
+    const userId = user?.id;
+
+    // Loading starts true and is only ever cleared by the fetch below (no
+    // synchronous setLoading(true) inside the effect-invoked fetch — the
+    // signed-out bail-out is derived at render instead).
+    const fetchSaved = useCallback(async () => {
+        if (!userId) return;
+        try {
+            const saved = await fetchSavedOpportunities(supabase, userId, getTokenRef.current);
+            const mapped: SavedOpportunity[] = saved.map((bookmark) => {
+                const deadline = bookmark.deadline;
+                const daysRemaining = deadline
+                    ? Math.ceil((new Date(deadline).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+                    : 999;
+
+                return {
+                    id: bookmark.opportunity_id,
+                    bookmark_id: bookmark.id,
+                    title: bookmark.title || t('shared.opportunity'),
+                    organization: bookmark.organization || t('shared.unknown'),
+                    deadline: deadline || '',
+                    category: bookmark.category || '',
+                    location: bookmark.location || '',
+                    image: bookmark.image || '',
+                    match: bookmark.match_score || 0,
+                    created_at: bookmark.created_at || '',
+                    daysRemaining,
+                };
+            });
+
+            setSavedOpps(mapped);
+        } catch (error) {
+            console.error('Error fetching saved opportunities:', error);
+        } finally {
+            setLoading(false);
+            setRefreshing(false);
+        }
+    }, [userId, t]);
+
+    useEffect(() => {
+        fetchSaved();
+    }, [fetchSaved]);
+
+    const removeBookmark = async (bookmarkId: string) => {
+        if (!user) return;
+        try {
+            const bookmark = savedOpps.find(opp => opp.bookmark_id === bookmarkId);
+            if (!bookmark) return;
+
+            const removed = await unsaveOpportunity(supabase, user.id, bookmark.id, getToken);
+            if (!removed) throw new Error('Unable to remove bookmark');
+            setSavedOpps(prev => prev.filter(opp => opp.bookmark_id !== bookmarkId));
+        } catch (error) {
+            console.error('Error removing bookmark:', error);
+        }
+    };
+
+    const filteredOpps = useMemo(() => {
+        if (filter === 'urgent') {
+            return savedOpps.filter(opp => opp.daysRemaining <= 7 && opp.daysRemaining >= 0);
+        }
+        if (filter === 'upcoming') {
+            return savedOpps.filter(opp => opp.daysRemaining > 7);
+        }
+        return savedOpps;
+    }, [savedOpps, filter]);
+
+    // Two different problems that used to look alike: nothing saved at all,
+    // and nothing matching the active tab. The first is an onboarding moment;
+    // the second is a filter result the user can undo.
+    const savedState = useScreenState({ data: savedOpps, loading });
+    const filterState = useScreenState({
+        data: filteredOpps,
+        loading,
+        filtersActive: true,
+    });
+
+    const onRefresh = useCallback(() => {
+        setRefreshing(true);
+        fetchSaved();
+    }, [fetchSaved]);
+
+    // Signed-out users have nothing to load — derive the bail-out at render.
+    const effectiveLoading = userId ? loading : false;
+
+    if (effectiveLoading) {
+        return (
+            <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['top', 'left', 'right']}>
+                <ScreenHeader title={t('saved.title')} showBack />
+                <ScrollView
+                    style={{ flex: 1 }}
+                    contentContainerStyle={styles.loadingContainer}
+                    showsVerticalScrollIndicator={false}
+                >
+                    {Array.from({ length: 4 }).map((_, i) => (
+                        <OpportunityCardSkeleton key={i} />
+                    ))}
+                </ScrollView>
+            </SafeAreaView>
+        );
+    }
+
+    return (
+        <ErrorBoundary message={t('saved.errorBoundary')}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['top', 'left', 'right']}>
+            <ScreenHeader
+                title={t('saved.title')}
+                showBack
+                subtitle={t('shared.savedCount', { count: savedOpps.length })}
+            />
+
+            <ScrollView
+                style={{ flex: 1 }}
+                contentContainerStyle={styles.scrollContent}
+                showsVerticalScrollIndicator={false}
+                refreshControl={
+                    <RefreshControl
+                        refreshing={refreshing}
+                        onRefresh={onRefresh}
+                        tintColor={colors.accent}
+                    />
+                }
+            >
+                {savedOpps.length === 0 ? (
+                    <StateView
+                        state={savedState}
+                        flow="saved"
+                        onAction={() => router.push('/opportunities')}
+                    />
+                ) : (
+                    <>
+                        {/* Filter Tabs */}
+                        <Animated.View entering={FadeInDown} style={styles.filterContainer}>
+                            <TouchableOpacity
+                                style={[styles.filterTab, filter === 'all' && { backgroundColor: colors.accent }]}
+                                onPress={() => setFilter('all')}
+                                accessibilityLabel={t('saved.a11yAll', { count: savedOpps.length })}
+                                accessibilityRole="button"
+                            >
+                                <Bookmark size={16} color={filter === 'all' ? '#FFFFFF' : colors.foreground} />
+                                <Text style={[styles.filterTabText, { color: filter === 'all' ? '#FFFFFF' : colors.foreground }]}>
+                                    {t('filters.all', { count: savedOpps.length })}
+                                </Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[styles.filterTab, filter === 'urgent' && { backgroundColor: '#EF4444' }]}
+                                onPress={() => setFilter('urgent')}
+                                accessibilityLabel={t('saved.a11yUrgent', { count: savedOpps.filter(o => o.daysRemaining <= 7 && o.daysRemaining >= 0).length })}
+                                accessibilityRole="button"
+                            >
+                                <AlertCircle size={16} color={filter === 'urgent' ? '#FFFFFF' : '#EF4444'} />
+                                <Text style={[styles.filterTabText, { color: filter === 'urgent' ? '#FFFFFF' : '#EF4444' }]}>
+                                    {t('filters.urgent', { count: savedOpps.filter(o => o.daysRemaining <= 7 && o.daysRemaining >= 0).length })}
+                                </Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[styles.filterTab, filter === 'upcoming' && { backgroundColor: '#10B981' }]}
+                                onPress={() => setFilter('upcoming')}
+                                accessibilityLabel={t('saved.a11yUpcoming', { count: savedOpps.filter(o => o.daysRemaining > 7).length })}
+                                accessibilityRole="button"
+                            >
+                                <Clock size={16} color={filter === 'upcoming' ? '#FFFFFF' : '#10B981'} />
+                                <Text style={[styles.filterTabText, { color: filter === 'upcoming' ? '#FFFFFF' : '#10B981' }]}>
+                                    {t('filters.upcoming', { count: savedOpps.filter(o => o.daysRemaining > 7).length })}
+                                </Text>
+                            </TouchableOpacity>
+                        </Animated.View>
+
+                        {/* Saved Opportunities List */}
+                        {filteredOpps.length === 0 ? (
+                            // fill={false} because this sits inside a ScrollView
+                            // and must not claim flex:1; the scene is scaled down
+                            // so it reads as a section note, not a screen takeover.
+                            <StateView
+                                state={filterState}
+                                flow="saved"
+                                fill={false}
+                                sceneSize={140}
+                                title={t(`filters.none.${filter}`)}
+                                body=""
+                            />
+                        ) : (
+                            filteredOpps.map((opp, index) => (
+                                <Animated.View
+                                    key={opp.id}
+                                    entering={FadeInDown.delay(index * 50)}
+                                >
+                                    <TouchableOpacity
+                                        style={[styles.oppCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+                                        onPress={() => router.push(`/opportunities/${opp.id}`)}
+                                        activeOpacity={0.7}
+                                    >
+                                        {opp.image && (
+                                            <Image
+                                                source={{ uri: opp.image }}
+                                                style={styles.oppImage}
+                                                resizeMode="cover"
+                                            />
+                                        )}
+                                        <View style={styles.oppContent}>
+                                            <View style={styles.oppHeader}>
+                                                <View style={styles.oppTitleRow}>
+                                                    <Text style={[styles.oppTitle, { color: colors.foreground }]} numberOfLines={2}>
+                                                        {opp.title}
+                                                    </Text>
+                                                    {opp.match > 0 && (
+                                                        <View style={styles.matchBadge}>
+                                                            <Target size={10} color="#FFFFFF" />
+                                                            <Text style={styles.matchText}>{opp.match}%</Text>
+                                                        </View>
+                                                    )}
+                                                </View>
+                                                <Text style={[styles.oppOrg, { color: isDark ? '#94A3B8' : '#64748B' }]}>
+                                                    {opp.organization}
+                                                </Text>
+                                            </View>
+
+                                            <View style={styles.oppDetails}>
+                                                {(() => {
+                                                    const badge = getDeadlineBadge(opp.deadline);
+                                                    const color = urgencyColor(badge.level);
+                                                    return (
+                                                        <View style={styles.detailRow}>
+                                                            <Clock size={14} color={color} />
+                                                            <Text style={[styles.detailText, { color }]}>
+                                                                {badge.label}
+                                                            </Text>
+                                                        </View>
+                                                    );
+                                                })()}
+                                                {opp.category && (
+                                                    <Text style={[styles.categoryTag, { color: colors.accent }]}>
+                                                        {opp.category}
+                                                    </Text>
+                                                )}
+                                            </View>
+
+                                            <View style={styles.oppActions}>
+                                                <TouchableOpacity
+                                                    style={styles.viewBtn}
+                                                    onPress={() => router.push(`/opportunities/${opp.id}`)}
+                                                >
+                                                    <ExternalLink size={16} color={colors.accent} />
+                                                    <Text style={[styles.viewBtnText, { color: colors.accent }]}>{t('shared.viewDetails')}</Text>
+                                                </TouchableOpacity>
+                                                <TouchableOpacity
+                                                    style={styles.removeBtn}
+                                                    onPress={() => removeBookmark(opp.bookmark_id)}
+                                                >
+                                                    <Trash2 size={18} color="#EF4444" />
+                                                </TouchableOpacity>
+                                            </View>
+                                        </View>
+                                    </TouchableOpacity>
+                                </Animated.View>
+                            ))
+                        )}
+                    </>
+                )}
+
+                <View style={{ height: 100 }} />
+            </ScrollView>
+        </SafeAreaView>
+        </ErrorBoundary>
+    );
+}
+
+const styles = StyleSheet.create({
+    scrollContent: {
+        paddingHorizontal: 20,
+        paddingTop: 16,
+    },
+    loadingContainer: {
+        paddingHorizontal: 20,
+        paddingTop: 16,
+        paddingBottom: 40,
+    },
+    loadingText: {
+        marginTop: 12,
+        fontSize: 14,
+    },
+    filterContainer: {
+        flexDirection: 'row',
+        gap: 10,
+        marginBottom: 20,
+    },
+    filterTab: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 14,
+        paddingVertical: 8,
+        borderRadius: 20,
+        gap: 6,
+        borderWidth: 1,
+        borderColor: 'transparent',
+    },
+    filterTabText: {
+        fontSize: 13,
+        fontWeight: '600',
+    },
+    oppCard: {
+        borderRadius: 16,
+        marginBottom: 16,
+        borderWidth: 1,
+        overflow: 'hidden',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.08,
+        shadowRadius: 8,
+        elevation: 3,
+    },
+    oppImage: {
+        width: '100%',
+        height: 140,
+    },
+    oppContent: {
+        padding: 16,
+    },
+    oppHeader: {
+        marginBottom: 12,
+    },
+    oppTitleRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+        marginBottom: 6,
+    },
+    oppTitle: {
+        fontSize: 16,
+        fontWeight: '700',
+        flex: 1,
+        marginRight: 8,
+    },
+    matchBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#6366F1',
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 12,
+        gap: 4,
+    },
+    matchText: {
+        color: '#FFFFFF',
+        fontSize: 11,
+        fontWeight: '700',
+    },
+    oppOrg: {
+        fontSize: 14,
+    },
+    oppDetails: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 16,
+        paddingBottom: 12,
+        borderBottomWidth: 1,
+        borderBottomColor: 'rgba(148, 163, 184, 0.2)',
+    },
+    detailRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+    },
+    detailText: {
+        fontSize: 13,
+        fontWeight: '600',
+    },
+    categoryTag: {
+        fontSize: 12,
+        fontWeight: '600',
+    },
+    oppActions: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+    },
+    viewBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+    },
+    viewBtnText: {
+        fontSize: 14,
+        fontWeight: '600',
+    },
+    removeBtn: {
+        padding: 8,
+    },
+    emptyState: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 80,
+        paddingHorizontal: 40,
+    },
+    emptyIconContainer: {
+        width: 80,
+        height: 80,
+        borderRadius: 40,
+        backgroundColor: 'rgba(99, 102, 241, 0.1)',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 20,
+    },
+    emptyTitle: {
+        fontSize: 20,
+        fontWeight: 'bold',
+        marginBottom: 8,
+        textAlign: 'center',
+    },
+    emptyDesc: {
+        fontSize: 14,
+        textAlign: 'center',
+        marginBottom: 24,
+        lineHeight: 20,
+    },
+    emptyBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 24,
+        paddingVertical: 14,
+        borderRadius: 12,
+        gap: 8,
+    },
+    emptyBtnText: {
+        color: '#FFFFFF',
+        fontSize: 14,
+        fontWeight: '700',
+    },
+    profileStatusBar: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 12,
+        borderRadius: 12,
+        borderWidth: 1,
+        marginBottom: 12,
+        marginHorizontal: 20,
+        gap: 8,
+    },
+    profileStatusText: {
+        flex: 1,
+        fontSize: 12,
+        fontWeight: '600',
+    },
+});

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Accent circle behind the send glyph in the Ask Edutu prompt pill. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+  android:shape="oval">
+  <solid android:color="@color/edutu_widget_accent" />
+</shape>

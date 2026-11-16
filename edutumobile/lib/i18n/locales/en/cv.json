@@ -1,0 +1,539 @@
+{
+  "header": {
+    "title": "CV Builder"
+  },
+  "loading": "Loading CV Builder...",
+  "defaults": {
+    "myCv": "My CV",
+    "untitled": "Untitled CV",
+    "aiDraft": "AI Draft CV"
+  },
+  "proBanner": {
+    "upgrade": "Upgrade to Pro for unlimited CVs",
+    "trial": "Free trial available - Try Pro features!",
+    "trialActive": "Free trial active — premium features unlocked"
+  },
+  "quickActions": {
+    "title": "Build faster",
+    "subtitle": "Start from a blank CV, generate from LinkedIn, or tailor your draft toward a real opportunity.",
+    "create": {
+      "title": "Create a fresh CV",
+      "subtitle": "Start with a structured editor and choose a template after previewing samples."
+    },
+    "linkedIn": {
+      "title": "Import from LinkedIn",
+      "subtitle": "Use your profile context to draft a stronger first version with AI."
+    },
+    "tailor": {
+      "title": "Tailor to an opportunity",
+      "subtitle": "Match your CV against scholarships, internships, and programs in your bank."
+    }
+  },
+  "sections": {
+    "yourCvs": "Your CVs",
+    "chooseTemplate": "Choose a Template",
+    "chooseTemplateSubtitle": "Each one exports a genuinely different document — tap to see yours in it."
+  },
+  "alerts": {
+    "aiDraftReadyTitle": "AI draft ready",
+    "draftReadyOfflineTitle": "Draft ready",
+    "draftReadyWithSuggestions": "Your CV draft is in the editor. Suggested next steps:\n{{suggestions}}",
+    "draftReadyMessage": "Your CV draft has been generated from your profile context.",
+    "generateFailed": "Failed to generate CV draft.",
+    "summaryUpdatedTitle": "Summary updated",
+    "summaryUpdatedOffline": "Improved offline from your existing details. Connect to the internet for the full AI rewrite.",
+    "improveSummaryFailed": "Could not improve the summary right now.",
+    "saveSuccess": "CV saved successfully!",
+    "saveFailed": "Failed to save CV",
+    "deleteTitle": "Delete CV",
+    "deleteMessage": "Are you sure you want to delete this CV?",
+    "deleteFailed": "Failed to delete CV",
+    "sharedAsTextTitle": "Shared as text",
+    "sharedAsTextMessage": "PDF export was unavailable, so the CV was shared as text instead.",
+    "exportFailed": "Failed to export CV",
+    "tailoredTitle": "CV tailored — {{score}}% match",
+    "tailorFailed": "Failed to tailor CV for this opportunity.",
+    "exportFailedTitle": "Couldn't create the PDF",
+    "exportRetry": "Try again",
+    "exportShareAsText": "Share as text",
+    "exportReason": {
+      "render-failed": "Something went wrong while building the document. Try again, or share it as plain text instead.",
+      "sharing-unavailable": "This device can't open the share sheet. You can still share your CV as plain text.",
+      "share-failed": "The share sheet closed before the file was sent. Try again."
+    }
+  },
+  "toast": {
+    "saved": "CV saved successfully!",
+    "summaryUpdated": "Summary updated",
+    "summaryUpdatedOffline": "Summary improved offline",
+    "exported": "PDF ready to share"
+  },
+  "draftSheet": {
+    "nextSteps": "Suggested next steps",
+    "gotIt": "Got it"
+  },
+  "tailorResult": {
+    "title": "Tailored CV",
+    "appliedNoteGeneric": "Your CV has been updated in the editor for this opportunity.",
+    "improvementsTitle": "What we improved",
+    "matchedTitle": "Keywords you already cover",
+    "missingTitle": "Consider adding",
+    "missingHint": "Weave these into your summary, skills, or experience to raise your match.",
+    "exportPdf": "Export as PDF",
+    "viewCv": "View & edit CV",
+    "exporting": "Preparing PDF…",
+    "useTitle": "Use \"{{title}}\"",
+    "titleApplied": "Title updated",
+    "measurableTitle": "Make it measurable",
+    "measurableHint": "Strong bullets carry a number. Answer honestly — we never invent figures for you.",
+    "measurablePlaceholder": "e.g. 6 hours a week, 200 records",
+    "measurableApplied": "Added to your CV",
+    "measurableGuidance": "That bullet changed since tailoring — weave the number in yourself in the editor.",
+    "coverLetter": "Cover letter",
+    "coverLetterLoading": "Writing…",
+    "fitLabel": "Fit",
+    "tier": {
+      "excellent": "Excellent fit",
+      "strong": "Strong fit",
+      "good": "Solid fit",
+      "fair": "Room to grow"
+    },
+    "fixTitle_one": "Fix this one thing",
+    "fixTitle_other": "Fix these {{count}} things",
+    "fixHint": "Each fix is a real ATS gap between your CV and this opportunity.",
+    "allClearTitle": "Nothing left to fix",
+    "allClearHint": "Your CV clears every ATS check for this opportunity.",
+    "whyLabel": "Why this matters",
+    "settledSummary_one": "{{count}} check passed",
+    "settledSummary_other": "{{count}} checks passed",
+    "settledSummaryWithNa": "{{passed}} checks passed · {{na}} not applicable",
+    "backA11y": "Back to the CV editor",
+    "addKeywordA11y": "Add {{keyword}} to your skills",
+    "measurableSubmitA11y": "Add this number to the bullet",
+    "reopen": "Tailor report"
+  },
+  "coverLetter": {
+    "title": "Cover letter",
+    "loadingPhase1": "Reading the opportunity…",
+    "loadingPhase2": "Writing like a human…",
+    "copy": "Copy / Share",
+    "failed": "We couldn't write the cover letter. Please try again."
+  },
+  "upgrade": {
+    "templateFeature": "{{name}} template"
+  },
+  "templates": {
+    "badgeFallback": "Template",
+    "proBadge": "Pro",
+    "unlock": "Unlock Template",
+    "use": "Use Template",
+    "tapToPreview": "Tap to preview sample",
+    "tapToPreviewOwn": "Tap to preview with your CV",
+    "sampleFallback": "Sample data — build a CV to preview your own",
+    "samples": {
+      "academic": {
+        "name": "Amara Okafor",
+        "headline": "MSc Public Health Applicant",
+        "summary": "Research-focused profile with education, publications, field projects, and academic achievements placed before work history.",
+        "bullets": [
+          "Education and research first",
+          "Publications and awards visible",
+          "Good for scholarships and graduate admissions"
+        ]
+      },
+      "professional": {
+        "name": "Daniel Mensah",
+        "headline": "Operations Analyst",
+        "summary": "Outcome-led profile for internships, jobs, fellowships, and early-career programs with measurable work impact.",
+        "bullets": [
+          "Work impact before coursework",
+          "Strong skills and metrics section",
+          "Good for internships and jobs"
+        ]
+      },
+      "creative": {
+        "name": "Leah Adeyemi",
+        "headline": "Product Designer",
+        "summary": "Portfolio-friendly structure that highlights projects, tools, links, and visual achievements without losing ATS readability.",
+        "bullets": [
+          "Projects and portfolio links",
+          "Tools and case-study highlights",
+          "Good for design and media roles"
+        ]
+      },
+      "general": {
+        "name": "Edutu Student",
+        "headline": "Opportunity Applicant",
+        "summary": "Balanced structure for students applying across scholarships, school programs, internships, and community opportunities.",
+        "bullets": [
+          "Clean student profile",
+          "Flexible section order",
+          "Good for broad applications"
+        ]
+      }
+    },
+    "atsSafe": "ATS-safe"
+  },
+  "linkedInModal": {
+    "title": "Build CV with AI",
+    "description": "Paste your public profile URL, or upload your LinkedIn export below — we build your CV from your real experience, education and skills.",
+    "generate": "Generate CV",
+    "or": "or",
+    "uploadExport": "Upload LinkedIn export (PDF or ZIP)",
+    "uploadHint": "On LinkedIn: your profile → \"More → Save to PDF\", or Settings → \"Get a copy of your data\". This imports your real experience, education and skills — no third-party scraper.",
+    "importedFromFile": "We imported your LinkedIn export. Review each section and add measurable results."
+  },
+  "tailorModal": {
+    "title": "AI CV Tailoring",
+    "subtitle": "Select an opportunity from your bank and tailor this CV toward it.",
+    "empty": "No opportunities available yet. Load opportunities first, then tailor this CV.",
+    "working": "Tailoring your CV…",
+    "searchPlaceholder": "Search opportunities…",
+    "noResults": "No opportunities match your search."
+  },
+  "listItem": {
+    "updated": "Updated {{date}}",
+    "primary": "Primary"
+  },
+  "editor": {
+    "sections": {
+      "personalInfo": "Personal Information",
+      "summary": "Professional Summary",
+      "skills": "Skills",
+      "experience": "Experience",
+      "education": "Education",
+      "projects": "Projects",
+      "achievements": "Achievements"
+    },
+    "personal": {
+      "fullName": {
+        "label": "Full Name",
+        "placeholder": "John Doe"
+      },
+      "email": {
+        "label": "Email",
+        "placeholder": "john@example.com"
+      },
+      "phone": {
+        "label": "Phone",
+        "placeholder": "+1 234 567 8900"
+      },
+      "location": {
+        "label": "Location",
+        "placeholder": "Lagos, Nigeria"
+      },
+      "linkedin": {
+        "label": "LinkedIn",
+        "placeholder": "linkedin.com/in/johndoe"
+      },
+      "portfolio": {
+        "label": "Portfolio",
+        "placeholder": "portfolio.site"
+      },
+      "phonePlaceholder": "e.g. +234 801 234 5678",
+      "locationPlaceholder": "e.g. Lagos, Nigeria",
+      "linkedinPlaceholder": "e.g. linkedin.com/in/yourname",
+      "portfolioPlaceholder": "e.g. yourname.site"
+    },
+    "summaryPlaceholder": "Write a concise professional summary...",
+    "improving": "Improving…",
+    "improveWithAi": "Improve with AI",
+    "unlockAiAssist": "Unlock AI Assist",
+    "aiSummaryFeature": "AI Summary Generator",
+    "skillsPlaceholder": "JavaScript, Research, Excel, Public speaking...",
+    "add": "Add",
+    "newExperience": "New experience",
+    "newEducation": "New education",
+    "newProject": "New project",
+    "newAchievement": "New achievement",
+    "fields": {
+      "role": {
+        "label": "Role",
+        "placeholder": "Software Intern"
+      },
+      "company": {
+        "label": "Company",
+        "placeholder": "Company / Organization"
+      },
+      "location": {
+        "label": "Location",
+        "placeholder": "Remote / City"
+      },
+      "startDate": {
+        "label": "Start Date",
+        "placeholder": "2024-01"
+      },
+      "endDate": {
+        "label": "End Date",
+        "placeholder": "2025-01"
+      },
+      "currentlyWorkHere": "I currently work here",
+      "description": {
+        "label": "Description",
+        "placeholder": "Describe what you did"
+      },
+      "highlights": {
+        "label": "Highlights (one per line)",
+        "placeholder": "Increased sign-ups by 30%\nLed a team of 4"
+      },
+      "institution": {
+        "label": "Institution",
+        "placeholder": "University / School"
+      },
+      "degree": {
+        "label": "Degree",
+        "placeholder": "BSc / MSc / Diploma"
+      },
+      "fieldOfStudy": {
+        "label": "Field",
+        "placeholder": "Computer Science"
+      },
+      "eduStartDate": {
+        "placeholder": "2021-09"
+      },
+      "eduEndDate": {
+        "placeholder": "2025-06 (or expected)"
+      },
+      "projectName": {
+        "label": "Project Name",
+        "placeholder": "Scholarship Finder App"
+      },
+      "projectDescription": {
+        "placeholder": "Describe the project impact"
+      },
+      "technologies": {
+        "label": "Technologies",
+        "placeholder": "React, Node.js"
+      },
+      "achievementTitle": {
+        "label": "Title",
+        "placeholder": "Dean's List"
+      },
+      "issuer": {
+        "label": "Issuer",
+        "placeholder": "University / Organization"
+      },
+      "achievementDescription": {
+        "placeholder": "Why it matters"
+      }
+    },
+    "tailor": {
+      "title": "Tailor for Opportunity",
+      "subtitle": "Match this CV against opportunities in your bank"
+    },
+    "undoRewrite": "Undo rewrite",
+    "save": "Save CV",
+    "preparing": "Preparing…",
+    "downloadPdf": "Download PDF",
+    "empty": {
+      "experience": "No experience added yet — tap Add to include a role.",
+      "education": "No education added yet — tap Add to include a school or degree.",
+      "projects": "No projects added yet — tap Add to showcase your work.",
+      "achievements": "No achievements added yet — tap Add to highlight awards or wins."
+    }
+  },
+  "preview": {
+    "backToEdit": "Back to Edit",
+    "downloadAccessibility": "Download CV as PDF",
+    "preparing": "Preparing…",
+    "pdf": "PDF",
+    "yourName": "Your Name",
+    "sections": {
+      "summary": "Summary",
+      "skills": "Skills",
+      "experience": "Experience",
+      "education": "Education",
+      "projects": "Projects",
+      "achievements": "Achievements",
+      "research": "Research",
+      "publications": "Publications",
+      "references": "References"
+    },
+    "startFallback": "Start",
+    "present": "- Present"
+  },
+  "proUpgrade": {
+    "title": "Unlock {{feature}}",
+    "subtitle": "Get unlimited access to all premium features",
+    "priceFrom": "From",
+    "price": "$5.99",
+    "pricePeriod": "/mo",
+    "features": {
+      "roadmaps": "Unlimited AI Roadmap Generation",
+      "templates": "Premium CV Templates",
+      "tailoring": "AI-Powered CV Tailoring",
+      "creatorListing": "Priority Creator Listing",
+      "filters": "Advanced Opportunity Filters",
+      "pdfExport": "PDF Export & Downloads"
+    },
+    "upgradeCta": "Upgrade to Pro",
+    "trialActivatedTitle": "Trial Activated",
+    "trialActivatedMessage": "You now have access to Pro features for 7 days!",
+    "trialCta": "Try Free for 7 Days",
+    "secure": "Secure",
+    "cancelAnytime": "Cancel anytime"
+  },
+  "wizard": {
+    "stepCounter": "Step {{current}} of {{total}}",
+    "next": "Next",
+    "back": "Back",
+    "finish": "Preview & Save",
+    "saving": "Saving…",
+    "saved": "All changes saved",
+    "unsaved": "Unsaved changes",
+    "preview": "Preview CV",
+    "namePlaceholder": "Name this CV",
+    "nameAccessibility": "CV name",
+    "template": {
+      "none": "No template chosen",
+      "change": "Change"
+    },
+    "steps": {
+      "basics": {
+        "title": "Your details",
+        "description": "How an employer reaches you. Name and email are the only required fields.",
+        "locationHint": "City and country is enough — many programmes filter by region."
+      },
+      "summary": {
+        "title": "Summary & skills",
+        "description": "Two or three sentences on who you are, then the skills you want noticed.",
+        "hint": "Lead with what you do, not what you want. Mention a result if you have one.",
+        "skillsHint": "Aim for at least five. Type a skill and press comma or return."
+      },
+      "experience": {
+        "title": "Experience",
+        "description": "Work, internships and volunteering all count. Most recent first.",
+        "highlightsHint": "One achievement per line. Include a number wherever you can."
+      },
+      "education": {
+        "title": "Education",
+        "description": "Your qualifications, most recent first."
+      },
+      "extras": {
+        "title": "Projects & awards",
+        "description": "The proof behind your claims — anything you built, won or were recognised for."
+      }
+    },
+    "months": {
+      "jan": "Jan",
+      "feb": "Feb",
+      "mar": "Mar",
+      "apr": "Apr",
+      "may": "May",
+      "jun": "Jun",
+      "jul": "Jul",
+      "aug": "Aug",
+      "sep": "Sep",
+      "oct": "Oct",
+      "nov": "Nov",
+      "dec": "Dec"
+    },
+    "dates": {
+      "select": "Select date",
+      "year": "Year",
+      "month": "Month",
+      "clear": "Clear date"
+    },
+    "skills": {
+      "placeholder": "Type a skill, then comma",
+      "remove": "Remove {{skill}}"
+    },
+    "errors": {
+      "nameRequired": "Add your full name — it is the first thing a reviewer looks for.",
+      "emailInvalid": "That email address doesn't look right."
+    },
+    "delete": {
+      "title": "Remove this entry?",
+      "message": "\"{{title}}\" will be removed from your CV.",
+      "cancel": "Keep it",
+      "confirm": "Remove",
+      "removed": "Removed \"{{title}}\"",
+      "undo": "Undo",
+      "action": "Remove {{title}}"
+    }
+  },
+  "health": {
+    "title": "CV Health",
+    "close": "Close",
+    "fix": "Fix",
+    "pillAccessibility": "CV health score {{score}} out of 100",
+    "toFix": "{{count}} to fix",
+    "passing": "{{count}} looking good",
+    "band": {
+      "weak": {
+        "title": "Needs work",
+        "description": "{{count}} things are holding this CV back. Each one is a quick fix."
+      },
+      "fair": {
+        "title": "Nearly there",
+        "description": "The essentials are in place. {{count}} improvements would make it competitive."
+      },
+      "strong": {
+        "title": "Strong CV",
+        "description": "Everything essential checks out. Ready to send."
+      }
+    },
+    "checks": {
+      "fullName": {
+        "pass": "Your full name is on the CV",
+        "fail": "Add your full name"
+      },
+      "email": {
+        "pass": "Contact email looks valid",
+        "fail": "Add a valid email address"
+      },
+      "reachable": {
+        "pass": "You're reachable by phone or location",
+        "fail": "Add a phone number or your location"
+      },
+      "summary": {
+        "pass": "Your summary sets the scene",
+        "fail": "Write a summary of at least 15 words"
+      },
+      "summaryLength": {
+        "pass": "Summary is a readable length",
+        "fail": "Your summary runs to {{words}} words — trim it under 120"
+      },
+      "experience": {
+        "pass": "You've listed experience",
+        "fail": "Add at least one role, internship or volunteer position"
+      },
+      "experienceComplete": {
+        "pass": "Every role has a title, employer and start date",
+        "fail": "{{count}} role(s) are missing a title, employer or start date"
+      },
+      "quantified": {
+        "pass": "Your achievements carry numbers",
+        "fail": "{{count}} bullet(s) have no number — add a figure, percentage or scale"
+      },
+      "education": {
+        "pass": "Education is listed",
+        "fail": "Add your education"
+      },
+      "skills": {
+        "pass": "You've listed enough skills",
+        "fail": "Only {{count}} skill(s) listed — aim for five or more"
+      },
+      "datesParse": {
+        "pass": "All dates are readable",
+        "fail": "{{count}} date(s) can't be read — pick them from the calendar"
+      },
+      "datesOrder": {
+        "pass": "Your dates run in order",
+        "fail": "{{count}} entry(ies) end before they start"
+      },
+      "length": {
+        "pass": "Length is about right",
+        "fail": "This runs to roughly {{pages}} pages — most reviewers prefer one or two"
+      },
+      "templateFit": {
+        "pass": "Your content fits this template",
+        "fail": "This template features {{sections}} — add content or pick another template"
+      }
+    }
+  },
+  "emptyCv": {
+    "title": "No CV yet",
+    "description": "Pick a template below and Edutu walks you through it, one step at a time."
+  }
+}

@@ -1,0 +1,142 @@
+{
+  "view": {
+    "title": "More",
+    "premium": "Premium",
+    "userFallback": "User",
+    "notSet": "Not set",
+    "studentFallback": "Student",
+    "editProfile": "Edit Profile",
+    "deadline": {
+      "none": "None",
+      "today": "Today",
+      "tomorrow": "Tomorrow",
+      "days_one": "{{count}} day",
+      "days_other": "{{count}} days"
+    },
+    "stats": {
+      "activeGoals": "Active goals",
+      "matches": "Matches",
+      "applied": "Applied",
+      "deadline": "Deadline"
+    },
+    "becomeCreator": "Become a Creator",
+    "becomeCreatorDesc": "Share your scholarship journey and help others succeed",
+    "becomeMentor": "Become a Mentor",
+    "becomeMentorDesc": "Share your roadmaps and earn from your expertise",
+    "menu": {
+      "tools": "Tools",
+      "preferences": "Preferences",
+      "support": "Support",
+      "creatorStudio": "Creator Studio",
+      "creatorStudioDesc": "Build & manage your shop",
+      "mentorStudio": "Mentor Studio",
+      "mentorStudioDesc": "Publish roadmaps & resources, track your impact",
+      "cvBuilder": "CV Builder",
+      "cvBuilderDesc": "Professional profile builder",
+      "myDocuments": "Documents",
+      "myDocumentsDesc": "CVs & files you've uploaded",
+      "aiCoach": "AI Coach",
+      "aiCoachDesc": "Get personalized guidance",
+      "inviteFriends": "Invite friends",
+      "inviteFriendsDesc": "Earn 10 credits per friend",
+      "notifications": "Notifications",
+      "notificationsDesc": "Stay updated on progress",
+      "settings": "Settings",
+      "settingsDesc": "Theme & app preferences",
+      "helpSupport": "Help & Support",
+      "helpSupportDesc": "FAQ & direct assistance",
+      "privacy": "Privacy",
+      "privacyDesc": "Data & visibility control"
+    },
+    "admin": {
+      "title": "Admin",
+      "creatorApplications": "Creator Applications",
+      "creatorApplicationsDesc": "Review and approve creators",
+      "createRoadmap": "Create Roadmap",
+      "createRoadmapDesc": "Add new learning paths",
+      "testimonials": "Testimonials",
+      "testimonialsDesc": "Manage reviews and videos",
+      "premiumFeatures": "Premium Features",
+      "premiumFeaturesDesc": "OTA feature flags control",
+      "appControl": "App Control",
+      "appControlDesc": "Force updates, maintenance & module locks",
+      "pricing": "Pricing & Promos",
+      "pricingDesc": "Plan prices, currency & bonanzas"
+    },
+    "logOut": "Log Out",
+    "appVersion": "Edutu v{{version}}",
+    "footerTagline": "Empowering African Youth",
+    "completeProfile": {
+      "title": "Finish your profile",
+      "desc": "Add your goals and interests so we can personalize your matches.",
+      "cta": "Complete now"
+    },
+    "verified": "Verified",
+    "upgrade": {
+      "title": "Upgrade to Premium",
+      "desc": "Unlock the full Edutu experience and stand out with a verified badge.",
+      "perk1": "Unlimited AI coaching & Co-pilot",
+      "perk2": "Premium templates, CV tools & exports",
+      "perk3": "Verified blue badge on your profile",
+      "cta": "Upgrade now"
+    }
+  },
+  "edit": {
+    "title": "Edit Profile",
+    "subtitle": "Keep your profile up to date",
+    "loadingProfile": "Loading profile...",
+    "userFallback": "User",
+    "avatarManagedByClerk": "Profile picture managed by Clerk",
+    "creditsEarned_one": "+{{count}} credit for completing your profile",
+    "creditsEarned_other": "+{{count}} credits for completing your profile",
+    "personalInfoTitle": "Personal Information",
+    "personalInfoSubtitle": "Basic details about yourself",
+    "fullNameLabel": "Full Name",
+    "fullNamePlaceholder": "Your full name",
+    "countryLabel": "Country",
+    "countryPlaceholder": "e.g., Nigeria",
+    "academicTitle": "Academic Background",
+    "academicSubtitle": "Education details for better matching",
+    "schoolLabel": "University / School",
+    "schoolPlaceholder": "e.g., University of Lagos",
+    "majorLabel": "Major / Course",
+    "majorPlaceholder": "e.g., Computer Science",
+    "cgpaLabel": "Current CGPA",
+    "cgpaPlaceholder": "e.g., 3.8",
+    "whyTitle": "Why this matters",
+    "whyDesc": "Keep your academic profile updated to see the most relevant scholarships and internship opportunities matched to your background.",
+    "saveChanges": "Save Changes",
+    "saveSuccess": "Profile updated successfully!",
+    "saveError": "Failed to update profile."
+  },
+  "documents": {
+    "title": "My Documents",
+    "loading": "Gathering your documents...",
+    "download": "Download",
+    "untitledCv": "Untitled CV",
+    "you": "you",
+    "cvHint": "Export as PDF",
+    "cvExportHint": "Tap a CV to open the CV Builder and export it as \"{{name}} - CV.pdf\".",
+    "sections": {
+      "cvs": "CVs",
+      "uploads": "Uploads",
+      "applicationDocuments": "Application documents"
+    },
+    "status": {
+      "done": "Ready",
+      "pending": "Processing",
+      "failed": "Couldn't process"
+    },
+    "empty": {
+      "title": "No documents yet",
+      "desc": "CVs you build and files you upload will live here.",
+      "cta": "Open CV Builder"
+    },
+    "error": {
+      "title": "We couldn't load your documents.",
+      "retry": "Try again"
+    },
+    "downloadFailedTitle": "Download failed",
+    "downloadFailedDesc": "We couldn't download this file. Please check your connection and try again."
+  }
+}

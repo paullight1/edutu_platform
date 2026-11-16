@@ -1,0 +1,284 @@
+{
+  "header": {
+    "title": "منشئ السيرة الذاتية"
+  },
+  "loading": "جارٍ تحميل منشئ السيرة الذاتية...",
+  "defaults": {
+    "myCv": "سيرتي الذاتية",
+    "untitled": "سيرة ذاتية بدون عنوان",
+    "aiDraft": "مسودة سيرة ذاتية بالذكاء الاصطناعي"
+  },
+  "proBanner": {
+    "upgrade": "ترقَّ إلى Pro لسير ذاتية غير محدودة",
+    "trial": "تجربة مجانية متاحة - جرّب ميزات Pro!"
+  },
+  "quickActions": {
+    "title": "أنشئ أسرع",
+    "subtitle": "ابدأ من سيرة ذاتية فارغة، أو أنشئها من LinkedIn، أو خصّص مسودتك لفرصة حقيقية.",
+    "create": {
+      "title": "أنشئ سيرة ذاتية جديدة",
+      "subtitle": "ابدأ بمحرر منظم واختر قالبًا بعد معاينة النماذج."
+    },
+    "linkedIn": {
+      "title": "استيراد من LinkedIn",
+      "subtitle": "استخدم سياق ملفك الشخصي لصياغة نسخة أولى أقوى بالذكاء الاصطناعي."
+    },
+    "tailor": {
+      "title": "خصّصها لفرصة",
+      "subtitle": "طابق سيرتك الذاتية مع المنح الدراسية والتدريبات والبرامج في بنك فرصك."
+    }
+  },
+  "sections": {
+    "yourCvs": "سيرك الذاتية",
+    "chooseTemplate": "اختر قالبًا"
+  },
+  "alerts": {
+    "aiDraftReadyTitle": "مسودة الذكاء الاصطناعي جاهزة",
+    "draftReadyOfflineTitle": "المسودة جاهزة (وضع عدم الاتصال)",
+    "draftReadyWithSuggestions": "مسودة سيرتك الذاتية في المحرر. الخطوات التالية المقترحة:\n{{suggestions}}",
+    "draftReadyMessage": "تم إنشاء مسودة سيرتك الذاتية من سياق ملفك الشخصي.",
+    "generateFailed": "فشل إنشاء مسودة السيرة الذاتية.",
+    "summaryUpdatedTitle": "تم تحديث الملخص",
+    "summaryUpdatedOffline": "تم تحسينه دون اتصال من تفاصيلك الحالية. اتصل بالإنترنت لإعادة الصياغة الكاملة بالذكاء الاصطناعي.",
+    "improveSummaryFailed": "تعذّر تحسين الملخص في الوقت الحالي.",
+    "saveSuccess": "تم حفظ السيرة الذاتية بنجاح!",
+    "saveFailed": "فشل حفظ السيرة الذاتية",
+    "deleteTitle": "حذف السيرة الذاتية",
+    "deleteMessage": "هل أنت متأكد من أنك تريد حذف هذه السيرة الذاتية؟",
+    "sharedAsTextTitle": "تمت المشاركة كنص",
+    "sharedAsTextMessage": "لم يكن تصدير PDF متاحًا، لذا تمت مشاركة السيرة الذاتية كنص بدلًا من ذلك.",
+    "exportFailed": "فشل تصدير السيرة الذاتية",
+    "tailoredTitle": "تم تخصيص السيرة الذاتية — تطابق {{score}}%",
+    "tailorFailed": "فشل تخصيص السيرة الذاتية لهذه الفرصة."
+  },
+  "upgrade": {
+    "templateFeature": "قالب {{name}}"
+  },
+  "templates": {
+    "badgeFallback": "قالب",
+    "proBadge": "Pro",
+    "unlock": "فتح القالب",
+    "use": "استخدام القالب",
+    "tapToPreview": "اضغط لمعاينة النموذج",
+    "samples": {
+      "academic": {
+        "name": "Amara Okafor",
+        "headline": "متقدمة لماجستير الصحة العامة",
+        "summary": "ملف يركز على البحث العلمي مع وضع التعليم والمنشورات والمشاريع الميدانية والإنجازات الأكاديمية قبل الخبرة العملية.",
+        "bullets": [
+          "التعليم والبحث أولًا",
+          "المنشورات والجوائز بارزة",
+          "مناسب للمنح الدراسية والقبول في الدراسات العليا"
+        ]
+      },
+      "professional": {
+        "name": "Daniel Mensah",
+        "headline": "محلل عمليات",
+        "summary": "ملف يركز على النتائج للتدريبات والوظائف والزمالات وبرامج بداية المسار المهني مع أثر عملي قابل للقياس.",
+        "bullets": [
+          "الأثر العملي قبل المقررات الدراسية",
+          "قسم قوي للمهارات والمقاييس",
+          "مناسب للتدريبات والوظائف"
+        ]
+      },
+      "creative": {
+        "name": "Leah Adeyemi",
+        "headline": "مصممة منتجات",
+        "summary": "بنية مناسبة لمعرض الأعمال تُبرز المشاريع والأدوات والروابط والإنجازات البصرية دون فقدان قابلية القراءة في أنظمة ATS.",
+        "bullets": [
+          "المشاريع وروابط معرض الأعمال",
+          "أبرز الأدوات ودراسات الحالة",
+          "مناسب لأدوار التصميم والإعلام"
+        ]
+      },
+      "general": {
+        "name": "طالب Edutu",
+        "headline": "متقدم للفرص",
+        "summary": "بنية متوازنة للطلاب المتقدمين إلى المنح الدراسية والبرامج المدرسية والتدريبات والفرص المجتمعية.",
+        "bullets": [
+          "ملف طالب مرتب",
+          "ترتيب أقسام مرن",
+          "مناسب لطلبات التقديم المتنوعة"
+        ]
+      }
+    }
+  },
+  "linkedInModal": {
+    "title": "أنشئ سيرة ذاتية بالذكاء الاصطناعي",
+    "description": "الصق رابط ملفك الشخصي على LinkedIn أدناه وسيجمع الذكاء الاصطناعي خبراتك تلقائيًا وينشئ سيرتك الذاتية.",
+    "generate": "إنشاء السيرة الذاتية"
+  },
+  "tailorModal": {
+    "title": "تخصيص السيرة الذاتية بالذكاء الاصطناعي",
+    "subtitle": "اختر فرصة من بنك فرصك وخصّص هذه السيرة الذاتية لها.",
+    "empty": "لا توجد فرص متاحة بعد. حمّل الفرص أولًا ثم خصّص هذه السيرة الذاتية."
+  },
+  "listItem": {
+    "updated": "آخر تحديث {{date}}",
+    "primary": "أساسية"
+  },
+  "editor": {
+    "sections": {
+      "personalInfo": "المعلومات الشخصية",
+      "summary": "الملخص المهني",
+      "skills": "المهارات",
+      "experience": "الخبرة",
+      "education": "التعليم",
+      "projects": "المشاريع",
+      "achievements": "الإنجازات"
+    },
+    "personal": {
+      "fullName": {
+        "label": "الاسم الكامل",
+        "placeholder": "محمد أحمد"
+      },
+      "email": {
+        "label": "البريد الإلكتروني",
+        "placeholder": "john@example.com"
+      },
+      "phone": {
+        "label": "الهاتف",
+        "placeholder": "+1 234 567 8900"
+      },
+      "location": {
+        "label": "الموقع",
+        "placeholder": "لاغوس، نيجيريا"
+      },
+      "linkedin": {
+        "label": "LinkedIn",
+        "placeholder": "linkedin.com/in/johndoe"
+      },
+      "portfolio": {
+        "label": "معرض الأعمال",
+        "placeholder": "portfolio.site"
+      }
+    },
+    "summaryPlaceholder": "اكتب ملخصًا مهنيًا موجزًا...",
+    "improving": "جارٍ التحسين…",
+    "improveWithAi": "حسّن بالذكاء الاصطناعي",
+    "unlockAiAssist": "فتح مساعد الذكاء الاصطناعي",
+    "aiSummaryFeature": "مولّد الملخص بالذكاء الاصطناعي",
+    "skillsPlaceholder": "JavaScript، البحث، Excel، الإلقاء أمام الجمهور...",
+    "add": "إضافة",
+    "newExperience": "خبرة جديدة",
+    "newEducation": "تعليم جديد",
+    "newProject": "مشروع جديد",
+    "newAchievement": "إنجاز جديد",
+    "fields": {
+      "role": {
+        "label": "الدور الوظيفي",
+        "placeholder": "متدرب برمجيات"
+      },
+      "company": {
+        "label": "الشركة",
+        "placeholder": "الشركة / المؤسسة"
+      },
+      "location": {
+        "label": "الموقع",
+        "placeholder": "عن بُعد / المدينة"
+      },
+      "startDate": {
+        "label": "تاريخ البدء",
+        "placeholder": "2024-01"
+      },
+      "endDate": {
+        "label": "تاريخ الانتهاء",
+        "placeholder": "2025-01"
+      },
+      "currentlyWorkHere": "أعمل هنا حاليًا",
+      "description": {
+        "label": "الوصف",
+        "placeholder": "صف ما قمت به"
+      },
+      "highlights": {
+        "label": "أبرز الإنجازات (واحد في كل سطر)",
+        "placeholder": "زيادة التسجيلات بنسبة 30%\nقيادة فريق من 4 أفراد"
+      },
+      "institution": {
+        "label": "المؤسسة التعليمية",
+        "placeholder": "الجامعة / المدرسة"
+      },
+      "degree": {
+        "label": "الدرجة العلمية",
+        "placeholder": "بكالوريوس / ماجستير / دبلوم"
+      },
+      "fieldOfStudy": {
+        "label": "التخصص",
+        "placeholder": "علوم الحاسوب"
+      },
+      "eduStartDate": {
+        "placeholder": "2021-09"
+      },
+      "eduEndDate": {
+        "placeholder": "2025-06 (أو المتوقع)"
+      },
+      "projectName": {
+        "label": "اسم المشروع",
+        "placeholder": "تطبيق للبحث عن المنح الدراسية"
+      },
+      "projectDescription": {
+        "placeholder": "صف أثر المشروع"
+      },
+      "technologies": {
+        "label": "التقنيات",
+        "placeholder": "React, Node.js"
+      },
+      "achievementTitle": {
+        "label": "العنوان",
+        "placeholder": "لائحة شرف العميد"
+      },
+      "issuer": {
+        "label": "الجهة المانحة",
+        "placeholder": "الجامعة / المؤسسة"
+      },
+      "achievementDescription": {
+        "placeholder": "لماذا هو مهم"
+      }
+    },
+    "tailor": {
+      "title": "تخصيص لفرصة",
+      "subtitle": "طابق هذه السيرة الذاتية مع الفرص في بنك فرصك"
+    },
+    "save": "حفظ السيرة الذاتية",
+    "preparing": "جارٍ التحضير…",
+    "downloadPdf": "تنزيل PDF"
+  },
+  "preview": {
+    "backToEdit": "العودة إلى التحرير",
+    "downloadAccessibility": "تنزيل السيرة الذاتية بصيغة PDF",
+    "preparing": "جارٍ التحضير…",
+    "pdf": "PDF",
+    "yourName": "اسمك",
+    "sections": {
+      "summary": "الملخص",
+      "skills": "المهارات",
+      "experience": "الخبرة",
+      "education": "التعليم",
+      "projects": "المشاريع",
+      "achievements": "الإنجازات"
+    },
+    "startFallback": "البداية",
+    "present": "- حتى الآن"
+  },
+  "proUpgrade": {
+    "title": "افتح {{feature}}",
+    "subtitle": "احصل على وصول غير محدود إلى جميع الميزات المميزة",
+    "priceFrom": "ابتداءً من",
+    "price": "$5.99",
+    "pricePeriod": "/شهريًا",
+    "features": {
+      "roadmaps": "إنشاء غير محدود لخرائط الطريق بالذكاء الاصطناعي",
+      "templates": "قوالب سيرة ذاتية مميزة",
+      "tailoring": "تخصيص السيرة الذاتية بالذكاء الاصطناعي",
+      "creatorListing": "إدراج ذو أولوية للمنشئين",
+      "filters": "عوامل تصفية متقدمة للفرص",
+      "pdfExport": "تصدير وتنزيل بصيغة PDF"
+    },
+    "upgradeCta": "الترقية إلى Pro",
+    "trialActivatedTitle": "تم تفعيل التجربة",
+    "trialActivatedMessage": "أصبح بإمكانك الآن الوصول إلى ميزات Pro لمدة 7 أيام!",
+    "trialCta": "جرّب مجانًا لمدة 7 أيام",
+    "secure": "آمن",
+    "cancelAnytime": "الإلغاء في أي وقت"
+  }
+}

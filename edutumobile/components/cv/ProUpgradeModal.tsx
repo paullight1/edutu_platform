@@ -1,0 +1,328 @@
+import React from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Modal, Alert } from 'react-native';
+import { useRouter } from 'expo-router';
+import { useTranslation } from 'react-i18next';
+import { X, Crown, Check, Zap, Route, Shield, Star } from 'lucide-react-native';
+import { useTheme } from '../../components/context/ThemeContext';
+import { LinearGradient } from 'expo-linear-gradient';
+import Animated, { cancelAnimation, useSharedValue, useAnimatedStyle, withRepeat, withSequence, withTiming } from 'react-native-reanimated';
+
+interface Props {
+    visible: boolean;
+    onClose: () => void;
+    feature: string;
+    trialUsed: boolean;
+    onTrialActivated: () => Promise<void>;
+}
+
+function PulsingCrown({ reducedMotion }: { reducedMotion: boolean }) {
+    const scale = useSharedValue(1);
+    const opacity = useSharedValue(0.6);
+
+    React.useEffect(() => {
+        // Static, fully-opaque crown when the user has reduced motion on —
+        // mirrors chat.tsx's TypingDot gating pattern rather than an
+        // unconditional infinite pulse.
+        if (reducedMotion) {
+            cancelAnimation(scale);
+            cancelAnimation(opacity);
+            scale.value = 1;
+            opacity.value = 1;
+            return;
+        }
+
+        scale.value = withRepeat(
+            withSequence(
+                withTiming(1.1, { duration: 1500 }),
+                withTiming(1, { duration: 1500 })
+            ),
+            -1,
+            true
+        );
+        opacity.value = withRepeat(
+            withSequence(
+                withTiming(1, { duration: 1500 }),
+                withTiming(0.4, { duration: 1500 })
+            ),
+            -1,
+            true
+        );
+        return () => {
+            cancelAnimation(scale);
+            cancelAnimation(opacity);
+        };
+        // SharedValues have stable identity, so these deps never re-fire the
+        // effect — they only satisfy the compiler's dependency contract.
+    }, [opacity, scale, reducedMotion]);
+
+    const animatedStyle = useAnimatedStyle(() => ({
+        transform: [{ scale: scale.value }],
+        opacity: opacity.value,
+    }));
+
+    return (
+        <Animated.View style={animatedStyle}>
+            <Crown size={56} color="#F59E0B" />
+        </Animated.View>
+    );
+}
+
+/**
+ * CV-specific Pro pitch. It earns its place next to the shared UpgradeSheet
+ * only because of the free-trial affordance below — that is the one thing a
+ * plain /paywall push can't offer. Owners MUST open it through the shared
+ * single-flow guard (`claimFlow()` on UpgradeSheetContext) and release on
+ * close, otherwise it can stack on top of the sheet or the login promo.
+ */
+export function ProUpgradeModal({ visible, onClose, feature, trialUsed, onTrialActivated }: Props) {
+    const { t } = useTranslation('cv');
+    const { isDark, reducedMotion } = useTheme();
+    const router = useRouter();
+    const muted = isDark ? '#94A3B8' : '#64748B';
+
+    const features = [
+        { icon: Route, label: t('proUpgrade.features.roadmaps') },
+        { icon: Check, label: t('proUpgrade.features.templates') },
+        { icon: Zap, label: t('proUpgrade.features.tailoring') },
+        { icon: Star, label: t('proUpgrade.features.creatorListing') },
+        { icon: Shield, label: t('proUpgrade.features.filters') },
+        { icon: Check, label: t('proUpgrade.features.pdfExport') },
+    ];
+
+    return (
+        <Modal
+            visible={visible}
+            animationType="slide"
+            transparent
+            onRequestClose={onClose}
+        >
+            <View style={styles.modalOverlay}>
+                <LinearGradient
+                    colors={['#0F0520', '#1A0A2E', '#0D1117']}
+                    style={StyleSheet.absoluteFill}
+                />
+                <View style={styles.modalContent}>
+                    <TouchableOpacity
+                        style={styles.modalClose}
+                        onPress={onClose}
+                    >
+                        <X size={24} color={muted} />
+                    </TouchableOpacity>
+
+                    <View style={styles.crownContainer}>
+                        <View style={styles.crownGlow} />
+                        <PulsingCrown reducedMotion={reducedMotion} />
+                    </View>
+
+                    <Text style={styles.modalTitle}>
+                        {t('proUpgrade.title', { feature })}
+                    </Text>
+
+                    <Text style={styles.modalSubtitle}>
+                        {t('proUpgrade.subtitle')}
+                    </Text>
+
+                    <View style={styles.priceTag}>
+                        <Text style={styles.priceLabel}>{t('proUpgrade.priceFrom')}</Text>
+                        <Text style={styles.priceValue}>{t('proUpgrade.price')}</Text>
+                        <Text style={styles.pricePeriod}>{t('proUpgrade.pricePeriod')}</Text>
+                    </View>
+
+                    <View style={styles.proFeatures}>
+                        {features.map((f, i) => (
+                            <View key={i} style={styles.proFeatureItem}>
+                                <View style={styles.featureCheckIcon}>
+                                    <f.icon size={14} color="#10B981" />
+                                </View>
+                                <Text style={styles.proFeatureLabel}>
+                                    {f.label}
+                                </Text>
+                            </View>
+                        ))}
+                    </View>
+
+                    <TouchableOpacity
+                        style={styles.upgradeBtn}
+                        onPress={() => {
+                            onClose();
+                            router.push('/paywall');
+                        }}
+                    >
+                        <LinearGradient
+                            colors={['#2563eb', '#6366F1']}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 0 }}
+                            style={styles.upgradeBtnGradient}
+                        >
+                            <Zap size={20} color="#FFFFFF" />
+                            <Text style={styles.upgradeBtnText}>{t('proUpgrade.upgradeCta')}</Text>
+                        </LinearGradient>
+                    </TouchableOpacity>
+
+                    {!trialUsed && (
+                        <TouchableOpacity
+                            style={styles.trialBtn}
+                            onPress={async () => {
+                                await onTrialActivated();
+                                onClose();
+                                Alert.alert(t('proUpgrade.trialActivatedTitle'), t('proUpgrade.trialActivatedMessage'));
+                            }}
+                        >
+                            <Text style={styles.trialBtnText}>
+                                {t('proUpgrade.trialCta')}
+                            </Text>
+                        </TouchableOpacity>
+                    )}
+
+                    <View style={styles.trustBadges}>
+                        <View style={styles.trustBadge}>
+                            <Shield size={12} color={muted} />
+                            <Text style={styles.trustBadgeText}>{t('proUpgrade.secure')}</Text>
+                        </View>
+                        <View style={styles.trustBadge}>
+                            <Check size={12} color={muted} />
+                            <Text style={styles.trustBadgeText}>{t('proUpgrade.cancelAnytime')}</Text>
+                        </View>
+                    </View>
+                </View>
+            </View>
+        </Modal>
+    );
+}
+
+const styles = StyleSheet.create({
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.7)',
+        justifyContent: 'flex-end',
+    },
+    modalContent: {
+        width: '100%',
+        borderTopLeftRadius: 32,
+        borderTopRightRadius: 32,
+        padding: 28,
+        paddingTop: 36,
+        alignItems: 'center',
+        maxHeight: '90%',
+    },
+    modalClose: {
+        position: 'absolute',
+        top: 16,
+        right: 16,
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        backgroundColor: 'rgba(255,255,255,0.1)',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    crownContainer: {
+        alignItems: 'center',
+        marginBottom: 20,
+        position: 'relative',
+    },
+    crownGlow: {
+        position: 'absolute',
+        width: 100,
+        height: 100,
+        borderRadius: 50,
+        backgroundColor: 'rgba(245,158,11,0.15)',
+        top: -20,
+    },
+    modalTitle: {
+        fontSize: 26,
+        fontWeight: '800',
+        color: '#FFFFFF',
+        marginBottom: 8,
+        textAlign: 'center',
+    },
+    modalSubtitle: {
+        fontSize: 15,
+        color: '#94A3B8',
+        textAlign: 'center',
+        marginBottom: 20,
+    },
+    priceTag: {
+        flexDirection: 'row',
+        alignItems: 'baseline',
+        marginBottom: 24,
+    },
+    priceLabel: {
+        fontSize: 16,
+        color: '#94A3B8',
+    },
+    priceValue: {
+        fontSize: 42,
+        fontWeight: '800',
+        color: '#FFFFFF',
+        marginHorizontal: 6,
+    },
+    pricePeriod: {
+        fontSize: 16,
+        color: '#94A3B8',
+    },
+    proFeatures: {
+        width: '100%',
+        marginBottom: 28,
+    },
+    proFeatureItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 14,
+    },
+    featureCheckIcon: {
+        width: 28,
+        height: 28,
+        borderRadius: 8,
+        backgroundColor: 'rgba(16,185,129,0.15)',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginRight: 12,
+    },
+    proFeatureLabel: {
+        fontSize: 14,
+        color: '#E2E8F0',
+        fontWeight: '500',
+    },
+    upgradeBtn: {
+        width: '100%',
+        borderRadius: 16,
+        overflow: 'hidden',
+    },
+    upgradeBtnGradient: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 18,
+        gap: 10,
+    },
+    upgradeBtnText: {
+        color: '#FFFFFF',
+        fontSize: 17,
+        fontWeight: '700',
+    },
+    trialBtn: {
+        marginTop: 16,
+        paddingVertical: 8,
+    },
+    trialBtnText: {
+        fontSize: 15,
+        fontWeight: '700',
+        color: '#818CF8',
+    },
+    trustBadges: {
+        flexDirection: 'row',
+        gap: 20,
+        marginTop: 20,
+    },
+    trustBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+    },
+    trustBadgeText: {
+        fontSize: 12,
+        color: '#94A3B8',
+        fontWeight: '500',
+    },
+});

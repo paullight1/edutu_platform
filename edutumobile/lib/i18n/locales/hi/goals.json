@@ -1,0 +1,476 @@
+{
+  "createGoal": "लक्ष्य बनाएँ",
+  "viewAll": "सभी देखें",
+  "creditsEarned_one": "लक्ष्य पूरा करने पर +{{count}} क्रेडिट",
+  "creditsEarned_other": "लक्ष्य पूरा करने पर +{{count}} क्रेडिट",
+  "priority": {
+    "high": "उच्च",
+    "medium": "मध्यम",
+    "low": "कम",
+    "highFull": "उच्च प्राथमिकता",
+    "mediumFull": "मध्यम प्राथमिकता",
+    "lowFull": "कम प्राथमिकता",
+    "highDesc": "अत्यावश्यक - तुरंत ध्यान चाहिए",
+    "mediumDesc": "महत्वपूर्ण - जल्दी ही इस पर काम करें",
+    "lowDesc": "समय मिलने पर किया जा सकता है"
+  },
+  "status": {
+    "completed": "पूरा हुआ",
+    "overdue": "समय बीत चुका",
+    "inProgress": "जारी है"
+  },
+  "labels": {
+    "progress": "प्रगति",
+    "priority": "प्राथमिकता",
+    "deadline": "डेडलाइन",
+    "reminder": "रिमाइंडर",
+    "status": "स्थिति",
+    "datePlaceholder": "YYYY-MM-DD"
+  },
+  "time": {
+    "today": "आज",
+    "tomorrow": "कल",
+    "overdueShort": "{{count}} दिन देर",
+    "leftShort": "{{count}} दिन बाकी",
+    "daysOverdue_one": "{{count}} दिन की देरी",
+    "daysOverdue_other": "{{count}} दिनों की देरी",
+    "daysLeft_one": "{{count}} दिन बाकी",
+    "daysLeft_other": "{{count}} दिन बाकी",
+    "daysFromNow_one": "{{count}} दिन बाद",
+    "daysFromNow_other": "{{count}} दिन बाद",
+    "days_one": "{{count}} दिन",
+    "days_other": "{{count}} दिन"
+  },
+  "deleteConfirm": {
+    "title": "लक्ष्य हटाएँ",
+    "message": "क्या आप वाक़ई \"{{title}}\" हटाना चाहते हैं?"
+  },
+  "stats": {
+    "active": "सक्रिय",
+    "completed": "पूरे हुए",
+    "roadmaps": "रोडमैप",
+    "completion": "पूर्णता",
+    "total": "कुल",
+    "done": "हो गए",
+    "progress": "प्रगति"
+  },
+  "sections": {
+    "roadmaps": "रोडमैप",
+    "personalGoals": "निजी लक्ष्य",
+    "roadmapsHint": "आपके शुरू किए रोडमैप के पड़ाव, तारीख के साथ।",
+    "personalGoalsHint": "जो आपने खुद पूरा करना चुना, अपनी तारीखों पर।"
+  },
+  "filter": {
+    "byStatus": "स्थिति से फ़िल्टर करें",
+    "activeLabel": "फ़िल्टर: {{label}}",
+    "clear": "साफ़ करें",
+    "allGoals": "सभी लक्ष्य",
+    "all": "सभी",
+    "active": "सक्रिय",
+    "completed": "पूरे हुए"
+  },
+  "empty": {
+    "noRoadmaps": {
+      "title": "कोई रोडमैप नहीं",
+      "description": "यहाँ लक्ष्य देखने के लिए किसी अवसर का रोडमैप इंपोर्ट करें।",
+      "action": "रोडमैप ब्राउज़ करें"
+    },
+    "noPersonalGoals": {
+      "title": "कोई निजी लक्ष्य नहीं",
+      "description": "अपना पहला लक्ष्य जोड़ने के लिए प्लस आइकन पर टैप करें।",
+      "action": "अपना पहला लक्ष्य तय करें"
+    },
+    "noMatch": {
+      "title": "कुछ नहीं मिला",
+      "description": "आपकी खोज या फ़िल्टर से कोई लक्ष्य मेल नहीं खाता। सब कुछ फिर देखने के लिए इन्हें हटाएँ।",
+      "action": "खोज हटाएँ"
+    }
+  },
+  "dashboard": {
+    "title": "लक्ष्य",
+    "subtitle": "{{active}} सक्रिय · {{rate}}% पूरे हुए",
+    "searchPlaceholder": "अपने लक्ष्य खोजें...",
+    "upcomingDeadlines": "आने वाली डेडलाइन",
+    "myOpportunities": "मेरे अवसर",
+    "savedSummary": "{{count}} सेव किए गए",
+    "savedSummaryWithUrgent": "{{count}} सेव किए गए · {{urgent}} अत्यावश्यक",
+    "opportunityFallback": "अवसर",
+    "searchResults_one": "\"{{term}}\" से मेल खाता {{count}} लक्ष्य मिला",
+    "searchResults_other": "\"{{term}}\" से मेल खाते {{count}} लक्ष्य मिले",
+    "shareBanner": {
+      "title": "शेयर करने के लिए अवसर हैं?",
+      "subtitle": "अगर आपके पास ऐसी स्कॉलरशिप, नौकरियाँ या प्रोग्राम हैं जो आप हमारी कम्युनिटी से शेयर करना चाहें, तो हमसे संपर्क करें",
+      "action": "संपर्क करें"
+    },
+    "subtitleEmpty": "अभी कुछ ट्रैक नहीं हो रहा"
+  },
+  "detail": {
+    "title": "लक्ष्य का विवरण",
+    "editTitle": "लक्ष्य एडिट करें",
+    "details": "विवरण",
+    "fromRoadmap": "रोडमैप से",
+    "personalGoal": "निजी लक्ष्य",
+    "titlePlaceholder": "लक्ष्य का शीर्षक",
+    "descriptionPlaceholder": "विवरण जोड़ें...",
+    "noDeadline": "कोई डेडलाइन नहीं",
+    "markComplete": "पूरा हुआ मार्क करें",
+    "reopen": "लक्ष्य फिर से खोलें",
+    "cancelEditing": "एडिटिंग रद्द करें",
+    "notFound": {
+      "title": "लक्ष्य नहीं मिला",
+      "description": "यह लक्ष्य शायद हटा दिया गया है या आपके पास इसकी एक्सेस नहीं है।",
+      "back": "लक्ष्यों पर वापस जाएँ"
+    },
+    "reminder": {
+      "enabled": "चालू",
+      "disabled": "बंद",
+      "enabledTitle": "रिमाइंडर चालू है",
+      "disabledTitle": "रिमाइंडर बंद है",
+      "enabledMessage": "आपको {{date}} को याद दिलाया जाएगा",
+      "disabledMessage": "इस लक्ष्य के लिए आपको रिमाइंडर नहीं मिलेंगे।"
+    },
+    "alerts": {
+      "enterTitle": "कृपया लक्ष्य का शीर्षक डालें",
+      "updated": "लक्ष्य सफलतापूर्वक अपडेट हो गया",
+      "updateFailed": "लक्ष्य अपडेट नहीं हो सका",
+      "congratsTitle": "🎉 बधाई हो!",
+      "congratsMessage": "आपने यह लक्ष्य पूरा कर लिया!",
+      "completeFailed": "लक्ष्य पूरा मार्क नहीं हो सका",
+      "deleteFailed": "लक्ष्य हटाया नहीं जा सका",
+      "noDeadlineTitle": "कोई डेडलाइन नहीं",
+      "noDeadlineMessage": "रिमाइंडर चालू करने के लिए पहले डेडलाइन सेट करें।",
+      "reminderFailed": "रिमाइंडर बदला नहीं जा सका"
+    }
+  },
+  "add": {
+    "title": "नया लक्ष्य बनाएँ",
+    "heading": "अपना टारगेट सेट करें",
+    "subheading": "अपना लक्ष्य तय करें और उपलब्धि की ओर प्रगति ट्रैक करें।",
+    "titleLabel": "लक्ष्य का शीर्षक",
+    "titlePlaceholder": "आप क्या हासिल करना चाहते हैं?",
+    "descriptionLabel": "विवरण",
+    "descriptionPlaceholder": "इस लक्ष्य के बारे में और जानकारी जोड़ें...",
+    "preview": "प्रीव्यू",
+    "pastDate": "बीती हुई तारीख़",
+    "validation": {
+      "titleTooShort": "शीर्षक कम से कम 3 अक्षरों का होना चाहिए",
+      "looksGood": "बढ़िया है!",
+      "deadlinePast": "डेडलाइन बीती हुई तारीख़ नहीं हो सकती"
+    },
+    "alerts": {
+      "invalidTitle": "अमान्य शीर्षक",
+      "titleTooShort": "लक्ष्य का शीर्षक कम से कम 3 अक्षरों का होना चाहिए",
+      "titleTooLongTitle": "शीर्षक बहुत लंबा है",
+      "titleTooLongMessage": "लक्ष्य का शीर्षक 100 अक्षरों से कम होना चाहिए",
+      "invalidDeadline": "अमान्य डेडलाइन",
+      "created": "लक्ष्य सफलतापूर्वक बन गया!",
+      "createAnother": "एक और बनाएँ",
+      "createFailed": "लक्ष्य नहीं बन सका। कृपया फिर से कोशिश करें।"
+    }
+  },
+  "allRoadmaps": {
+    "title": "मेरी योजनाएँ",
+    "goalCount_one": "{{count}} लक्ष्य",
+    "goalCount_other": "{{count}} लक्ष्य",
+    "otherGroup": "अन्य",
+    "empty": {
+      "title": "अभी कोई योजना नहीं",
+      "searchHint": "कोई दूसरी खोज आज़माएँ",
+      "description": "कोई रोडमैप शुरू करें और उसके पड़ाव यहाँ तारीख़ के साथ दिखेंगे।",
+      "action": "रोडमैप देखें"
+    }
+  },
+  "myList": {
+    "title": "मेरे लक्ष्य",
+    "goalsTracked_one": "{{count}} लक्ष्य ट्रैक हो रहा है",
+    "goalsTracked_other": "{{count}} लक्ष्य ट्रैक हो रहे हैं",
+    "heroTitle": "फ़ोकस बनाए रखें 🎯",
+    "heroCompleted_one": "आपने {{count}} लक्ष्य पूरा कर लिया है। यह रफ़्तार बनाए रखें!",
+    "heroCompleted_other": "आपने {{count}} लक्ष्य पूरे कर लिए हैं। यह रफ़्तार बनाए रखें!",
+    "heroEmpty": "अपनी महत्वाकांक्षाओं को हासिल करने लायक़ लक्ष्यों में बदलें। आज ही ट्रैक करना शुरू करें!",
+    "ctaTitle": "अपना पहला लक्ष्य बनाएँ",
+    "ctaSubtitle": "टारगेट सेट करें और अपनी प्रगति ट्रैक करें",
+    "highPriorityAlert_one": "{{count}} उच्च-प्राथमिकता लक्ष्य पर ध्यान देना ज़रूरी है",
+    "highPriorityAlert_other": "{{count}} उच्च-प्राथमिकता लक्ष्यों पर ध्यान देना ज़रूरी है",
+    "searchPlaceholder": "लक्ष्य खोजें...",
+    "sortLabel": "सॉर्ट: {{label}}",
+    "sortBy": "इस आधार पर सॉर्ट करें",
+    "sort": {
+      "newest": "सबसे नए पहले",
+      "oldest": "सबसे पुराने पहले",
+      "priority": "प्राथमिकता",
+      "deadline": "डेडलाइन",
+      "progress": "प्रगति",
+      "title": "शीर्षक (A-Z)"
+    },
+    "empty": {
+      "title": "अभी कोई लक्ष्य नहीं",
+      "noMatch": "कोई मिलता-जुलता लक्ष्य नहीं",
+      "searchHint": "अपनी सर्च या फ़िल्टर बदलकर देखें",
+      "description": "प्रगति ट्रैक करने और प्रेरित रहने के लिए अपना पहला लक्ष्य बनाकर शुरुआत करें"
+    }
+  },
+  "roadmaps": {
+    "title": "रोडमैप",
+    "subtitle": "आपके लक्ष्यों तक पहुँचने के लिए स्ट्रक्चर्ड लर्निंग पाथ",
+    "loading": "रोडमैप लोड हो रहे हैं...",
+    "searchPlaceholder": "रोडमैप खोजें...",
+    "empty": "कोई रोडमैप नहीं मिला। अपनी सर्च या फ़िल्टर बदलकर देखें!",
+    "noDescription": "कोई विवरण उपलब्ध नहीं",
+    "featured": "फ़ीचर्ड",
+    "stepsCount_one": "{{count}} स्टेप",
+    "stepsCount_other": "{{count}} स्टेप",
+    "notAvailable": "N/A",
+    "varies": "अलग-अलग",
+    "achieveTitle": "आप क्या हासिल करेंगे",
+    "learningPath": "लर्निंग पाथ",
+    "startButton": "यह रोडमैप शुरू करें",
+    "rateButton": "इस रोडमैप को रेट करें",
+    "categories": {
+      "all": "सभी",
+      "scholarship": "स्कॉलरशिप",
+      "career": "करियर",
+      "education": "शिक्षा",
+      "skills": "स्किल्स",
+      "business": "बिज़नेस",
+      "tech": "टेक"
+    },
+    "creatorBanner": {
+      "title": "रोडमैप क्रिएटर बनें",
+      "subtitle": "अपनी विशेषज्ञता शेयर करें। लर्निंग पाथ बनाएँ। सिखाते हुए कमाएँ।"
+    },
+    "templateBanner": {
+      "title": "रोडमैप टेम्पलेट एक्सप्लोर करें",
+      "subtitle": "आज़माए हुए रास्ते से शुरू करें और उसे लक्ष्य में बदलें।"
+    },
+    "detailInfo": {
+      "creatorProof": "क्रिएटर प्रूफ़: {{value}}",
+      "deadlineStrategy": "डेडलाइन रणनीति: {{value}}",
+      "targetDeadline": "टारगेट डेडलाइन: {{value}}",
+      "audience": "किसके लिए: {{value}}",
+      "strategy": "रणनीति: {{value}}"
+    },
+    "statsLabels": {
+      "difficulty": "कठिनाई",
+      "duration": "अवधि",
+      "steps": "स्टेप",
+      "enrolled": "एनरोल्ड"
+    },
+    "deadline": {
+      "dueToday": "{{date}} - आज देय",
+      "dueTomorrow": "{{date}} - कल देय",
+      "daysLeft_one": "{{date}} - {{count}} दिन बाकी",
+      "daysLeft_other": "{{date}} - {{count}} दिन बाकी",
+      "overdue": "{{date}} - समय बीत चुका",
+      "daysBefore_one": "डेडलाइन से {{count}} दिन पहले",
+      "daysBefore_other": "डेडलाइन से {{count}} दिन पहले",
+      "dueOnDeadline": "डेडलाइन के दिन देय",
+      "dueDay": "दिन {{day}} को देय"
+    },
+    "adoption": {
+      "fallback": "आपने इस रोडमैप में एनरोल कर लिया है। शुरू करने के लिए अपने लक्ष्य देखें!",
+      "ready": "आपका रोडमैप तैयार है।",
+      "milestones_one": "आपके लक्ष्यों में {{count}} माइलस्टोन जोड़ा गया।",
+      "milestones_other": "आपके लक्ष्यों में {{count}} माइलस्टोन जोड़े गए।",
+      "deadline": "डेडलाइन: {{date}}।",
+      "reminders": "रिमाइंडर शेड्यूल कर दिए गए हैं।",
+      "calendarEvents_one": "{{count}} कैलेंडर इवेंट तैयार किया गया।",
+      "calendarEvents_other": "{{count}} कैलेंडर इवेंट तैयार किए गए।",
+      "community": "इससे मेल खाती रोडमैप कम्युनिटी उपलब्ध है।"
+    },
+    "calendar": {
+      "unavailableTitle": "कैलेंडर उपलब्ध नहीं",
+      "unavailableMessage": "कैलेंडर नहीं बन सका। कृपया फिर से कोशिश करें।",
+      "exportFailedTitle": "एक्सपोर्ट विफल",
+      "exportFailedMessage": "कैलेंडर फ़ाइल नहीं खुल सकी।"
+    },
+    "enroll": {
+      "adoptedTitle": "रोडमैप अपनाया गया",
+      "viewGoals": "लक्ष्य देखें",
+      "addToCalendar": "कैलेंडर में जोड़ें",
+      "openCommunity": "कम्युनिटी खोलें",
+      "continueBrowsing": "ब्राउज़ करते रहें",
+      "failedTitle": "एनरोलमेंट विफल",
+      "failed": "एनरोलमेंट विफल रहा",
+      "failedMessage": "एनरोल नहीं हो सका।",
+      "offlineTitle": "आप ऑफ़लाइन हैं",
+      "offlineMessage": "हम Edutu तक नहीं पहुँच सके। अपना कनेक्शन जाँचें और पुनः प्रयास करें।",
+      "retry": "पुनः प्रयास",
+      "cancel": "रद्द करें",
+      "signInTitle": "सत्र समाप्त",
+      "signInMessage": "यह रोडमैप शुरू करने के लिए कृपया दोबारा साइन इन करें।"
+    },
+    "intent": {
+      "title": "आपके लिए सही रोडमैप खोजने में हमारी मदद करें",
+      "subtitle": "कुछ सवालों के जवाब दें ताकि हम आपके लिए सबसे अच्छा लर्निंग पाथ सुझा सकें।",
+      "answerPlaceholder": "अपना जवाब लिखें...",
+      "skip": "अभी स्किप करें",
+      "submit": "मेरे रोडमैप खोजें",
+      "q1": "आपका मौजूदा अनुभव स्तर क्या है?",
+      "q2": "आप हर हफ़्ते कितना समय दे सकते हैं?",
+      "q3": "आपके मुख्य लक्ष्य क्या हैं?",
+      "levels": {
+        "beginner": "शुरुआती",
+        "intermediate": "मध्यम",
+        "advanced": "एडवांस्ड"
+      },
+      "time": {
+        "lessThan5": "5 घंटे से कम",
+        "hours5to10": "5-10 घंटे",
+        "hours10to20": "10-20 घंटे",
+        "hours20plus": "20+ घंटे"
+      },
+      "saveFailed": "आपके उत्तर सहेजे नहीं जा सके। कृपया पुनः प्रयास करें।"
+    },
+    "feedback": {
+      "title": "यह रोडमैप कैसा रहा?",
+      "subtitle": "आपका फ़ीडबैक हमें बेहतर बनाता है और दूसरे लर्नर्स की मदद करता है।",
+      "placeholder": "आपको क्या पसंद आया या क्या बेहतर हो सकता है?",
+      "submit": "फ़ीडबैक सबमिट करें",
+      "thanksTitle": "धन्यवाद!",
+      "thanksMessage": "आपका फ़ीडबैक सबके लिए रोडमैप बेहतर बनाने में मदद करता है।",
+      "failedTitle": "आपकी रेटिंग सहेजी नहीं जा सकी"
+    },
+    "started": "शुरू किया गया",
+    "notRatedYet": "अभी कोई रेटिंग नहीं",
+    "emptyTitle": "यहाँ अभी कुछ नहीं है",
+    "clearFilters": "फ़िल्टर हटाएँ",
+    "continueButton": "यह रोडमैप जारी रखें",
+    "startHint_one": "आपके लक्ष्यों में {{count}} पड़ाव जोड़ता है और रिमाइंडर सेट करता है।",
+    "startHint_other": "आपके लक्ष्यों में {{count}} पड़ाव जोड़ता है और रिमाइंडर सेट करता है।",
+    "progressLabel": "{{total}} में से {{completed}} चरण पूरे",
+    "adopted": {
+      "progress": "आपकी योजना में — {{total}} में से {{completed}} चरण पूरे।",
+      "inPlan": "यह रोडमैप पहले से आपकी योजना में है।"
+    },
+    "a11y": {
+      "card": "{{title}}, {{difficulty}} स्तर का रोडमैप",
+      "cardStarted": "{{title}}, शुरू किया गया, {{total}} में से {{completed}} चरण पूरे",
+      "cardHint": "रोडमैप का विवरण खोलता है",
+      "close": "बंद करें"
+    }
+  },
+  "templates": {
+    "title": "टेम्पलेट एक्सप्लोर करें",
+    "subtitle": "फ़ीचर्ड रोडमैप पाथ",
+    "eyebrow": "फ़ीचर्ड रोडमैप टेम्पलेट",
+    "heading": "एक आज़माया हुआ रास्ता चुनें और तेज़ी से प्लानिंग शुरू करें",
+    "description": "हर टेम्पलेट में माइलस्टोन, संसाधन, कैलेंडर एक्सपोर्ट और स्टडी रिमाइंडर शामिल हैं।",
+    "count_one": "{{count}} टेम्पलेट",
+    "count_other": "{{count}} टेम्पलेट",
+    "weeksRange": "8-20 हफ़्ते",
+    "featuredPaths": "फ़ीचर्ड पाथ",
+    "available": "{{count}} उपलब्ध",
+    "startRoadmap": "रोडमैप शुरू करें",
+    "calendar": "कैलेंडर",
+    "reminders": "रिमाइंडर",
+    "outcomes": "नतीजे",
+    "guidance": "मार्गदर्शन और संसाधन",
+    "week": "हफ़्ता {{week}}",
+    "deliverableLabel": "डिलीवरेबल: {{value}}",
+    "icsSummary": "{{title}}: हफ़्ता {{week}}",
+    "shareDialogTitle": "रोडमैप को कैलेंडर में जोड़ें",
+    "calendarReadyTitle": "कैलेंडर तैयार है",
+    "calendarReadyMessage": "कैलेंडर एक्सपोर्ट मोबाइल बिल्ड पर उपलब्ध है।",
+    "calendarFileCreated": "कैलेंडर फ़ाइल बन गई",
+    "notificationsBlockedTitle": "नोटिफ़िकेशन ब्लॉक हैं",
+    "notificationsBlockedMessage": "रोडमैप रिमाइंडर पाने के लिए नोटिफ़िकेशन चालू करें।",
+    "reminderTitle": "रोडमैप रिमाइंडर: हफ़्ता {{week}}",
+    "remindersScheduledTitle": "रिमाइंडर शेड्यूल हो गए",
+    "remindersScheduledMessage_one": "{{count}} रोडमैप रिमाइंडर अब शेड्यूल है।",
+    "remindersScheduledMessage_other": "{{count}} रोडमैप रिमाइंडर अब शेड्यूल हैं।",
+    "stepFallback": "स्टेप {{number}}",
+    "focus": "फ़ोकस: {{value}}",
+    "defaultSummary": "एक गाइडेड, स्टेप-बाय-स्टेप रोडमैप।",
+    "stepPlan": "{{count}}-स्टेप प्लान",
+    "allLevels": "सभी स्तर",
+    "defaultCadence": "आपकी शुरुआत की तारीख़ से माइलस्टोन रिमाइंडर शेड्यूल किए जाते हैं।",
+    "resourceFallback": "संसाधन",
+    "previewNotice": "नमूना पाथ दिखाए जा रहे हैं — Edutu से संपर्क नहीं हो सका। लाइव लाइब्रेरी लोड करने के लिए नीचे खींचें।",
+    "previewOnlyTitle": "नमूना पाथ",
+    "previewOnlyMessage": "यह ऑफ़लाइन प्रीव्यू है, इसलिए अभी शुरू करने को कुछ नहीं है। असली रोडमैप देखें?",
+    "browseRoadmaps": "रोडमैप देखें",
+    "searchPlaceholder": "पाथ, लेखक खोजें…",
+    "clearSearch": "खोज हटाएँ",
+    "emptyTitle": "कोई पाथ मेल नहीं खाता",
+    "emptyMessage": "कोई दूसरी खोज या श्रेणी आज़माएँ।",
+    "clearFilters": "फ़िल्टर हटाएँ",
+    "remindersOn": "रिमाइंडर चालू",
+    "remindersOnA11y": "रिमाइंडर चालू, {{count}} शेड्यूल किए गए। बंद करने के लिए टैप करें।",
+    "remindersOnTitle": "रिमाइंडर चालू हैं",
+    "remindersOnMessage": "इस पाथ के लिए {{count}} स्टेप रिमाइंडर शेड्यूल हैं।",
+    "turnOffReminders": "बंद करें",
+    "remindersCancelledTitle": "रिमाइंडर बंद",
+    "remindersCancelledMessage": "अब हम आपको इस पाथ के बारे में याद नहीं दिलाएँगे।"
+  },
+  "calendar": {
+    "title": "मेरा कैलेंडर",
+    "deadlinePrefix": "डेडलाइन: {{title}}",
+    "noEvents": "इस दिन कोई लक्ष्य या डेडलाइन नहीं है।",
+    "legend": {
+      "personalGoal": "निजी लक्ष्य",
+      "roadmap": "रोडमैप",
+      "opportunity": "अवसर"
+    },
+    "badge": {
+      "goal": "लक्ष्य",
+      "roadmap": "रोडमैप",
+      "opportunity": "अवसर"
+    },
+    "days": {
+      "sun": "रवि",
+      "mon": "सोम",
+      "tue": "मंगल",
+      "wed": "बुध",
+      "thu": "गुरु",
+      "fri": "शुक्र",
+      "sat": "शनि"
+    },
+    "months": {
+      "january": "जनवरी",
+      "february": "फ़रवरी",
+      "march": "मार्च",
+      "april": "अप्रैल",
+      "may": "मई",
+      "june": "जून",
+      "july": "जुलाई",
+      "august": "अगस्त",
+      "september": "सितंबर",
+      "october": "अक्टूबर",
+      "november": "नवंबर",
+      "december": "दिसंबर"
+    }
+  },
+  "intake": {
+    "timeQuestion": "आप हर हफ़्ते कितना समय दे सकते हैं?",
+    "levelQuestion": "आप कहाँ से शुरुआत कर रहे हैं?",
+    "time": {
+      "under5": "5 घंटे से कम",
+      "h5to10": "5–10 घंटे",
+      "h10to20": "10–20 घंटे",
+      "h20plus": "20+ घंटे"
+    },
+    "level": {
+      "beginner": "बिलकुल नया हूँ",
+      "intermediate": "कुछ अनुभव है",
+      "advanced": "अनुभवी हूँ"
+    }
+  },
+  "timeline": {
+    "today": "आज",
+    "milestoneDone": "{{title}}, हो गया",
+    "removeMilestone": "{{title}} हटाएँ"
+  },
+  "a11y": {
+    "addGoal": "लक्ष्य जोड़ें",
+    "clearSearch": "खोज हटाएँ",
+    "openFilters": "लक्ष्य फ़िल्टर करें",
+    "completeGoal": "\"{{title}}\" को पूरा दिखाएँ",
+    "reopenGoal": "\"{{title}}\" फिर से खोलें",
+    "deleteGoal": "\"{{title}}\" हटाएँ",
+    "toggleReminder": "\"{{title}}\" का रिमाइंडर चालू या बंद करें",
+    "statusTab_one": "{{label}}, {{count}} लक्ष्य",
+    "statusTab_other": "{{label}}, {{count}} लक्ष्य",
+    "openSort": "क्रम बदलें"
+  }
+}

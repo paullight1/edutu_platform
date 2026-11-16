@@ -1,0 +1,220 @@
+{
+  "header": {
+    "title": "Coach IA",
+    "historyButtonLabel": "Historique des conversations"
+  },
+  "loading": {
+    "conversation": "Chargement de la conversation..."
+  },
+  "deadline": {
+    "rolling": "En continu",
+    "set": "Échéance fixée"
+  },
+  "location": {
+    "remote": "À distance"
+  },
+  "quickPrompts": {
+    "findScholarships": {
+      "title": "Trouver des bourses",
+      "subtitle": "Disponibles ce mois-ci",
+      "message": "Trouve des bourses auxquelles je peux postuler ce mois-ci"
+    },
+    "mastercard": {
+      "title": "Correspondances Mastercard",
+      "subtitle": "Bourses via Edutu"
+    },
+    "buildRoadmap": {
+      "title": "Créer un parcours",
+      "subtitle": "Planifier ma prochaine candidature",
+      "message": "Crée un parcours pour ma prochaine candidature"
+    },
+    "internships": {
+      "title": "Échéances de stages",
+      "subtitle": "Opportunités à venir"
+    }
+  },
+  "alerts": {
+    "noDeadlineTitle": "Aucune échéance trouvée",
+    "noDeadlineMessage": "Cette opportunité n'a pas encore d'échéance enregistrée.",
+    "alreadyTrackedTitle": "Déjà suivie",
+    "alreadyTrackedMessage": "Cette échéance est déjà dans votre plan.",
+    "deadlineAddedTitle": "Échéance ajoutée",
+    "deadlineAddedMessage": "Je l'ai ajoutée à votre plan et programmé des rappels.",
+    "couldNotAddDeadlineTitle": "Impossible d'ajouter l'échéance",
+    "tryAgainFromOpportunity": "Veuillez réessayer depuis la page de l'opportunité.",
+    "signInRequiredTitle": "Connexion requise",
+    "signInRequiredMessage": "Veuillez vous connecter pour créer des objectifs de parcours.",
+    "roadmapExistsTitle": "Le parcours existe déjà",
+    "roadmapExistsMessage": "Cette opportunité a déjà des objectifs dans votre plan.",
+    "openGoals": "Ouvrir les objectifs",
+    "stayHere": "Rester ici",
+    "roadmapCreatedTitle": "Parcours créé",
+    "roadmapCreatedMessage": "{{count}} objectifs ont été ajoutés, avec des rappels lorsque des échéances existent.",
+    "couldNotCreateRoadmapTitle": "Impossible de créer le parcours"
+  },
+  "goals": {
+    "applyTitle": "Postuler : {{title}}",
+    "applyDescription": "Date limite de candidature pour {{organization}}.",
+    "thisOpportunity": "cette opportunité",
+    "submitTitle": "Soumettre {{title}}",
+    "submitDescription": "{{strategy}}\n\nRessources :\n{{resources}}",
+    "milestoneDescription": "Jalon pour {{title}}",
+    "dailyDescription": "{{description}}\n\nFocus : {{focus}}\nTemps : {{minutes}} minutes",
+    "checklistDescription": "Élément de checklist pour {{title}}"
+  },
+  "messages": {
+    "recommendedTitle": "Recommandées depuis les Opportunités",
+    "viewMore": "Voir plus",
+    "openAllOpportunities": "Ouvrir toutes les opportunités",
+    "narrowBy": "Affiner par :",
+    "view": "Voir",
+    "categoryFallback": "Opportunité",
+    "typing": "Edutu réfléchit…",
+    "aiThinkingAnnouncement": "Edutu réfléchit",
+    "aiRepliedAnnouncement": "Edutu a répondu",
+    "stoppedNotice": "Vous avez arrêté cette réponse — elle peut être incomplète.",
+    "stoppedEarlyNotice": "Vous avez arrêté avant qu'Edutu ne réponde.",
+    "interruptedNotice": "La connexion a été interrompue, cette réponse est donc incomplète. Redemandez pour obtenir la réponse complète.",
+    "truncatedNotice": "Cette réponse est partielle — Edutu n’a pas eu la place de la terminer.",
+    "fitExcellent": "Excellente adéquation",
+    "fitStrong": "Forte adéquation",
+    "fitGood": "Bonne adéquation",
+    "fitWorthALook": "À découvrir"
+  },
+  "followUp": {
+    "country": "Pays",
+    "deadline": "Échéance",
+    "funding": "Financement",
+    "narrowByCountry": "Affine ces résultats par pays",
+    "narrowByDeadline": "Affine ces résultats par échéance",
+    "narrowByFunding": "Affine ces résultats par financement"
+  },
+  "roadmapPanel": {
+    "title": "Créer un parcours",
+    "subtitle": "Objectifs, échéances, rappels",
+    "build": "Créer"
+  },
+  "empty": {
+    "title": "Je suis Edutu, votre Coach IA",
+    "description": "Demandez de vraies bourses, des échéances, des parcours ou les prochaines étapes de candidature."
+  },
+  "input": {
+    "placeholder": "Écrivez à Edutu...",
+    "send": "Envoyer",
+    "stopLabel": "Arrêter la génération",
+    "sending": "Envoi en cours…"
+  },
+  "threads": {
+    "modalTitle": "Conversations",
+    "newConversation": "Nouvelle conversation",
+    "empty": "Aucune conversation récente",
+    "groups": {
+      "today": "Aujourd'hui",
+      "yesterday": "Hier",
+      "thisWeek": "Cette semaine",
+      "older": "Plus ancien"
+    },
+    "itemA11yLabel": "Conversation : {{title}}, {{date}}",
+    "closeButtonLabel": "Fermer l'historique des conversations"
+  },
+  "voice": {
+    "titleTranscript": "Message vocal",
+    "titleListening": "Écoute en cours...",
+    "titleProcessing": "Traitement...",
+    "titleIdle": "Touchez pour parler",
+    "sendingAutomatically": "Envoi automatique...",
+    "genericError": "Une erreur est survenue",
+    "hintStop": "Touchez le micro pour arrêter",
+    "hintSendOrWait": "Touchez envoyer ou patientez",
+    "hintTranscribing": "Transcription de votre message...",
+    "hintStart": "Touchez le micro pour commencer l'enregistrement"
+  },
+  "voiceMode": {
+    "badgeVoice": "Discussion vocale",
+    "badgeLive": "En direct",
+    "statusConnecting": "Démarrage…",
+    "statusListening": "Je vous écoute…",
+    "statusTranscribing": "Bien reçu…",
+    "statusThinking": "Je réfléchis…",
+    "statusSpeaking": "Edutu parle",
+    "statusIdle": "Touchez l'orbe pour parler",
+    "statusReady": "Prêt — parlez quand vous voulez",
+    "statusPaused": "En pause — vous avez quitté l’app",
+    "muteShort": "Couper",
+    "unmuteShort": "Activer",
+    "endShort": "Quitter",
+    "chatShort": "Chat",
+    "actionOpenSettings": "Ouvrir les réglages",
+    "actionTryAgain": "Réessayer",
+    "actionInterrupt": "Interrompre",
+    "actionResume": "Reprendre",
+    "orbHint": "Touchez deux fois pour parler ou pour interrompre Edutu.",
+    "statusMuted": "Micro coupé — touchez le micro pour reprendre",
+    "youLabel": "Vous",
+    "errorPermission": "Edutu a besoin du micro. Autorisez-le dans les Réglages, puis touchez l'orbe.",
+    "errorLimit": "Vous avez atteint votre limite d'IA gratuite pour le moment.",
+    "errorNetwork": "Une erreur est survenue. Touchez l'orbe pour réessayer.",
+    "mute": "Couper le micro",
+    "unmute": "Réactiver le micro",
+    "end": "Quitter le mode vocal",
+    "openChat": "Ouvrir le chat",
+    "composerVoice": "Démarrer le mode vocal",
+    "composerLive": "Démarrer la voix en direct",
+    "settingsTitle": "Réglages vocaux",
+    "settingsDone": "Terminé",
+    "settingsDesign": "Style de l'orbe",
+    "settingsVoice": "Voix d'Edutu",
+    "designParticles": "Sphère de particules",
+    "designRing": "Anneau aurore",
+    "designBubble": "Bulle de rêve",
+    "designRobot": "Robo Edutu",
+    "voiceDefault": "Voix du système",
+    "voiceSample": "Salut ! Je suis Edutu, ton coach IA.",
+    "designCrystal": "Étoile de cristal",
+    "designGlass": "Tourbillon de verre",
+    "designBlob": "Copain gelée",
+    "designPetals": "Halo de pétales",
+    "voiceRecommended": "Recommandées",
+    "voiceNigerian": "Anglais nigérian",
+    "voiceAll": "Plus de voix",
+    "voiceHint": "Pour des voix plus naturelles, téléchargez des voix améliorées dans les réglages du téléphone — iOS : Réglages → Accessibilité → Contenu énoncé → Voix ; Android : installez les voix Synthèse vocale Google."
+  },
+  "winCoach": {
+    "sheetTitle": "Coach Edutu",
+    "thinking": "J'y réfléchis pour vous…",
+    "signInRequired": "Connectez-vous pour utiliser le Coach Edutu.",
+    "noReplyFallback": "Je n'ai pas pu générer de réponse pour le moment — veuillez réessayer.",
+    "billingLimitReached": "Cette action utilise des crédits IA et vous n'en avez plus. Passez à Edutu Pro ou rechargez pour continuer.",
+    "documentUpload": {
+      "defaultLabel": "Téléverser un document",
+      "cvLabel": "Importez votre CV pour une analyse plus précise",
+      "uploading": "Téléversement…",
+      "processing": "Traitement…",
+      "ready": "{{name}} — prêt",
+      "readFailed": "Impossible de lire ce fichier. Essayez un PDF, un DOCX ou un fichier texte.",
+      "uploadFailed": "Échec du téléversement. Veuillez réessayer."
+    },
+    "openInChat": "Ouvrir dans le chat",
+    "actions": {
+      "fitCheck": "Suis-je fait pour ça ?",
+      "nextMove": "Prochaine étape",
+      "whatsMissing": "Qu'est-ce qui me manque ?",
+      "nextWinMove": "Ma prochaine action gagnante"
+    }
+  },
+  "limit": {
+    "title": "Vous avez atteint votre limite d'IA",
+    "body": "Vous avez utilisé vos messages IA gratuits d'Edutu pour l'instant. Passez à Pro pour un coaching illimité, des parcours et des correspondances sur mesure.",
+    "upgradeCta": "Passer à Pro",
+    "errorTitle": "Message non envoyé",
+    "errorBody": "Un problème a interrompu la connexion. Touchez réessayer pour l'envoyer à nouveau.",
+    "retryCta": "Réessayer",
+    "dismissCta": "Pas maintenant",
+    "savedTitle": "Votre message est conservé",
+    "savedBody": "Nous avons gardé ce que vous avez écrit : « {{message}} ». Envoyez-le quand vous voulez.",
+    "resendCta": "Envoyer maintenant"
+  },
+  "actions": {
+    "createRoadmapPrompt": "Oui, construis-moi ce parcours."
+  }
+}

@@ -1,0 +1,300 @@
+import fs from "fs";
+import path from "path";
+import validateReleaseConfig from "./scripts/validate-release-config.cjs";
+
+function loadLocalEnv() {
+  const envPath = path.join(process.cwd(), ".env");
+  if (!fs.existsSync(envPath)) return;
+
+  const lines = fs.readFileSync(envPath, "utf8").split(/\r?\n/);
+  for (const line of lines) {
+    const match = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)=(.*)\s*$/);
+    if (!match) continue;
+
+    const [, key, rawValue] = match;
+    if (process.env[key] !== undefined) continue;
+
+    process.env[key] = rawValue.trim().replace(/^['"]|['"]$/g, "");
+  }
+}
+
+loadLocalEnv();
+validateReleaseConfig(process.env);
+
+process.env.EXPO_ROUTER_APP_ROOT = require('path').resolve(__dirname, 'app');
+
+
+function resolveGoogleServicesFile() {
+  const candidates = [
+    process.env.GOOGLE_SERVICES_JSON,
+    "./google-services.json",
+    "./android/app/google-services.json"
+  ].filter(Boolean);
+
+  for (const candidate of candidates) {
+    const absolutePath = path.resolve(process.cwd(), candidate);
+    if (fs.existsSync(absolutePath)) {
+      return path.relative(process.cwd(), absolutePath);
+    }
+  }
+
+  return null;
+}
+
+const googleServicesFile = resolveGoogleServicesFile();
+
+export default {
+    expo: {
+    name: "Edutu",
+    slug: "hanaedutu",
+    owner: "edutu",
+    version: "1.0.0",
+    runtimeVersion: "1.0.0-sdk57",
+    orientation: "portrait",
+    icon: "./assets/icon.png",
+    // The app owns appearance in JS so the Light/Dark/System setting can
+    // change without rebuilding. Keeping this native default automatic also
+    // prevents iOS from forcing light status-bar glyphs over a light screen.
+    userInterfaceStyle: "automatic",
+    scheme: "edutu",
+    privacyPolicyUrl: "https://edutu.org/privacy",
+    supportUrl: "https://edutu.org/support",
+    // Must stay in step with the JS splash (app/index.tsx): same mark, same
+    // background. The old splash-icon.jpg was a retired logo on #171a4f, so
+    // every launch flashed the previous branding before the JS splash swapped
+    // it for the current one. A prebuild regenerates the native assets from
+    // here, so changing the committed ios/ assets alone would regress.
+    splash: {
+      image: "./assets/logo1.png",
+      resizeMode: "contain",
+      backgroundColor: "#08090D"
+    },
+    ios: {
+      // Must match ios/Edutu.xcodeproj (PRODUCT_BUNDLE_IDENTIFIER) so a
+      // `prebuild` regeneration stays consistent with the committed project.
+      bundleIdentifier: "com.tegm.edutuios",
+      // iPhone-only for v1: the app is portrait-locked and iPad layouts are
+      // untested — shipping tablet support invites App Review layout rejections.
+      supportsTablet: false,
+      // Informational only: eas.json sets appVersionSource "remote", so EAS
+      // owns the build number and auto-increments it per production build.
+      // (It must be remote — `local` would need EAS to write back into this
+      // file, and it cannot write to a dynamic config.)
+      buildNumber: "1",
+      deploymentTarget: "16.4",
+      // Universal links are part of the production auth/share contract; do not
+      // make them depend on an optional local environment flag.
+      associatedDomains: ["applinks:edutu.org"],
+      // APNs entitlement so remote push works in release builds (EAS still
+      // needs a push key configured under this bundle id).
+      entitlements: {
+        "aps-environment": "production"
+      },
+      config: {
+        usesNonExemptEncryption: false
+      },
+      infoPlist: {
+        // The committed native splash is dark, so the pre-JS launch default
+        // must be light content or the clock/battery disappear. Once React
+        // mounts, expo-status-bar re-asserts the active Light/Dark/System theme.
+        // UIViewControllerBasedStatusBarAppearance MUST stay false:
+        // RCTStatusBarManager requires it, and true crashes on launch.
+        UIStatusBarStyle: "UIStatusBarStyleLightContent",
+        UIViewControllerBasedStatusBarAppearance: false,
+        UIBackgroundModes: ["fetch", "remote-notification", "processing", "voip"],
+        BGTaskSchedulerPermittedIdentifiers: [
+          "com.expo.modules.backgroundtask.processing"
+        ],
+        NSPhotoLibraryUsageDescription: "Allow Edutu to access your photos to update your profile and create content.",
+        NSCameraUsageDescription: "Allow Edutu to access your camera to take photos for your profile.",
+        NSMicrophoneUsageDescription: "Allow Edutu to record audio when you use voice chat features.",
+        NSPhotoLibraryAddUsageDescription: "Allow Edutu to save images to your photo library.",
+        // Hide the expo-dev-menu floating action button: on the iOS Simulator it
+        // intermittently swallows touches ("touch freeze"), blocking taps/gestures.
+        // Dev-only key (no dev menu in Release), so this is a no-op in production.
+        // Open the dev menu with a shake / Cmd+D instead.
+        EXDevMenuShowFloatingActionButton: false
+      }
+    },
+    android: {
+      // Must match android/app/build.gradle applicationId AND the
+      // package_name in google-services.json — a mismatch makes Firebase fail
+      // to initialize and crashes the app on launch.
+      package: "com.edutu.com",
+      versionCode: 1,
+      permissions: [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.BLUETOOTH_CONNECT",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MICROPHONE",
+        "android.permission.MANAGE_OWN_CALLS",
+        "android.permission.POST_NOTIFICATIONS"
+      ],
+      adaptiveIcon: {
+        foregroundImage: "./assets/adaptive-icon.png",
+        backgroundColor: "#171a4f"
+      },
+      ...(googleServicesFile ? { googleServicesFile } : {}),
+      intentFilters: [
+        {
+          action: "VIEW",
+          autoVerify: true,
+          data: [
+            {
+              scheme: "https",
+              host: "edutu.org",
+              pathPrefix: "/"
+            }
+          ],
+          category: ["BROWSABLE", "DEFAULT"]
+        }
+      ]
+    },
+    web: {
+      favicon: "./assets/favicon.png",
+      bundler: "metro"
+    },
+    updates: {
+      url: "https://u.expo.dev/97c7d577-7e08-4f3c-a199-d1ca149ebee9"
+    },
+    plugins: [
+      "expo-router",
+      "expo-audio",
+      "expo-localization",
+      "expo-web-browser",
+      "@react-native-firebase/app",
+      "@react-native-firebase/messaging",
+      "@config-plugins/react-native-webrtc",
+      [
+        "expo-notifications",
+        {
+          // Android renders notification icons as an alpha silhouette — must be
+          // white-on-transparent, never the full-color app icon.
+          "icon": "./assets/notification-icon.png",
+          "color": "#171a4f",
+          "sounds": []
+        }
+      ],
+      [
+        "expo-calendar",
+        {
+          "calendarPermission": "Allow Edutu to add your opportunity milestones and application deadlines to your calendar."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Edutu to access your photos to update your profile and create content.",
+          "cameraPermission": "Allow Edutu to access your camera to take photos for your profile."
+        }
+      ],
+      [
+        "expo-widgets",
+        {
+          widgets: [
+            { name: "NextStepWidget", displayName: "Today’s Next Step", description: "A real preparation task from your My Plan, ready to continue.", contentMarginsDisabled: true, supportedFamilies: ["systemSmall", "systemMedium", "systemLarge"] },
+            {
+              name: "OpportunityWidget",
+              displayName: "Top Matches",
+              description: "Your best-matched opportunities and their deadlines.",
+              contentMarginsDisabled: true,
+              supportedFamilies: [
+                "systemSmall",
+                "systemMedium",
+                "systemLarge",
+                "accessoryCircular",
+                "accessoryRectangular",
+                "accessoryInline"
+              ]
+            },
+            {
+              name: "DeadlineWidget",
+              displayName: "Deadlines",
+              description: "A calendar of your applied and saved opportunity deadlines.",
+              contentMarginsDisabled: true,
+              supportedFamilies: [
+                "systemSmall",
+                "systemMedium",
+                "systemLarge",
+                "accessoryRectangular"
+              ]
+            },
+            {
+              name: "TrendingWidget",
+              displayName: "Trending",
+              description: "What's hot on Edutu right now.",
+              contentMarginsDisabled: true,
+              supportedFamilies: ["systemSmall", "systemMedium", "systemLarge"]
+            },
+            {
+              name: "TrendingSpotlightWidget",
+              displayName: "Trending Spotlight",
+              description: "A rotating photo spotlight of the hottest opportunities on Edutu.",
+              contentMarginsDisabled: true,
+              supportedFamilies: ["systemSmall", "systemMedium", "systemLarge"]
+            },
+            {
+              name: "TrendingGridWidget",
+              displayName: "Trending Grid",
+              description: "A 2x2 grid of trending opportunities with photo covers.",
+              contentMarginsDisabled: true,
+              supportedFamilies: ["systemMedium", "systemLarge"]
+            },
+            {
+              name: "TrendingTickerWidget",
+              displayName: "Trending Ticker",
+              description: "A wide banner spotlighting a rotating trending opportunity.",
+              contentMarginsDisabled: true,
+              supportedFamilies: ["systemMedium"]
+            },
+            {
+              name: "TrendingThumbListWidget",
+              displayName: "Trending List",
+              description: "A ranked list of trending opportunities with photo thumbnails.",
+              contentMarginsDisabled: true,
+              supportedFamilies: ["systemMedium", "systemLarge"]
+            },
+            {
+              name: "ChatWidget",
+              displayName: "Ask Edutu",
+              description: "Jump straight into a chat with your AI opportunity coach.",
+              contentMarginsDisabled: true,
+              supportedFamilies: ["systemSmall", "systemMedium", "accessoryCircular"]
+            }
+          ]
+        }
+      ],
+      [
+        "./plugins/android-widget",
+        {
+          widgetName: "Edutu Opportunities",
+          title: "Opportunities for you",
+          subtitle: "Rotating scholarships, internships, and deadlines",
+          minWidth: "180dp",
+          minHeight: "110dp",
+          targetCellWidth: "3",
+          targetCellHeight: "2"
+        }
+      ],
+      "expo-background-task"
+    ],
+    experiments: {
+      tsconfigPaths: true,
+      typedRoutes: true
+    },
+    extra: {
+      clerkPublishableKey: process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY,
+      supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL,
+      supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
+      apiBaseUrl: process.env.EXPO_PUBLIC_API_URL,
+      // Numeric App Store ID (e.g. "1234567890"), issued when the iOS app is
+      // first created in App Store Connect. Until it is set, "Rate Edutu"
+      // falls back to the website rather than opening a dead store link.
+      // Android needs no equivalent — its store URL is the package name.
+      iosAppStoreId: process.env.EXPO_PUBLIC_IOS_APP_STORE_ID,
+      eas: {
+        projectId: "97c7d577-7e08-4f3c-a199-d1ca149ebee9"
+      }
+    }
+  }
+};

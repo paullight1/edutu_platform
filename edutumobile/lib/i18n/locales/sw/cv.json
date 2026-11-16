@@ -1,0 +1,284 @@
+{
+  "header": {
+    "title": "Mtengeneza CV"
+  },
+  "loading": "Inapakia Mtengeneza CV...",
+  "defaults": {
+    "myCv": "CV Yangu",
+    "untitled": "CV Isiyo na Jina",
+    "aiDraft": "Rasimu ya CV ya AI"
+  },
+  "proBanner": {
+    "upgrade": "Boresha hadi Pro upate CV bila kikomo",
+    "trial": "Jaribio la bure linapatikana - Jaribu vipengele vya Pro!"
+  },
+  "quickActions": {
+    "title": "Tengeneza haraka zaidi",
+    "subtitle": "Anza kwa CV tupu, tengeneza kutoka LinkedIn, au lenga rasimu yako kwa fursa halisi.",
+    "create": {
+      "title": "Unda CV mpya",
+      "subtitle": "Anza na kihariri chenye muundo kisha uchague kiolezo baada ya kuhakiki sampuli."
+    },
+    "linkedIn": {
+      "title": "Leta kutoka LinkedIn",
+      "subtitle": "Tumia muktadha wa wasifu wako kuandaa toleo la kwanza imara zaidi kwa AI."
+    },
+    "tailor": {
+      "title": "Lenga fursa mahususi",
+      "subtitle": "Linganisha CV yako na ufadhili wa masomo, mafunzo kazini, na programu zilizo kwenye benki yako."
+    }
+  },
+  "sections": {
+    "yourCvs": "CV Zako",
+    "chooseTemplate": "Chagua Kiolezo"
+  },
+  "alerts": {
+    "aiDraftReadyTitle": "Rasimu ya AI iko tayari",
+    "draftReadyOfflineTitle": "Rasimu iko tayari (hali ya nje ya mtandao)",
+    "draftReadyWithSuggestions": "Rasimu ya CV yako iko kwenye kihariri. Hatua zinazopendekezwa:\n{{suggestions}}",
+    "draftReadyMessage": "Rasimu ya CV yako imetengenezwa kutokana na muktadha wa wasifu wako.",
+    "generateFailed": "Imeshindwa kutengeneza rasimu ya CV.",
+    "summaryUpdatedTitle": "Muhtasari umesasishwa",
+    "summaryUpdatedOffline": "Umeboreshwa nje ya mtandao kutokana na maelezo yako yaliyopo. Unganisha kwenye intaneti kwa uandishi upya kamili wa AI.",
+    "improveSummaryFailed": "Haikuweza kuboresha muhtasari kwa sasa.",
+    "saveSuccess": "CV imehifadhiwa!",
+    "saveFailed": "Imeshindwa kuhifadhi CV",
+    "deleteTitle": "Futa CV",
+    "deleteMessage": "Una uhakika unataka kufuta CV hii?",
+    "sharedAsTextTitle": "Imeshirikiwa kama maandishi",
+    "sharedAsTextMessage": "Uhamishaji wa PDF haukupatikana, hivyo CV imeshirikiwa kama maandishi badala yake.",
+    "exportFailed": "Imeshindwa kuhamisha CV",
+    "tailoredTitle": "CV imelengwa — ulinganifu wa {{score}}%",
+    "tailorFailed": "Imeshindwa kulenga CV kwa fursa hii."
+  },
+  "upgrade": {
+    "templateFeature": "Kiolezo cha {{name}}"
+  },
+  "templates": {
+    "badgeFallback": "Kiolezo",
+    "proBadge": "Pro",
+    "unlock": "Fungua Kiolezo",
+    "use": "Tumia Kiolezo",
+    "tapToPreview": "Gusa kuona sampuli",
+    "samples": {
+      "academic": {
+        "name": "Amara Okafor",
+        "headline": "Mwombaji wa MSc Afya ya Umma",
+        "summary": "Wasifu unaolenga utafiti wenye elimu, machapisho, miradi ya nyanjani, na mafanikio ya kitaaluma yakiwekwa kabla ya historia ya kazi.",
+        "bullets": [
+          "Elimu na utafiti kwanza",
+          "Machapisho na tuzo zinaonekana",
+          "Inafaa kwa ufadhili wa masomo na udahili wa uzamili"
+        ]
+      },
+      "professional": {
+        "name": "Daniel Mensah",
+        "headline": "Mchambuzi wa Uendeshaji",
+        "summary": "Wasifu unaolenga matokeo kwa mafunzo kazini, ajira, ufadhili wa kitaaluma, na programu za mwanzo wa kazi zenye matokeo yanayopimika.",
+        "bullets": [
+          "Matokeo ya kazi kabla ya masomo",
+          "Sehemu imara ya ujuzi na vipimo",
+          "Inafaa kwa mafunzo kazini na ajira"
+        ]
+      },
+      "creative": {
+        "name": "Leah Adeyemi",
+        "headline": "Mbunifu wa Bidhaa",
+        "summary": "Muundo unaofaa kwa portfolio unaoangazia miradi, zana, viungo, na mafanikio ya kuonekana bila kupoteza usomekaji wa ATS.",
+        "bullets": [
+          "Miradi na viungo vya portfolio",
+          "Zana na vivutio vya tafiti-kifani",
+          "Inafaa kwa nafasi za ubunifu na vyombo vya habari"
+        ]
+      },
+      "general": {
+        "name": "Mwanafunzi wa Edutu",
+        "headline": "Mwombaji wa Fursa",
+        "summary": "Muundo uliosawazishwa kwa wanafunzi wanaoomba ufadhili wa masomo, programu za shule, mafunzo kazini, na fursa za kijamii.",
+        "bullets": [
+          "Wasifu safi wa mwanafunzi",
+          "Mpangilio wa sehemu unaonyumbulika",
+          "Inafaa kwa maombi ya aina mbalimbali"
+        ]
+      }
+    }
+  },
+  "linkedInModal": {
+    "title": "Tengeneza CV kwa AI",
+    "description": "Bandika kiungo cha wasifu wako wa LinkedIn hapa chini na AI yetu itakusanya uzoefu wako kiotomatiki na kutengeneza CV yako.",
+    "generate": "Tengeneza CV"
+  },
+  "tailorModal": {
+    "title": "Ulengaji wa CV kwa AI",
+    "subtitle": "Chagua fursa kutoka kwenye benki yako na ulenge CV hii kwake.",
+    "empty": "Bado hakuna fursa zinazopatikana. Pakia fursa kwanza, kisha ulenge CV hii."
+  },
+  "listItem": {
+    "updated": "Imesasishwa {{date}}",
+    "primary": "Kuu"
+  },
+  "editor": {
+    "sections": {
+      "personalInfo": "Taarifa Binafsi",
+      "summary": "Muhtasari wa Kitaaluma",
+      "skills": "Ujuzi",
+      "experience": "Uzoefu",
+      "education": "Elimu",
+      "projects": "Miradi",
+      "achievements": "Mafanikio"
+    },
+    "personal": {
+      "fullName": {
+        "label": "Jina Kamili",
+        "placeholder": "John Doe"
+      },
+      "email": {
+        "label": "Barua Pepe",
+        "placeholder": "john@example.com"
+      },
+      "phone": {
+        "label": "Simu",
+        "placeholder": "+1 234 567 8900"
+      },
+      "location": {
+        "label": "Mahali",
+        "placeholder": "Lagos, Nigeria"
+      },
+      "linkedin": {
+        "label": "LinkedIn",
+        "placeholder": "linkedin.com/in/johndoe"
+      },
+      "portfolio": {
+        "label": "Portfolio",
+        "placeholder": "portfolio.site"
+      }
+    },
+    "summaryPlaceholder": "Andika muhtasari mfupi wa kitaaluma...",
+    "improving": "Inaboresha…",
+    "improveWithAi": "Boresha kwa AI",
+    "unlockAiAssist": "Fungua Usaidizi wa AI",
+    "aiSummaryFeature": "Mtengeneza Muhtasari wa AI",
+    "skillsPlaceholder": "JavaScript, Utafiti, Excel, Kuzungumza hadharani...",
+    "add": "Ongeza",
+    "newExperience": "Uzoefu mpya",
+    "newEducation": "Elimu mpya",
+    "newProject": "Mradi mpya",
+    "newAchievement": "Mafanikio mapya",
+    "fields": {
+      "role": {
+        "label": "Nafasi",
+        "placeholder": "Mwanafunzi wa Mafunzo Kazini"
+      },
+      "company": {
+        "label": "Kampuni",
+        "placeholder": "Kampuni / Shirika"
+      },
+      "location": {
+        "label": "Mahali",
+        "placeholder": "Kwa mbali / Jiji"
+      },
+      "startDate": {
+        "label": "Tarehe ya Kuanza",
+        "placeholder": "2024-01"
+      },
+      "endDate": {
+        "label": "Tarehe ya Kumaliza",
+        "placeholder": "2025-01"
+      },
+      "currentlyWorkHere": "Ninafanya kazi hapa kwa sasa",
+      "description": {
+        "label": "Maelezo",
+        "placeholder": "Eleza ulichofanya"
+      },
+      "highlights": {
+        "label": "Vivutio (kimoja kwa kila mstari)",
+        "placeholder": "Niliongeza usajili kwa 30%\nNiliongoza timu ya watu 4"
+      },
+      "institution": {
+        "label": "Taasisi",
+        "placeholder": "Chuo Kikuu / Shule"
+      },
+      "degree": {
+        "label": "Shahada",
+        "placeholder": "BSc / MSc / Diploma"
+      },
+      "fieldOfStudy": {
+        "label": "Fani",
+        "placeholder": "Sayansi ya Kompyuta"
+      },
+      "eduStartDate": {
+        "placeholder": "2021-09"
+      },
+      "eduEndDate": {
+        "placeholder": "2025-06 (au inayotarajiwa)"
+      },
+      "projectName": {
+        "label": "Jina la Mradi",
+        "placeholder": "Programu ya Kutafuta Ufadhili wa Masomo"
+      },
+      "projectDescription": {
+        "placeholder": "Eleza matokeo ya mradi"
+      },
+      "technologies": {
+        "label": "Teknolojia",
+        "placeholder": "React, Node.js"
+      },
+      "achievementTitle": {
+        "label": "Kichwa",
+        "placeholder": "Orodha ya Wanafunzi Bora"
+      },
+      "issuer": {
+        "label": "Mtoaji",
+        "placeholder": "Chuo Kikuu / Shirika"
+      },
+      "achievementDescription": {
+        "placeholder": "Kwa nini ni muhimu"
+      }
+    },
+    "tailor": {
+      "title": "Lenga kwa Fursa",
+      "subtitle": "Linganisha CV hii na fursa zilizo kwenye benki yako"
+    },
+    "save": "Hifadhi CV",
+    "preparing": "Inaandaa…",
+    "downloadPdf": "Pakua PDF"
+  },
+  "preview": {
+    "backToEdit": "Rudi Kuhariri",
+    "downloadAccessibility": "Pakua CV kama PDF",
+    "preparing": "Inaandaa…",
+    "pdf": "PDF",
+    "yourName": "Jina Lako",
+    "sections": {
+      "summary": "Muhtasari",
+      "skills": "Ujuzi",
+      "experience": "Uzoefu",
+      "education": "Elimu",
+      "projects": "Miradi",
+      "achievements": "Mafanikio"
+    },
+    "startFallback": "Mwanzo",
+    "present": "- Hadi sasa"
+  },
+  "proUpgrade": {
+    "title": "Fungua {{feature}}",
+    "subtitle": "Pata ufikiaji usio na kikomo wa vipengele vyote vya premium",
+    "priceFrom": "Kuanzia",
+    "price": "$5.99",
+    "pricePeriod": "/mwezi",
+    "features": {
+      "roadmaps": "Utengenezaji wa Ramani za Njia za AI Bila Kikomo",
+      "templates": "Violezo vya CV vya Premium",
+      "tailoring": "Ulengaji wa CV kwa AI",
+      "creatorListing": "Kipaumbele katika Orodha ya Waundaji",
+      "filters": "Vichujio vya Fursa vya Hali ya Juu",
+      "pdfExport": "Uhamishaji na Upakuaji wa PDF"
+    },
+    "upgradeCta": "Boresha hadi Pro",
+    "trialActivatedTitle": "Jaribio Limewashwa",
+    "trialActivatedMessage": "Sasa una ufikiaji wa vipengele vya Pro kwa siku 7!",
+    "trialCta": "Jaribu Bure kwa Siku 7",
+    "secure": "Salama",
+    "cancelAnytime": "Ghairi wakati wowote"
+  }
+}

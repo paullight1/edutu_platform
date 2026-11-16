@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Per-row opportunity marker for the Top Matches list — a sparkle that replaces
+  the old plain "1/2/3" rank numbers. Fill references the theme-aware widget
+  accent colour so it adapts in light and dark like the rest of the widget.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+  android:width="16dp"
+  android:height="16dp"
+  android:viewportWidth="24"
+  android:viewportHeight="24">
+  <path
+    android:fillColor="@color/edutu_widget_accent"
+    android:pathData="M12,3 L13.3,10.7 L21,12 L13.3,13.3 L12,21 L10.7,13.3 L3,12 L10.7,10.7 Z" />
+</vector>

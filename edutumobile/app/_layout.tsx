@@ -1,0 +1,269 @@
+import { Slot } from "expo-router";
+import { StatusBar, setStatusBarStyle } from "expo-status-bar";
+import { SafeAreaProvider } from "react-native-safe-area-context";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { ClerkProvider, ClerkLoaded , useAuth } from "@clerk/clerk-expo";
+import { tokenCache } from "../cache";
+import { ThemeProvider, useTheme } from "../components/context/ThemeContext";
+import { OfflineProvider } from "../components/context/OfflineContext";
+import { OfflineBanner } from "../components/ui/OfflineBanner";
+import { ErrorBoundary } from "../components/ui/ErrorBoundary";
+import { useDeepLink } from "../hooks/useDeepLink";
+import { useEffect, useRef } from "react";
+import { AppState, type AppStateStatus, View, Text } from "react-native";
+import { setSupabaseAccessTokenGetter } from "../packages/core/src/services/supabase";
+import { flushSignalQueue, setSignalQueueSession } from "../packages/core/src/services/signalQueue";
+import { useInAppUpdatePrompt } from "../lib/updatePrompt";
+import { hydrateNavBarStyle } from "../lib/navStyleStore";
+import { hydrateHaptics } from "../lib/haptics";
+import { MobileCampaignHost } from "../components/mobile-control/MobileCampaignHost";
+import { AppControlGate } from "../components/mobile-control/AppControlGate";
+import { AppControlProvider } from "../components/context/AppControlContext";
+import { AuthWallProvider } from "../components/context/AuthWallContext";
+import { exitGuestMode } from "../lib/guestModeStore";
+import { syncWidgetSuite } from "../lib/widgetSuiteSync";
+import { registerWidgetBackgroundRefresh } from "../lib/widgetBackgroundTask";
+import { getConfig } from "../lib/config";
+import { setCrashReportingUser } from "../lib/crashReporting";
+import { initStoredLanguage } from "../lib/i18n";
+import "../widgets";
+import "../global.css";
+
+// Resolve required config WITHOUT throwing at module-load time. The previous
+// `throw` here ran during the initial import, i.e. before any React error
+// boundary exists — so a build that shipped without the embedded env vars
+// (e.g. an EAS build whose environment was missing EXPO_PUBLIC_* keys) would
+// crash to the launcher on open with no message. Now we surface a readable
+// screen instead of a silent crash.
+function resolveAppConfig():
+    | { ok: true; clerkPublishableKey: string }
+    | { ok: false; error: string } {
+    try {
+        const { clerkPublishableKey } = getConfig();
+        if (!clerkPublishableKey) {
+            return { ok: false, error: "Missing Clerk publishable key." };
+        }
+        return { ok: true, clerkPublishableKey };
+    } catch (error) {
+        return {
+            ok: false,
+            error: error instanceof Error ? error.message : String(error),
+        };
+    }
+}
+
+// Deliberately self-contained: no theme/router/provider dependencies, so it can
+// render even when the app is too misconfigured to boot its providers.
+function ConfigErrorScreen({ message }: { message: string }) {
+    return (
+        <View
+            style={{
+                flex: 1,
+                backgroundColor: "#171a4f",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: 24,
+            }}
+        >
+            <Text
+                style={{
+                    color: "#ffffff",
+                    fontSize: 18,
+                    fontWeight: "700",
+                    marginBottom: 8,
+                    textAlign: "center",
+                }}
+            >
+                Edutu couldn&apos;t start
+            </Text>
+            <Text
+                style={{ color: "#c7cbe6", fontSize: 14, textAlign: "center" }}
+            >
+                {message}
+            </Text>
+            <Text
+                style={{
+                    color: "#8a90c0",
+                    fontSize: 12,
+                    textAlign: "center",
+                    marginTop: 16,
+                }}
+            >
+                This build is missing required configuration. Please install the
+                latest version, or contact support if this keeps happening.
+            </Text>
+        </View>
+    );
+}
+
+function RootLayoutContent() {
+    const { colors, isDark } = useTheme();
+    const { getToken, userId, isSignedIn } = useAuth();
+    useDeepLink();
+    useInAppUpdatePrompt();
+
+    // Once a real Clerk session exists, the visitor is no longer a guest — drop
+    // the "browse without login" flag so the app treats them as a normal user
+    // (and a returning guest who signs out lands back on the welcome screen).
+    useEffect(() => {
+        if (isSignedIn) exitGuestMode();
+    }, [isSignedIn]);
+
+    useEffect(() => {
+        setSupabaseAccessTokenGetter(async () => {
+            const supabaseToken = await getToken({ template: 'supabase' }).catch(() => null);
+            const token = supabaseToken || await getToken().catch(() => null);
+            // A null here silently downgrades every Supabase request to anon
+            // (RLS empty reads, 42501 on jwt-scoped RPCs) — surface it in dev.
+            if (__DEV__ && !token) console.warn('[supabase-auth] token getter returned null');
+            return token;
+        });
+
+        return () => setSupabaseAccessTokenGetter(null);
+    }, [getToken]);
+
+    // Attach the Clerk id to crash reports so a single account's failures can be
+    // followed across sessions. Id only — no email or profile data.
+    useEffect(() => {
+        setCrashReportingUser(userId ?? null);
+    }, [userId]);
+
+    useEffect(() => {
+        void syncWidgetSuite({ userId: userId || undefined, getToken });
+    }, [userId, getToken]);
+
+    // Deliver any behavioral signals that queued while offline / unauthed.
+    useEffect(() => {
+        setSignalQueueSession(userId ?? null, () => getToken().catch(() => null));
+        if (userId) void flushSignalQueue();
+        return () => setSignalQueueSession(null);
+    }, [userId, getToken]);
+
+    // Register the background task once so iOS keeps the widget fresh even when
+    // the app isn't opened. No-op in Expo Go / until the next native rebuild.
+    useEffect(() => {
+        void registerWidgetBackgroundRefresh();
+    }, []);
+
+    // Keep the latest theme readable inside the AppState listener below without
+    // re-subscribing it every time the theme toggles.
+    const isDarkRef = useRef(isDark);
+    useEffect(() => { isDarkRef.current = isDark; }, [isDark]);
+
+    // ── Status bar indicator color ───────────────────────────────────────────
+    // The <StatusBar> below sets the iOS clock/signal/battery color, but
+    // expo-status-bar drives it imperatively and globally (the project runs with
+    // UIViewControllerBasedStatusBarAppearance=NO, as RCTStatusBarManager
+    // requires). iOS re-resolves the bar to the Info.plist static default during
+    // the initial appearance transition and on resume — and since the native
+    // UIUserInterfaceStyle is pinned to Dark while our JS theme is independent,
+    // the one-shot declarative style got reverted, leaving DARK indicators on the
+    // dark header. Re-assert imperatively after paint whenever the theme flips so
+    // the indicators always contrast the chrome (light on dark, dark on light).
+    useEffect(() => {
+        const style = isDark ? "light" : "dark";
+        setStatusBarStyle(style);
+        // On a cold launch iOS's appearance transition can fire just after this
+        // effect and revert the bar; a deferred re-assert lands after it.
+        const t = setTimeout(() => setStatusBarStyle(style), 350);
+        return () => clearTimeout(t);
+    }, [isDark]);
+
+    // Re-sync the home-screen widget every time the app returns to the
+    // foreground. Widget snapshots store pre-formatted deadline strings
+    // ("Closes today", "3 days left"); without this they'd freeze until the
+    // user happened to open Home/Discover, so a countdown could show stale
+    // — or a closed opportunity could linger — for days.
+    const appState = useRef(AppState.currentState);
+    useEffect(() => {
+        const subscription = AppState.addEventListener(
+            "change",
+            (nextState: AppStateStatus) => {
+                if (
+                    appState.current.match(/inactive|background/) &&
+                    nextState === "active"
+                ) {
+                    // Returning to the foreground re-runs iOS's appearance pass,
+                    // which can revert the bar to the static default — re-assert.
+                    setStatusBarStyle(isDarkRef.current ? "light" : "dark");
+                    void syncWidgetSuite({
+                        userId: userId || undefined,
+                        getToken,
+                    });
+                    if (userId) {
+                        void flushSignalQueue();
+                    }
+                }
+                appState.current = nextState;
+            },
+        );
+        return () => subscription.remove();
+    }, [userId, getToken]);
+
+    return (
+        <ErrorBoundary message="Something went wrong with the app">
+            <SafeAreaProvider>
+                <OfflineProvider>
+                    <AppControlProvider>
+                        <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.background }}>
+                            <StatusBar style={isDark ? "light" : "dark"} />
+                            {/* AuthWallProvider is mounted at the root so guest
+                                gating can be raised from anywhere — the home
+                                screen, opportunity detail, and the tab chrome. */}
+                            <AuthWallProvider>
+                                <Slot />
+                                <OfflineBanner />
+                                <MobileCampaignHost />
+                                {/* Last child so the force-update / maintenance gate
+                                    covers every screen and overlay above. */}
+                                <AppControlGate />
+                            </AuthWallProvider>
+                        </GestureHandlerRootView>
+                    </AppControlProvider>
+                </OfflineProvider>
+            </SafeAreaProvider>
+        </ErrorBoundary>
+    );
+}
+
+export default function RootLayout() {
+    const config = resolveAppConfig();
+
+    // Restore the persisted app language (or device locale on first launch).
+    // i18next itself initializes synchronously at import time with English,
+    // so this only swaps the active language — safe to fire and forget.
+    useEffect(() => {
+        void initStoredLanguage();
+    }, []);
+
+    // Restore the bottom-nav style before the nav's first paint, so a user who
+    // chose "solid" doesn't see a frame of glass on every cold start.
+    useEffect(() => {
+        void hydrateNavBarStyle();
+        // Load the haptics on/off preference before the first tap can fire one.
+        void hydrateHaptics();
+    }, []);
+
+    // ErrorBoundary is now the OUTERMOST wrapper. Previously it lived inside
+    // ClerkProvider/ClerkLoaded/ThemeProvider, so a render-time throw in any of
+    // those providers (their child boundary can't catch its own ancestors)
+    // escaped uncaught and crashed the app. At the top level it catches them.
+    return (
+        <ErrorBoundary message="Something went wrong with the app">
+            {config.ok ? (
+                <ClerkProvider
+                    tokenCache={tokenCache}
+                    publishableKey={config.clerkPublishableKey}
+                >
+                    <ClerkLoaded>
+                        <ThemeProvider>
+                            <RootLayoutContent />
+                        </ThemeProvider>
+                    </ClerkLoaded>
+                </ClerkProvider>
+            ) : (
+                <ConfigErrorScreen message={config.error} />
+            )}
+        </ErrorBoundary>
+    );
+}

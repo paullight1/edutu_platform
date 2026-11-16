@@ -1,0 +1,220 @@
+{
+  "header": {
+    "title": "Kocha wa AI",
+    "historyButtonLabel": "Historia ya mazungumzo"
+  },
+  "loading": {
+    "conversation": "Inapakia mazungumzo..."
+  },
+  "deadline": {
+    "rolling": "Inaendelea",
+    "set": "Tarehe ya mwisho imewekwa"
+  },
+  "location": {
+    "remote": "Mbali (Remote)"
+  },
+  "quickPrompts": {
+    "findScholarships": {
+      "title": "Tafuta ufadhili wa masomo",
+      "subtitle": "Unaopatikana mwezi huu",
+      "message": "Tafuta ufadhili wa masomo ninaoweza kuomba mwezi huu"
+    },
+    "mastercard": {
+      "title": "Fursa za Mastercard",
+      "subtitle": "Ufadhili wa masomo kutoka Edutu"
+    },
+    "buildRoadmap": {
+      "title": "Unda ramani ya njia",
+      "subtitle": "Panga ombi langu lijalo",
+      "message": "Unda ramani ya njia kwa ombi langu lijalo"
+    },
+    "internships": {
+      "title": "Tarehe za mwisho za mafunzo kazini",
+      "subtitle": "Fursa zinazokuja"
+    }
+  },
+  "alerts": {
+    "noDeadlineTitle": "Hakuna tarehe ya mwisho iliyopatikana",
+    "noDeadlineMessage": "Fursa hii bado haina tarehe ya mwisho iliyohifadhiwa.",
+    "alreadyTrackedTitle": "Tayari inafuatiliwa",
+    "alreadyTrackedMessage": "Tarehe hii ya mwisho tayari imo kwenye mpango wako.",
+    "deadlineAddedTitle": "Tarehe ya mwisho imeongezwa",
+    "deadlineAddedMessage": "Nimeiongeza kwenye mpango wako na kupanga vikumbusho.",
+    "couldNotAddDeadlineTitle": "Imeshindwa kuongeza tarehe ya mwisho",
+    "tryAgainFromOpportunity": "Tafadhali jaribu tena kutoka kwenye ukurasa wa fursa.",
+    "signInRequiredTitle": "Unahitaji kuingia",
+    "signInRequiredMessage": "Tafadhali ingia ili kutengeneza malengo ya ramani ya njia.",
+    "roadmapExistsTitle": "Ramani ya njia tayari ipo",
+    "roadmapExistsMessage": "Fursa hii tayari ina malengo kwenye mpango wako.",
+    "openGoals": "Fungua Malengo",
+    "stayHere": "Baki Hapa",
+    "roadmapCreatedTitle": "Ramani ya njia imetengenezwa",
+    "roadmapCreatedMessage": "Malengo {{count}} yameongezwa pamoja na vikumbusho pale tarehe za mwisho zilipo.",
+    "couldNotCreateRoadmapTitle": "Imeshindwa kutengeneza ramani ya njia"
+  },
+  "goals": {
+    "applyTitle": "Omba: {{title}}",
+    "applyDescription": "Tarehe ya mwisho ya maombi kwa {{organization}}.",
+    "thisOpportunity": "fursa hii",
+    "submitTitle": "Wasilisha {{title}}",
+    "submitDescription": "{{strategy}}\n\nRasilimali:\n{{resources}}",
+    "milestoneDescription": "Hatua muhimu ya {{title}}",
+    "dailyDescription": "{{description}}\n\nLengo kuu: {{focus}}\nMuda: dakika {{minutes}}",
+    "checklistDescription": "Kipengee cha orodha hakiki cha {{title}}"
+  },
+  "messages": {
+    "recommendedTitle": "Zinazopendekezwa kutoka Fursa",
+    "viewMore": "Tazama zaidi",
+    "openAllOpportunities": "Fungua fursa zote",
+    "narrowBy": "Bana kwa:",
+    "view": "Tazama",
+    "categoryFallback": "Fursa",
+    "typing": "Edutu anafikiri…",
+    "aiThinkingAnnouncement": "Edutu anafikiri",
+    "aiRepliedAnnouncement": "Edutu amejibu",
+    "stoppedNotice": "Ulisimamisha jibu hili — huenda halijakamilika.",
+    "stoppedEarlyNotice": "Ulisimamisha kabla Edutu hajajibu.",
+    "interruptedNotice": "Muunganisho ulikatika, kwa hivyo jibu hili halijakamilika. Uliza tena upate jibu kamili.",
+    "truncatedNotice": "Jibu hili ni sehemu tu — Edutu hakuwa na nafasi ya kulimaliza.",
+    "fitExcellent": "Inakufaa sana",
+    "fitStrong": "Inakufaa vizuri",
+    "fitGood": "Inafaa",
+    "fitWorthALook": "Inafaa kuangalia"
+  },
+  "followUp": {
+    "country": "Nchi",
+    "deadline": "Tarehe ya mwisho",
+    "funding": "Ufadhili",
+    "narrowByCountry": "Chuja hizi kwa nchi",
+    "narrowByDeadline": "Chuja hizi kwa tarehe ya mwisho",
+    "narrowByFunding": "Chuja hizi kwa ufadhili"
+  },
+  "roadmapPanel": {
+    "title": "Unda ramani ya njia",
+    "subtitle": "Malengo, tarehe za mwisho, vikumbusho",
+    "build": "Unda"
+  },
+  "empty": {
+    "title": "Mimi ni Edutu, Kocha wako wa AI",
+    "description": "Uliza kuhusu ufadhili halisi wa masomo, tarehe za mwisho, ramani za njia, au hatua zinazofuata za maombi."
+  },
+  "input": {
+    "placeholder": "Andikia Edutu...",
+    "send": "Tuma",
+    "stopLabel": "Simamisha kuandika",
+    "sending": "Inatuma…"
+  },
+  "threads": {
+    "modalTitle": "Mazungumzo",
+    "newConversation": "Mazungumzo Mapya",
+    "empty": "Hakuna mazungumzo ya hivi karibuni",
+    "groups": {
+      "today": "Leo",
+      "yesterday": "Jana",
+      "thisWeek": "Wiki Hii",
+      "older": "Ya Zamani"
+    },
+    "itemA11yLabel": "Mazungumzo: {{title}}, {{date}}",
+    "closeButtonLabel": "Funga historia ya mazungumzo"
+  },
+  "voice": {
+    "titleTranscript": "Ujumbe wa Sauti",
+    "titleListening": "Inasikiliza...",
+    "titleProcessing": "Inachakata...",
+    "titleIdle": "Gusa ili Uzungumze",
+    "sendingAutomatically": "Inatuma kiotomatiki...",
+    "genericError": "Hitilafu imetokea",
+    "hintStop": "Gusa maikrofoni kusitisha",
+    "hintSendOrWait": "Gusa tuma au subiri",
+    "hintTranscribing": "Inanakili ujumbe wako...",
+    "hintStart": "Gusa maikrofoni kuanza kurekodi"
+  },
+  "voiceMode": {
+    "badgeVoice": "Gumzo la sauti",
+    "badgeLive": "Moja kwa moja",
+    "statusConnecting": "Inaanza…",
+    "statusListening": "Nasikiliza…",
+    "statusTranscribing": "Nimepokea…",
+    "statusThinking": "Nafikiri…",
+    "statusSpeaking": "Edutu anazungumza",
+    "statusIdle": "Gusa duara ili kuzungumza",
+    "statusReady": "Tayari — anza kuongea",
+    "statusPaused": "Imesitishwa — ulitoka kwenye programu",
+    "muteShort": "Zima",
+    "unmuteShort": "Washa",
+    "endShort": "Maliza",
+    "chatShort": "Gumzo",
+    "actionOpenSettings": "Fungua mipangilio",
+    "actionTryAgain": "Jaribu tena",
+    "actionInterrupt": "Katiza",
+    "actionResume": "Endelea",
+    "orbHint": "Gusa mara mbili kuongea, au kumkatiza Edutu anapoongea.",
+    "statusMuted": "Kimenyamazishwa — gusa maikrofoni kuendelea",
+    "youLabel": "Wewe",
+    "errorPermission": "Edutu inahitaji ruhusa ya maikrofoni. Iwashe kwenye Mipangilio, kisha ugusa duara.",
+    "errorLimit": "Umefikia kikomo chako cha bure cha AI kwa sasa.",
+    "errorNetwork": "Hitilafu imetokea. Gusa duara ujaribu tena.",
+    "mute": "Zima maikrofoni",
+    "unmute": "Washa maikrofoni",
+    "end": "Maliza hali ya sauti",
+    "openChat": "Fungua gumzo",
+    "composerVoice": "Anza hali ya sauti",
+    "composerLive": "Anza sauti ya moja kwa moja",
+    "settingsTitle": "Mipangilio ya sauti",
+    "settingsDone": "Imekamilika",
+    "settingsDesign": "Muundo wa duara",
+    "settingsVoice": "Sauti ya Edutu",
+    "designParticles": "Duara la chembe",
+    "designRing": "Pete ya aurora",
+    "designBubble": "Kiputo cha ndoto",
+    "designRobot": "Robo Edutu",
+    "voiceDefault": "Chaguo-msingi la mfumo",
+    "voiceSample": "Habari! Mimi ni Edutu, kocha wako wa AI.",
+    "designCrystal": "Nyota ya kioo",
+    "designGlass": "Kimbunga cha kioo",
+    "designBlob": "Rafiki jeli",
+    "designPetals": "Duara la petali",
+    "voiceRecommended": "Zinazopendekezwa",
+    "voiceNigerian": "Kiingereza cha Nigeria",
+    "voiceAll": "Sauti zaidi",
+    "voiceHint": "Kwa sauti safi na za asili zaidi, pakua sauti zilizoboreshwa kwenye mipangilio ya simu — iOS: Mipangilio → Ufikivu → Maudhui Yanayosemwa → Sauti; Android: sakinisha sauti za Google Text-to-Speech."
+  },
+  "winCoach": {
+    "sheetTitle": "Kocha wa Edutu",
+    "thinking": "Ninalifikiria hili kwa ajili yako…",
+    "signInRequired": "Ingia ili kutumia Kocha wa Edutu.",
+    "noReplyFallback": "Sikuweza kutengeneza jibu kwa sasa — tafadhali jaribu tena.",
+    "billingLimitReached": "Hii inatumia mikopo ya AI na imeisha. Boresha kuwa Edutu Pro au ongeza salio ili kuendelea.",
+    "documentUpload": {
+      "defaultLabel": "Pakia hati",
+      "cvLabel": "Pakia CV yako upate tathmini sahihi zaidi",
+      "uploading": "Inapakia…",
+      "processing": "Inachakatwa…",
+      "ready": "{{name}} — tayari",
+      "readFailed": "Imeshindwa kusoma faili hilo. Jaribu faili la PDF, DOCX, au maandishi.",
+      "uploadFailed": "Kupakia kumeshindikana. Tafadhali jaribu tena."
+    },
+    "openInChat": "Fungua kwenye gumzo",
+    "actions": {
+      "fitCheck": "Je, ninafaa?",
+      "nextMove": "Hatua inayofuata",
+      "whatsMissing": "Ninakosa nini?",
+      "nextWinMove": "Hatua yangu ijayo ya ushindi"
+    }
+  },
+  "limit": {
+    "title": "Umefikia kikomo chako cha AI",
+    "body": "Umetumia ujumbe wako wa bure wa AI wa Edutu kwa sasa. Boresha hadi Pro upate ukocha usio na kikomo, ramani za njia, na mapendekezo yaliyokulenga.",
+    "upgradeCta": "Boresha hadi Pro",
+    "errorTitle": "Ujumbe haukutumwa",
+    "errorBody": "Muunganisho ulikatizwa. Gusa jaribu tena ili kuutuma tena.",
+    "retryCta": "Jaribu tena",
+    "dismissCta": "Sio sasa",
+    "savedTitle": "Ujumbe wako umehifadhiwa",
+    "savedBody": "Tumehifadhi ulichoandika: “{{message}}”. Tuma wakati wowote ukiwa tayari.",
+    "resendCta": "Tuma sasa"
+  },
+  "actions": {
+    "createRoadmapPrompt": "Ndiyo, niundie ramani hiyo ya njia."
+  }
+}

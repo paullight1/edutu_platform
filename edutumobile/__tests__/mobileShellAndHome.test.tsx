@@ -1,0 +1,499 @@
+import React from 'react';
+import { fireEvent, render, waitFor } from '@testing-library/react-native';
+
+const mockReplace = jest.fn();
+const mockPush = jest.fn();
+const mockSetSupabaseAccessTokenGetter = jest.fn();
+const mockRequestPermissions = jest.fn().mockResolvedValue(undefined);
+const mockRegisterForPushNotificationsAsync = jest.fn().mockResolvedValue(undefined);
+const mockSyncWidgetSnapshot = jest.fn().mockResolvedValue(undefined);
+const mockUseDeepLink = jest.fn();
+const mockUseInAppUpdatePrompt = jest.fn();
+const mockRecordOpportunitySignal = jest.fn();
+const mockNotificationHaptic = jest.fn();
+const mockRefresh = jest.fn();
+const mockFetchOpportunityDeadlines = jest.fn();
+const mockUnreadCount = 2;
+
+let mockAuthState: {
+  isLoaded: boolean;
+  isSignedIn: boolean;
+  getToken: jest.Mock;
+  userId?: string | null;
+};
+let mockUserState: { user: { id: string; firstName?: string; fullName?: string; imageUrl?: string; unsafeMetadata?: { onboardingComplete?: boolean } } | null };
+let mockPathname = '/';
+let mockSegments = ['(app)', 'index'];
+let mockGlobalSearchParams: Record<string, string | string[]> = {};
+let mockOpportunitiesData: Array<any> = [];
+let mockOpportunitiesLoading = false;
+let mockProfileData: Array<{ user_id: string; full_name?: string | null }> = [];
+const mockSaveHomeCategories = jest.fn();
+let mockHomeCategoriesState = {
+  tiles: [
+    { id: 'scholarships', size: 'card' },
+    { id: 'internships', size: 'card' },
+    { id: 'programs', size: 'card' },
+    { id: 'fellowships', size: 'card' },
+  ],
+  loaded: true,
+};
+
+jest.mock('expo-router', () => {
+  const React = require('react');
+  const { Text, View } = require('react-native');
+
+  const Stack = ({ children }: { children?: React.ReactNode }) => <View>{children}</View>;
+  Stack.Screen = () => null;
+
+  return {
+    Slot: () => <Text>slot</Text>,
+    Stack,
+    Redirect: ({ href }: { href: string }) => <Text>{`Redirect:${href}`}</Text>,
+    useRouter: () => ({ push: mockPush, navigate: mockPush, replace: mockReplace }),
+    useSegments: () => mockSegments,
+    usePathname: () => mockPathname,
+    useGlobalSearchParams: () => mockGlobalSearchParams,
+    Link: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  };
+});
+
+jest.mock('@clerk/clerk-expo', () => ({
+  ClerkProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  ClerkLoaded: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  useAuth: () => mockAuthState,
+  useUser: () => mockUserState,
+}));
+
+jest.mock('../components/context/ThemeContext', () => ({
+  ThemeProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  useTheme: () => ({
+    colors: {
+      ...require('../test-utils/themeColors').TEST_THEME_COLORS,
+      background: '#FFFFFF',
+      foreground: '#111827',
+      textSecondary: '#64748B',
+      card: '#FFFFFF',
+      border: '#E5E7EB',
+      accent: '#2563EB',
+    },
+    isDark: false,
+  }),
+}));
+
+jest.mock('../components/context/OfflineContext', () => ({
+  OfflineProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+
+jest.mock('../components/ui/OfflineBanner', () => ({
+  OfflineBanner: () => null,
+}));
+
+jest.mock('../components/ui/ErrorBoundary', () => ({
+  ErrorBoundary: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+
+jest.mock('../components/ui/WelcomeHintSystem', () => ({
+  WelcomeHintSystem: () => null,
+}));
+
+jest.mock('../components/branding/EdutuLogo', () => ({
+  EdutuLogo: () => {
+    const { Text } = require('react-native');
+    return <Text>EdutuLogo</Text>;
+  },
+}));
+
+jest.mock('../components/mobile-control/MobileCampaignHost', () => ({
+  MobileCampaignHost: () => null,
+}));
+
+jest.mock('../components/ui/AnimatedPressable', () => {
+  const React = require('react');
+  const { TouchableOpacity } = require('react-native');
+  return {
+    AnimatedPressable: ({ children, ...props }: { children: React.ReactNode }) => (
+      <TouchableOpacity {...props}>{children}</TouchableOpacity>
+    ),
+    AnimatedTouchableOpacity: ({ children, ...props }: { children: React.ReactNode }) => (
+      <TouchableOpacity {...props}>{children}</TouchableOpacity>
+    ),
+  };
+});
+
+jest.mock('expo-linear-gradient', () => ({
+  LinearGradient: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+
+jest.mock('expo-blur', () => ({
+  BlurView: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+
+jest.mock('lucide-react-native', () => {
+  const React = require('react');
+  const { Text } = require('react-native');
+  // Serve a stub for ANY icon name so new icons never break the suite.
+  const cache = new Map<PropertyKey, () => React.JSX.Element>();
+  return new Proxy(
+    {},
+    {
+      get: (_target, name: PropertyKey) => {
+        if (name === '__esModule') return true;
+        if (!cache.has(name)) {
+          const Icon = () => <Text>{String(name)}</Text>;
+          cache.set(name, Icon);
+        }
+        return cache.get(name);
+      },
+    },
+  );
+});
+
+jest.mock('../hooks/useDeepLink', () => ({
+  useDeepLink: () => mockUseDeepLink(),
+}));
+
+jest.mock('../lib/updatePrompt', () => ({
+  useInAppUpdatePrompt: () => mockUseInAppUpdatePrompt(),
+}));
+
+jest.mock('../lib/opportunityWidgetSync', () => ({
+  syncAndUpdateOpportunityWidgetSnapshot: (...args: unknown[]) => mockSyncWidgetSnapshot(...args),
+}));
+
+jest.mock('../lib/notifications', () => ({
+  notificationService: {
+    requestPermissions: () => mockRequestPermissions(),
+    notify: () => mockNotificationHaptic(),
+    triggerHaptic: () => mockNotificationHaptic(),
+  },
+  registerForPushNotificationsAsync: (...args: unknown[]) => mockRegisterForPushNotificationsAsync(...args),
+}));
+
+jest.mock('../packages/core/src/services/supabase', () => ({
+  setSupabaseAccessTokenGetter: (...args: unknown[]) => mockSetSupabaseAccessTokenGetter(...args),
+}));
+
+jest.mock('@edutu/core/src/services/opportunitySignals', () => ({
+  recordOpportunitySignal: (...args: unknown[]) => mockRecordOpportunitySignal(...args),
+}), { virtual: true });
+
+jest.mock('@edutu/core/src/hooks/useNotifications', () => ({
+  useNotifications: () => ({
+    unreadCount: mockUnreadCount,
+  }),
+}), { virtual: true });
+
+jest.mock('@edutu/core/src/hooks/useProStatus', () => ({
+  useProStatus: () => ({ isPro: true, isLoading: false }),
+}), { virtual: true });
+
+jest.mock('@edutu/core/src/services/deadlines', () => ({
+  fetchOpportunityDeadlines: (...args: unknown[]) => mockFetchOpportunityDeadlines(...args),
+}), { virtual: true });
+
+jest.mock('@edutu/core/src/hooks/useOpportunities', () => ({
+  useOpportunities: () => ({
+    data: mockOpportunitiesData,
+    loading: mockOpportunitiesLoading,
+    refresh: mockRefresh,
+  }),
+}), { virtual: true });
+jest.mock('@edutu/core/src/hooks/useGoals', () => ({
+  useGoals: () => ({ goals: [], isLoading: false }),
+}), { virtual: true });
+
+jest.mock('@edutu/core/src/hooks/useCreditRewards', () => ({
+  useCreditRewards: () => ({
+    claimDaily: jest.fn().mockResolvedValue(undefined),
+    award: jest.fn().mockResolvedValue(undefined),
+  }),
+}), { virtual: true });
+
+jest.mock('../hooks/useCommunityUnreadCounts', () => ({
+  useCommunityUnreadCounts: () => ({
+    groupsUnreadCount: 0,
+    chatsUnreadCount: 0,
+    groupUnreadCounts: {},
+  }),
+}));
+
+jest.mock('@edutu/core/src/utils/auth', () => ({
+  toSafeUUID: (value: string) => `safe-${value}`,
+}), { virtual: true });
+
+jest.mock('@edutu/core/src/types/opportunity', () => ({
+  Opportunity: {},
+}), { virtual: true });
+
+jest.mock('../lib/supabase', () => ({
+  supabase: {
+    from: jest.fn(() => ({
+      select: jest.fn(() => ({
+        in: jest.fn().mockImplementation(() => Promise.resolve({ data: mockProfileData })),
+      })),
+    })),
+    // The shell claims the daily login credit on mount.
+    rpc: jest.fn().mockResolvedValue({ data: null, error: null }),
+  },
+}));
+
+jest.mock('../lib/homeCategoriesStore', () => ({
+  useHomeCategories: () => ({
+    ...mockHomeCategoriesState,
+    save: mockSaveHomeCategories,
+  }),
+}));
+
+jest.mock('../widgets/OpportunityWidget', () => ({}));
+jest.mock('../cache', () => ({
+  tokenCache: {},
+}));
+jest.mock('../global.css', () => ({}), { virtual: true });
+
+const appLayoutModule = require('../app/(app)/_layout') as typeof import('../app/(app)/_layout');
+const AppLayout = appLayoutModule.default;
+const { featureMenuStateAfterLeftSwipe } = appLayoutModule;
+const Dashboard = require('../app/(app)/index').default;
+
+type Opportunity = {
+  id: string;
+  title: string;
+  organization: string;
+  description: string;
+  category: string;
+  location: string;
+  deadline?: string | null;
+  featured: boolean;
+  requirements: string[];
+  benefits: string[];
+  applicationProcess: string[];
+  match: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+const testOpportunities: Opportunity[] = [
+  {
+    id: 'opp-featured',
+    title: 'Global Fellowship',
+    organization: 'Edutu',
+    description: 'Featured opportunity',
+    category: 'Fellowship',
+    location: 'Remote',
+    deadline: null,
+    featured: true,
+    requirements: [],
+    benefits: [],
+    applicationProcess: [],
+    match: 95,
+    createdAt: '2026-06-22T00:00:00.000Z',
+    updatedAt: '2026-06-22T00:00:00.000Z',
+  },
+  {
+    id: 'opp-regular',
+    title: 'Campus Internship',
+    organization: 'Edutu',
+    description: 'Recommended opportunity',
+    category: 'Internship',
+    location: 'Lagos',
+    deadline: null,
+    featured: false,
+    requirements: [],
+    benefits: [],
+    applicationProcess: [],
+    match: 82,
+    createdAt: '2026-06-22T00:00:00.000Z',
+    updatedAt: '2026-06-22T00:00:00.000Z',
+  },
+];
+
+describe('mobile app shell and home dashboard', () => {
+  it('resolves a left swipe from the gesture-start drawer state', () => {
+    expect(featureMenuStateAfterLeftSwipe(true)).toBe(false);
+    expect(featureMenuStateAfterLeftSwipe(false)).toBe(true);
+  });
+
+  beforeEach(() => {
+    mockReplace.mockClear();
+    mockPush.mockClear();
+    mockSetSupabaseAccessTokenGetter.mockClear();
+    mockRequestPermissions.mockClear();
+    mockRegisterForPushNotificationsAsync.mockClear();
+    mockSyncWidgetSnapshot.mockClear();
+    mockUseDeepLink.mockClear();
+    mockUseInAppUpdatePrompt.mockClear();
+    mockRecordOpportunitySignal.mockClear();
+    mockNotificationHaptic.mockClear();
+    mockRefresh.mockClear();
+    mockFetchOpportunityDeadlines.mockReset();
+    mockFetchOpportunityDeadlines.mockResolvedValue([
+      { opportunityId: 'deadline-1', daysRemaining: 2 },
+      { opportunityId: 'deadline-2', daysRemaining: 6 },
+      { opportunityId: 'later', daysRemaining: 12 },
+    ]);
+    mockAuthState = {
+      isLoaded: true,
+      isSignedIn: false,
+      getToken: jest.fn().mockResolvedValue('token'),
+      userId: null,
+    };
+    mockUserState = { user: null };
+    mockPathname = '/';
+    mockSegments = ['(app)', 'index'];
+    mockGlobalSearchParams = {};
+    mockOpportunitiesData = testOpportunities;
+    mockOpportunitiesLoading = false;
+    mockProfileData = [];
+    mockSaveHomeCategories.mockClear();
+    mockHomeCategoriesState = {
+      tiles: [
+        { id: 'scholarships', size: 'card' },
+        { id: 'internships', size: 'card' },
+        { id: 'programs', size: 'card' },
+        { id: 'fellowships', size: 'card' },
+      ],
+      loaded: true,
+    };
+  });
+
+  it('redirects unauthenticated app-shell users to sign-in', () => {
+    const { getByText } = render(<AppLayout />);
+
+    expect(getByText('Redirect:/(auth)/sign-in')).toBeTruthy();
+  });
+
+  it('shows the bottom navigation and AI shortcut for authenticated onboarded users', async () => {
+    mockAuthState = {
+      isLoaded: true,
+      isSignedIn: true,
+      getToken: jest.fn().mockResolvedValue('token'),
+      userId: 'user-1',
+    };
+    mockUserState = { user: { id: 'user-1', firstName: 'Amara', fullName: 'Amara Okafor', imageUrl: 'https://example.com/amara.jpg', unsafeMetadata: { onboardingComplete: true } } };
+
+    const { getAllByText, getByText, queryByText, getByLabelText, getByTestId } = render(<AppLayout />);
+
+    await waitFor(() => expect(getAllByText('Home').length).toBeGreaterThan(0));
+    expect(String(getByTestId('home-header-greeting').props.children)).toContain('Amara');
+    await waitFor(() => expect(getByText('2 deadlines this week')).toBeTruthy());
+    expect(getByTestId('home-header-verified')).toBeTruthy();
+    expect(getByText('My Plan')).toBeTruthy();
+    expect(getByText('Explore')).toBeTruthy();
+    expect(queryByText('Goals')).toBeNull();
+    expect(getByText('More')).toBeTruthy();
+    expect(getByLabelText('Open Edutu AI')).toBeTruthy();
+
+    fireEvent.press(getByText('My Plan'));
+    expect(mockPush).toHaveBeenCalledWith('/my-plan');
+
+    fireEvent.press(getByLabelText('Open menu'));
+    expect(getByTestId('feature-menu-underlay')).toBeTruthy();
+    expect(getByTestId('feature-menu-page-dismiss', { includeHiddenElements: true })).toBeTruthy();
+  });
+
+  it('uses the persisted profile name instead of a stale Clerk placeholder in the home greeting', async () => {
+    mockAuthState = {
+      isLoaded: true,
+      isSignedIn: true,
+      getToken: jest.fn().mockResolvedValue('token'),
+      userId: 'user-1',
+    };
+    mockUserState = {
+      user: {
+        id: 'user-1',
+        firstName: 'Edutu',
+        fullName: 'Edutu Test',
+        unsafeMetadata: { onboardingComplete: true },
+      },
+    };
+    mockProfileData = [{ user_id: 'user-1', full_name: 'Paul' }];
+
+    const { getByTestId } = render(<AppLayout />);
+
+    await waitFor(() => {
+      expect(String(getByTestId('home-header-greeting').props.children)).toContain('Paul');
+    });
+    expect(String(getByTestId('home-header-greeting').props.children)).not.toContain('Edutu');
+  });
+
+  it.each(['/my-plan', '/applied', '/deadlines', '/roadmaps', '/goals'])('preserves global tabs while inside the plan workspace on %s', (path) => {
+    mockAuthState = { isLoaded: true, isSignedIn: true, getToken: jest.fn().mockResolvedValue('token'), userId: 'user-1' };
+    mockUserState = { user: { id: 'user-1', unsafeMetadata: { onboardingComplete: true } } };
+    mockPathname = path;
+    mockGlobalSearchParams = path === '/my-plan' ? {} : { planNav: '1' };
+    const screen = render(<AppLayout />);
+    expect(screen.getByRole('tab', { name: 'My Plan' }).props.accessibilityState.selected).toBe(true);
+    expect(screen.getByRole('tab', { name: 'Explore' })).toBeTruthy();
+    expect(screen.queryByText('Applications')).toBeNull();
+    fireEvent.press(screen.getByRole('tab', { name: 'Explore' }));
+    expect(mockPush).toHaveBeenCalledWith('/opportunities');
+  });
+
+  it('keeps the journey detail above global navigation without a duplicate home header', () => {
+    mockAuthState = { isLoaded: true, isSignedIn: true, getToken: jest.fn().mockResolvedValue('token'), userId: 'user-1' };
+    mockUserState = { user: { id: 'user-1', unsafeMetadata: { onboardingComplete: true } } };
+    mockPathname = '/my-plan/journey-one';
+    mockGlobalSearchParams = {};
+    const screen = render(<AppLayout />);
+    expect(screen.queryByTestId('nav-pill-surface')).toBeNull();
+    expect(screen.queryByTestId('home-header-greeting')).toBeNull();
+  });
+
+  it.each(['/discussions', '/discussions/chats', '/discussions/dm/person'])('redirects retired social route %s to My Plan', (path) => {
+    mockAuthState = { isLoaded: true, isSignedIn: true, getToken: jest.fn().mockResolvedValue('token'), userId: 'user-1' };
+    mockUserState = { user: { id: 'user-1', unsafeMetadata: { onboardingComplete: true } } };
+    mockPathname = path;
+    const { getByText, queryByTestId } = render(<AppLayout />);
+    expect(getByText('Redirect:/my-plan')).toBeTruthy();
+    expect(queryByTestId('community-navigation')).toBeNull();
+  });
+
+  it('renders the streamlined home dashboard without the relocated quick actions', async () => {
+    mockAuthState = {
+      isLoaded: true,
+      isSignedIn: true,
+      getToken: jest.fn().mockResolvedValue('token'),
+      userId: 'user-1',
+    };
+    mockUserState = { user: { id: 'user-1', unsafeMetadata: { onboardingComplete: true } } };
+
+    const { getAllByText, getByText, queryByText } = render(<Dashboard />);
+
+    await waitFor(() => expect(getByText('Explore opportunities')).toBeTruthy());
+    expect(queryByText('Quick Actions')).toBeNull();
+    expect(queryByText('Continue your progress')).toBeNull();
+    expect(getByText('Best matches for you')).toBeTruthy();
+    expect(getByText('Recommended Opportunities')).toBeTruthy();
+    expect(getAllByText('Global Fellowship').length).toBeGreaterThan(0);
+    expect(getAllByText('Campus Internship').length).toBeGreaterThan(0);
+
+    fireEvent.press(getByText('Programs'));
+    expect(mockPush).toHaveBeenCalledWith({ pathname: '/opportunities', params: { category: 'programs' } });
+
+  });
+
+  it('keeps the loading skeleton in the saved tile order and sizes', () => {
+    mockAuthState = {
+      isLoaded: true,
+      isSignedIn: true,
+      getToken: jest.fn().mockResolvedValue('token'),
+      userId: 'user-1',
+    };
+    mockUserState = { user: { id: 'user-1', unsafeMetadata: { onboardingComplete: true } } };
+    mockHomeCategoriesState = {
+      tiles: [
+        { id: 'programs', size: 'long' },
+        { id: 'scholarships', size: 'icon' },
+        { id: 'internships', size: 'card' },
+      ],
+      loaded: false,
+    };
+
+    const { getByTestId } = render(<Dashboard />);
+    expect(getByTestId('home-discovery-skeleton')).toBeTruthy();
+    expect(getByTestId('home-category-skeleton-0-programs-long')).toBeTruthy();
+    expect(getByTestId('home-category-skeleton-1-scholarships-icon')).toBeTruthy();
+    expect(getByTestId('home-category-skeleton-2-internships-card')).toBeTruthy();
+  });
+});
