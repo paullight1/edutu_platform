@@ -26,7 +26,8 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
-      - uses: android-actions/setup-android@v3
+      - name: Check preinstalled Android SDK
+        run: test -d "$ANDROID_HOME"
       - name: Configure public mobile settings
         env:
           PUBLIC_CONFIG: ${{ inputs.public_config }}
