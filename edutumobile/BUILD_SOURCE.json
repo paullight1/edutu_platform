@@ -3,5 +3,6 @@
   "scope": "Latest committed widget/Save fixes plus compact Top Matches Save button",
   "runtime": "1.0.0-sdk57",
   "channel": "widget-apk-20261116",
-  "nativeGeneration": "clean Expo SDK57 prebuild using synchronized widget templates"
+  "nativeGeneration": "clean Expo SDK57 prebuild using synchronized widget templates",
+  "notificationManifestFix": "with-notification-color: tools:replace=android:resource; verified clean prebuild"
 }
