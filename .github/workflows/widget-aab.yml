@@ -1,0 +1,70 @@
+name: Build widget internal AAB
+on:
+  push:
+    branches: [paul/widget-aab-build-20261116]
+  workflow_dispatch:
+    inputs:
+      public_config:
+        description: Public mobile runtime and Firebase client configuration only
+        required: true
+permissions:
+  contents: read
+jobs:
+  bundle:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    defaults:
+      run:
+        working-directory: edutumobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: android-actions/setup-android@v3
+      - name: Configure public mobile settings
+        env:
+          PUBLIC_CONFIG: ${{ inputs.public_config }}
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const c = JSON.parse(process.env.PUBLIC_CONFIG);
+          for (const [k,v] of Object.entries(c.env)) {
+            if (!k.startsWith('EXPO_PUBLIC_')) throw Error('Unexpected environment key');
+            console.log('::add-mask::' + v);
+            fs.appendFileSync(process.env.GITHUB_ENV, `${k}=${v}\n`);
+          }
+          if (c.firebase.private_key) throw Error('Only Firebase client configuration is allowed');
+          fs.writeFileSync('google-services.json', JSON.stringify(c.firebase));
+          NODE
+      - run: npm ci --include=dev --no-audit --no-fund
+      - name: Generate clean native project
+        env:
+          EAS_BUILD_PROFILE: production
+        run: npx expo prebuild --platform android --no-install
+      - name: Build unsigned release bundle
+        env:
+          NODE_ENV: production
+        run: |
+          python3 - <<'PYCODE'
+          from pathlib import Path
+          p=Path('android/app/build.gradle')
+          s=p.read_text()
+          marker='release {'
+          start=s.index(marker, s.index('buildTypes {'))
+          prefix=s[:start]
+          suffix=s[start:].replace('signingConfig signingConfigs.debug', 'signingConfig null', 1)
+          p.write_text(prefix+suffix)
+          PYCODE
+          cd android
+          ./gradlew :app:bundleRelease --no-daemon --max-workers=2 -Dorg.gradle.jvmargs=-Xmx4g
+      - uses: actions/upload-artifact@v4
+        with:
+          name: edutu-widgets-v25-unsigned
+          path: edutumobile/android/app/build/outputs/bundle/release/*.aab
+          retention-days: 7

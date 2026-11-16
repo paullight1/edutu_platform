@@ -121,7 +121,7 @@ export default {
       // package_name in google-services.json — a mismatch makes Firebase fail
       // to initialize and crashes the app on launch.
       package: "com.edutu.com",
-      versionCode: 1,
+      versionCode: 25,
       permissions: [
         "android.permission.RECORD_AUDIO",
         "android.permission.BLUETOOTH_CONNECT",
@@ -155,6 +155,7 @@ export default {
       bundler: "metro"
     },
     updates: {
+      requestHeaders: { "expo-channel-name": "internal-widgets-20261116" },
       url: "https://u.expo.dev/97c7d577-7e08-4f3c-a199-d1ca149ebee9"
     },
     plugins: [

@@ -66,6 +66,18 @@
         "buildType": "apk"
       },
       "autoIncrement": false
+    },
+    "widget-internal-aab": {
+      "extends": "production",
+      "distribution": "store",
+      "channel": "internal-widgets-20261116",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://backend.edutu.org"
+      },
+      "android": {
+        "buildType": "app-bundle"
+      },
+      "autoIncrement": false
     }
   },
   "submit": {
@@ -73,6 +85,13 @@
       "android": {
         "track": "internal",
         "releaseStatus": "draft",
+        "changesNotSentForReview": false
+      }
+    },
+    "widget-internal": {
+      "android": {
+        "track": "internal",
+        "releaseStatus": "completed",
         "changesNotSentForReview": false
       }
     }
