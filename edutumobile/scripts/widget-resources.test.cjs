@@ -21,3 +21,8 @@ test('every widget has a preview on launchers before Android 12', () => {
     assert.match(xml, /android:previewImage="@drawable\//, file);
   }
 });
+
+test('compact Top Matches declares a separate Save target for the provider', () => {
+  const xml = fs.readFileSync(path.join(root, 'layout/edutu_widget_compact.xml'), 'utf8');
+  assert.match(xml, /android:id="@\+id\/edutu_widget_save"/, 'The compact widget must expose Save as a separate action');
+});

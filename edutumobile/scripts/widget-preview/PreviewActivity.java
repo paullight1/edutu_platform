@@ -107,6 +107,15 @@ public class PreviewActivity extends Activity {
     bitmap.recycle();
     verifyAction(view, R.id.edutu_cw_action, destination.getName());
     verifyAction(view, R.id.edutu_ns_action, destination.getName());
+    verifyAction(view, R.id.edutu_widget_save, destination.getName());
+    if (destination.getName().startsWith("matches_") && width < 220) {
+      View save = view.findViewById(R.id.edutu_widget_save);
+      if (save == null || save.getVisibility() != View.VISIBLE || !save.isClickable())
+        throw new AssertionError(destination.getName()+": compact Top Matches needs a separate Save action");
+      if (save.getWidth() < Math.round(48*density) || save.getHeight() < Math.round(48*density))
+        throw new AssertionError(destination.getName()+": Save touch target is smaller than 48dp");
+      if (!view.isClickable()) throw new AssertionError(destination.getName()+": card must still open opportunity details");
+    }
     verifyTextBounds((android.view.ViewGroup)view, view, destination.getName(), new java.util.ArrayList<android.graphics.Rect>());
 
   }

@@ -144,10 +144,17 @@ class EdutuWidgetProvider : AppWidgetProvider() {
 
   private fun compactViews(context: Context, items: JSONArray, height: Int): RemoteViews {
     val views = RemoteViews(context.packageName, R.layout.edutu_widget_compact)
-    views.setInt(R.id.edutu_widget_title, "setMaxLines", WidgetSizing.titleLines(height, context.resources.configuration.fontScale))
     val hero = items.optJSONObject(0) ?: JSONObject()
     val deadlineRaw = hero.optString("deadline")
     val id = hero.optString("id")
+    val scale = context.resources.configuration.fontScale
+    views.setInt(R.id.edutu_widget_title, "setMaxLines", WidgetSizing.titleLines(height, scale, if (scale > 1.1f) 1 else 2))
+    views.setViewVisibility(R.id.edutu_widget_deadline, if (scale > 1.1f) View.GONE else View.VISIBLE)
+    views.setViewVisibility(R.id.edutu_widget_save, if (id.isBlank()) View.GONE else View.VISIBLE)
+    if (id.isNotBlank()) {
+      views.setContentDescription(R.id.edutu_widget_save, "Save " + hero.optString("title"))
+      views.setOnClickPendingIntent(R.id.edutu_widget_save, WidgetSupport.deepLinkIntent(context, "edutu://widget-save?id=" + android.net.Uri.encode(id)))
+    }
     views.setTextViewText(
       R.id.edutu_widget_title,
       hero.optString("title", context.getString(R.string.edutu_widget_title))
