@@ -158,6 +158,7 @@ export default {
       url: "https://u.expo.dev/97c7d577-7e08-4f3c-a199-d1ca149ebee9"
     },
     plugins: [
+      "./plugins/with-notification-color",
       "expo-router",
       "expo-audio",
       "expo-localization",
