@@ -1,0 +1,6 @@
+[submodule "incubator/school-suite/upstream/skuul"]
+	path = incubator/school-suite/upstream/skuul
+	url = https://github.com/yungifez/skuul.git
+[submodule "incubator/school-suite/upstream/gegok12"]
+	path = incubator/school-suite/upstream/gegok12
+	url = https://github.com/Gego-K12/gegok12.git
