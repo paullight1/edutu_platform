@@ -1,4 +1,5 @@
 import { Logger } from "@nestjs/common";
+import { db } from "../db";
 import { AiService } from "./ai.service";
 import type { AiEncryptionService } from "./ai-encryption.service";
 import type { DeepSeekAdapter, GeminiAdapter } from "./adapters/gemini.adapter";
@@ -105,6 +106,58 @@ describe("AiService — provider failover", () => {
     // "deepseek-chat" is not an OpenRouter model id.
     expect(openRouterChat.mock.calls[0][0].model).toContain("/");
     expect(result.text).toBe("here is a scholarship");
+  });
+
+  it("preserves task-specific system instructions across configured routes and failover", async () => {
+    const route = {
+      from: () => route,
+      where: () => route,
+      limit: () => route,
+      execute: async () => [
+        {
+          provider: "deepseek",
+          model: "deepseek-chat",
+          systemPrompt: "Stored studio prompt",
+        },
+      ],
+    };
+    const select = jest.spyOn(db, "select").mockReturnValueOnce(route as never);
+    const fallback = jest.fn(async () => ({
+      provider: "openrouter" as const,
+      model: "test",
+      text: "{}",
+    }));
+    const service = buildService(
+      {
+        generateText: async () => {
+          throw new Error("Provider unavailable");
+        },
+      },
+      { generateText: fallback },
+    );
+    await service.generateJson({
+      feature: "docs.sop",
+      prompt: "Synthetic facts",
+      systemInstruction: "Use only supplied learner facts.",
+      systemInstructionMode: "replace",
+    });
+    expect(fallback.mock.calls[0]).toBeDefined();
+    expect(fallback).toHaveBeenCalledWith(
+      expect.objectContaining({
+        systemPrompt: "Use only supplied learner facts.",
+      }),
+      expect.objectContaining({ feature: "docs.sop" }),
+    );
+    select.mockReturnValueOnce(route as never);
+    await service.generateJson({
+      feature: "docs.sop",
+      prompt: "A separate synthetic prompt",
+      systemInstruction: "Caller default",
+    });
+    expect(fallback).toHaveBeenLastCalledWith(
+      expect.objectContaining({ systemPrompt: "Stored studio prompt" }),
+      expect.objectContaining({ feature: "docs.sop" }),
+    );
   });
 
   it("fails a JSON generation over to OpenRouter when DeepSeek is down", async () => {

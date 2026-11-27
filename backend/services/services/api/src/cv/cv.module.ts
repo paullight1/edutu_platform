@@ -10,6 +10,6 @@ import { MonetizationModule } from "../monetization/monetization.module";
   imports: [AiModule, MonetizationModule],
   controllers: [CvController],
   providers: [CvEditorService, CvService, LinkedInImportService],
-  exports: [CvService],
+  exports: [CvService, CvEditorService],
 })
 export class CvModule {}

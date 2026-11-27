@@ -39,6 +39,8 @@ beforeAll(async () => {
   await database.exec(`create table opportunities(id uuid primary key, title text, category text);
     create table opportunity_applications(id uuid primary key default gen_random_uuid(),user_id text,opportunity_id uuid,status text,
       notes text, metadata jsonb default '{}', created_at timestamptz default now(), updated_at timestamptz default now(), submitted_at timestamptz,version int default 1);
+    create schema private;
+    create table private.auto_apply_attempts(application_id uuid not null references opportunity_applications(id), state text not null);
     insert into opportunities select ('33333333-3333-4333-8333-'||lpad(i::text,12,'0'))::uuid, 'Fellowship '||i, 'Fellowships' from generate_series(1,1205) i;
     insert into opportunity_applications(user_id,opportunity_id,status,created_at)
       select '${OWNER}',id,case when row_number() over(order by title)%2=0 then 'submitted' else 'draft' end,

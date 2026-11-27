@@ -1,4 +1,5 @@
 import { Test } from "@nestjs/testing";
+import { createHash } from "node:crypto";
 import { UploadsService } from "./uploads.service";
 import { UploadsModule } from "./uploads.module";
 
@@ -124,6 +125,46 @@ describe("UploadsService.getDownloadUrl", () => {
 
     await expect(service.getDownloadUrl("user_2", "up_1")).rejects.toThrow(
       "Upload not found",
+    );
+  });
+});
+
+describe("UploadsService.getApplicationPdf", () => {
+  it("returns the exact bytes and checksum of an owned PDF", async () => {
+    const original = "%PDF-1.4\nSynthetic institution letter\n%%EOF";
+    const service = new UploadsService(
+      makeClient({
+        uploadRow: {
+          file_name: "letter.pdf",
+          storage_path: "user_1/letter.pdf",
+          mime_type: "application/pdf",
+        },
+        blobText: original,
+        onUpdate: jest.fn(),
+      }),
+    );
+    const file = await service.getApplicationPdf("user_1", "upload");
+    expect(file).toEqual({
+      name: "letter.pdf",
+      bytes: Buffer.from(original),
+      sha256: createHash("sha256").update(original).digest("hex"),
+    });
+  });
+
+  it("rejects a file whose content does not match its recorded PDF type", async () => {
+    const service = new UploadsService(
+      makeClient({
+        uploadRow: {
+          file_name: "letter.pdf",
+          storage_path: "user_1/letter.pdf",
+          mime_type: "application/pdf",
+        },
+        blobText: "plain text",
+        onUpdate: jest.fn(),
+      }),
+    );
+    await expect(service.getApplicationPdf("user_1", "upload")).rejects.toThrow(
+      "Choose a valid PDF",
     );
   });
 });
