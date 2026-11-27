@@ -494,6 +494,15 @@ try {
   replaySubmittedForm = true;
   const redirected = { ...approved, id: 'a0000000-0000-4000-8000-000000000004' };
   assert.equal((await send('/submit', redirected)).status, 502);
+  // The portal accepted the final POST but no usable receipt reached the adapter.
+  // A fresh adapter must preserve the reservation and refuse to send it again.
+  const stopped = once(provider, 'close');
+  provider.close();
+  await stopped;
+  provider = createBrowserProvider(providerOptions);
+  origin = await address(provider);
+  const unknownReceipt = await fetch(origin + '/receipt/' + redirected.id, { headers });
+  assert.equal(unknownReceipt.status, 404);
   assert.equal((await send('/submit', redirected)).status, 409);
   assert.equal(submitted.length, 2);
   assert.equal(unexpectedWrites, 0);

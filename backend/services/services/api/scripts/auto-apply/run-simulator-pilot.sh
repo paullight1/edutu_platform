@@ -2,6 +2,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 
+pilot_db_port=${AUTO_APPLY_TEST_POSTGRES_PORT:-55495}
 pilot_dir=$(mktemp -d "${TMPDIR:-/tmp}/edutu-auto-apply.XXXXXX")
 cleanup() {
   if [[ -f "$pilot_dir/db/postmaster.pid" ]]; then
@@ -10,12 +11,19 @@ cleanup() {
   rm -rf -- "$pilot_dir"
 }
 trap cleanup EXIT
-initdb -D "$pilot_dir/db" -A trust >/dev/null
-pg_ctl -D "$pilot_dir/db" -o "-h 127.0.0.1 -p 55495 -k $pilot_dir" \
-  -l "$pilot_dir/postgres.log" -w start >/dev/null
+# A fresh fixture database only needs small WAL segments.
+initdb -D "$pilot_dir/db" -A trust --wal-segsize=1 >"$pilot_dir/initdb.log" || {
+  tail -20 "$pilot_dir/initdb.log" >&2
+  exit 1
+}
+pg_ctl -D "$pilot_dir/db" -o "-h 127.0.0.1 -p $pilot_db_port -k $pilot_dir" \
+  -l "$pilot_dir/postgres.log" -w start >/dev/null || {
+  tail -20 "$pilot_dir/postgres.log" >&2
+  exit 1
+}
 openssl req -x509 -nodes -days 1 -newkey rsa:2048 -keyout "$pilot_dir/server.key" \
   -out "$pilot_dir/server.crt" -subj /CN=127.0.0.1 -addext 'subjectAltName=IP:127.0.0.1' >/dev/null 2>&1
-export PGHOST=127.0.0.1 PGPORT=55495 PGDATABASE=postgres
+export PGHOST=127.0.0.1 PGPORT="$pilot_db_port" PGDATABASE=postgres
 psql -v ON_ERROR_STOP=1 <<'SQL'
 create role anon;
 create role authenticated;
@@ -73,6 +81,6 @@ alter table public.ai_usage_logs add column user_id text;
 alter table public.ai_usage_events add column user_id text;
 SQL
 fi
-export DATABASE_URL="postgresql://$(whoami)@127.0.0.1:55495/postgres"
+export DATABASE_URL="postgresql://$(whoami)@127.0.0.1:$pilot_db_port/postgres"
 export NODE_EXTRA_CA_CERTS="$pilot_dir/server.crt" AUTO_APPLY_TEST_DIR="$pilot_dir"
 node scripts/auto-apply/simulator-pilot.cjs

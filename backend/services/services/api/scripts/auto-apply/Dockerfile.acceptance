@@ -1,0 +1,19 @@
+FROM node:24-bookworm-slim
+RUN apt-get update && apt-get install -y --no-install-recommends chromium postgresql-15 openssl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+ENV PATH="/usr/lib/postgresql/15/bin:${PATH}" CHROME_PATH=/usr/bin/chromium
+WORKDIR /workspace/backend/services/services/api
+COPY backend/services/services/api/package*.json ./
+COPY backend/services/services/api/vendor ./vendor
+RUN npm install -g npm@11.13.0 && npm ci && npm cache clean --force
+WORKDIR /workspace/edutu-web-app
+COPY edutu-web-app/scripts/auto-apply/package*.json ./
+RUN npm ci --omit=dev && npm cache clean --force
+COPY edutu-web-app/scripts/auto-apply/browser-provider.mjs ./scripts/auto-apply/
+WORKDIR /workspace/backend/services/services/api
+COPY backend/services/services/api/tsconfig.json ./
+COPY backend/services/services/api/src ./src
+COPY backend/services/services/api/supabase ./supabase
+COPY backend/services/services/api/scripts/auto-apply ./scripts/auto-apply
+USER node
+CMD ["bash", "scripts/auto-apply/staging-acceptance.sh"]

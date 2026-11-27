@@ -87,8 +87,12 @@ const changingFormOpportunity = process.env.AUTO_APPLY_TEST_CHANGED_FORM === '1'
 let changingFormReads = 0;
 let failFirstPortalRead = process.env.AUTO_APPLY_TEST_FAIL_FIRST_PORTAL_READ === '1';
 const dir = process.env.AUTO_APPLY_TEST_DIR;
-if (!dir || !process.env.DATABASE_URL?.includes('127.0.0.1:55495')) {
-  throw new Error('Use the isolated simulator database on port 55495 and provide AUTO_APPLY_TEST_DIR');
+const database = new URL(process.env.DATABASE_URL || 'postgresql://invalid');
+const dbPort = process.env.AUTO_APPLY_TEST_POSTGRES_PORT || '55495';
+const apiPort = Number(process.env.AUTO_APPLY_TEST_API_PORT || 8093);
+if (!dir || database.protocol !== 'postgresql:' || database.hostname !== '127.0.0.1' ||
+    database.port !== dbPort || database.pathname !== '/postgres') {
+  throw new Error('Use the isolated local simulator database and provide AUTO_APPLY_TEST_DIR');
 }
 const web = join(__dirname, '../../../../../../edutu-web-app');
 
@@ -112,7 +116,7 @@ async function main() {
     const publicKey = new X509Certificate(tls.cert).publicKey.export({ format: 'der', type: 'spki' });
     args.push('--ignore-certificate-errors-spki-list=' + createHash('sha256').update(publicKey).digest('base64'));
   }
-  const browser = await chromium.launch({ channel: 'chrome', args });
+  const browser = await chromium.launch({ channel: 'chrome', executablePath: process.env.CHROME_PATH, args });
   const handlePortal = async (request, response) => {
     response.setHeader('Content-Type', 'text/html');
     const requiresCv = request.url === '/apply/' + cvRequiredOpportunity;
@@ -237,8 +241,8 @@ async function main() {
   const portalOrigin = (testBoundHandoff ? 'https' : 'http') + '://127.0.0.1:' + portalPort;
   const forms = Object.fromEntries(Object.keys(opportunities).map((id, index) => [id, {
     url: portalOrigin + '/apply/' + id,
+    catalogUrl: id === educationOpportunity ? educationCatalogUrl : 'https://provider.example/application/' + id,
     ...(id === educationOpportunity ? {
-      catalogUrl: educationCatalogUrl,
       handoffSelector: '#security-check',
       handoffQuestion: 'Complete the security check on the provider’s website.',
       ...(testBoundHandoff ? { handoffPath: '/apply/' + id + '#documents' } : {}),
@@ -292,7 +296,7 @@ async function main() {
     AUTO_APPLY_PROVIDER_TOKEN: token,
     AUTO_APPLY_PROVIDER_PREPARE_URL: 'https://127.0.0.1:' + providerPort + '/prepare',
     AUTO_APPLY_PROVIDER_CAPABILITIES_URL: 'https://127.0.0.1:' + providerPort + '/capabilities',
-    AUTO_APPLY_PROVIDER_VERIFY_URL: testFormPreflight ? 'https://127.0.0.1:' + providerPort + '/verify' : '',
+    AUTO_APPLY_PROVIDER_VERIFY_URL: 'https://127.0.0.1:' + providerPort + '/verify',
     AUTO_APPLY_PROVIDER_SUBMIT_URL: 'https://127.0.0.1:' + providerPort + '/submit',
     AUTO_APPLY_PROVIDER_RECEIPT_URL: 'https://127.0.0.1:' + providerPort + '/receipt',
     AUTO_APPLY_PROVIDER_CV_PREVIEW_URL: 'https://127.0.0.1:' + providerPort + '/preview-cv',
@@ -301,7 +305,7 @@ async function main() {
     await pool.query(
       'insert into opportunities(id,title,organization,summary,application_url) values($1,$2,$3,$4,$5) on conflict do nothing',
       [id, title, 'Example Programs', 'The pilot supports applied research and community projects.',
-        id === educationOpportunity ? educationCatalogUrl : null],
+        id === educationOpportunity ? educationCatalogUrl : 'https://provider.example/application/' + id],
     );
   }
   await pool.query(`insert into profiles(user_id, full_name, email, school, degree, major, skills) values($1,$2,$3,$4,$5,$6,$7)`,
@@ -582,8 +586,8 @@ async function main() {
     response.writeHead(status, { 'Content-Type': 'application/json' });
     response.end(JSON.stringify(payload));
   });
-  await listen(api, 8093);
-  console.log('Simulator pilot API ready at http://127.0.0.1:8093');
+  const port = await listen(api, apiPort);
+  console.log(`Simulator pilot API ready at http://127.0.0.1:${port}`);
   process.once('SIGINT', async () => {
     clearInterval(tick);
     holdReceipt?.resolve();

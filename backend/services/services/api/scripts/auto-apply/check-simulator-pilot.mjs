@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import { setTimeout as delay } from 'node:timers/promises';
 
 // Run only against a freshly started run-simulator-pilot.sh.
-const base = 'http://127.0.0.1:8093';
+const port = Number(process.env.AUTO_APPLY_TEST_API_PORT || 8093);
+const base = `http://127.0.0.1:${port}`;
 const api = async (path, method = 'GET', payload, expectedStatus = 200) => {
   const response = await fetch(base + path, {
     method,
