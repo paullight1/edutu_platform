@@ -17,6 +17,10 @@ async function verifyLearnerApi(baseUrl, token, id) {
       redirect: 'error',
       signal: AbortSignal.timeout(30000),
     }).catch(() => { throw new Error('Could not reach the learner API over HTTPS.'); });
+    if (response.status === 401 || response.status === 403) {
+      throw new Error('The learner API rejected the staging learner session.');
+    }
+    if (response.status === 404) throw new Error(`Learner API route ${path} was not found at the configured base URL.`);
     if (!response.ok) throw new Error(`Learner API ${path} returned HTTP ${response.status}.`);
     return response.json().catch(() => { throw new Error(`Learner API ${path} returned invalid JSON.`); });
   }
@@ -28,8 +32,11 @@ async function verifyLearnerApi(baseUrl, token, id) {
     throw new Error('The learner API returned an invalid allowance.');
   }
   const opportunity = await read('opportunities/' + id);
+  if (opportunity?.applicantOnly === true) throw new Error('The provider requires the learner to apply directly.');
+  if (opportunity?.providerUnavailable === true) throw new Error('The learner API reports the browser provider is unavailable for this opportunity.');
   if (opportunity?.available !== true) throw new Error('The learner API does not offer Auto Apply for this opportunity.');
   if (opportunity.attempt !== null) throw new Error('Use a staging learner who has no existing attempt for this opportunity.');
+  if (allowance.used >= allowance.monthlyLimit) throw new Error('The staging learner has no Auto Apply attempts remaining this month.');
 }
 
 async function main() {
