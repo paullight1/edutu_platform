@@ -2,7 +2,6 @@ import { HStack, Image, Text, VStack } from '@expo/ui/swift-ui';
 import { font, foregroundStyle, lineLimit, padding } from '@expo/ui/swift-ui/modifiers';
 import type { LiveActivityEnvironment, LiveActivityFactory, LiveActivityLayout } from 'expo-widgets';
 import type { AutoApplyActivityProps } from './AutoApplyActivity';
-import { hasWidgetsNativeModule } from '../lib/widgetsNative';
 
 function layout(props: AutoApplyActivityProps, environment: LiveActivityEnvironment): LiveActivityLayout {
   'widget';
@@ -37,7 +36,6 @@ function layout(props: AutoApplyActivityProps, environment: LiveActivityEnvironm
 
 let factory: LiveActivityFactory<AutoApplyActivityProps> | undefined;
 export function getAutoApplyActivityFactory() {
-  if (!hasWidgetsNativeModule()) return null;
   const { createLiveActivity } = require('expo-widgets') as typeof import('expo-widgets');
   return factory ??= createLiveActivity('AutoApplyProgress', layout);
 }

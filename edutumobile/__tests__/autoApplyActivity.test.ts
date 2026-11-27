@@ -14,6 +14,7 @@ const mockFactory = {
   getInstances: jest.fn(),
   start: jest.fn(() => mockInstance),
 };
+jest.mock('../lib/widgetsNative', () => ({ hasWidgetsNativeModule: () => true }));
 jest.mock('../widgets/AutoApplyActivity', () => ({ getAutoApplyActivityFactory: () => mockFactory }));
 jest.mock('@edutu/core/src/services/productApi', () => ({
   ...jest.requireActual('@edutu/core/src/services/productApi'), requestProductApi: jest.fn(),

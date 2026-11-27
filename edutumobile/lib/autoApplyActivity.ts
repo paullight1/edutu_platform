@@ -1,7 +1,13 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ProductApiRequestError, requestProductApi, type GetAuthToken } from '@edutu/core/src/services/productApi';
 import { autoApplyStatus, getAutoApplyActivityAction, getAutoApplyActivityStatus, type AutoApplyActivityAction, type AutoApplyProgress } from '../components/opportunity/autoApplyStatus';
-import { getAutoApplyActivityFactory } from '../widgets/AutoApplyActivity';
+import { hasWidgetsNativeModule } from './widgetsNative';
+
+function getAutoApplyActivityFactory() {
+  if (!hasWidgetsNativeModule()) return null;
+  const widgets = require('../widgets/AutoApplyActivity') as typeof import('../widgets/AutoApplyActivity');
+  return widgets.getAutoApplyActivityFactory();
+}
 
 type State = keyof typeof autoApplyStatus;
 type ActivityRecord = { activityId: string; version: number; title?: string; activityAction?: AutoApplyActivityAction };
