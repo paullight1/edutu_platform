@@ -1,0 +1,9 @@
+{
+  "name": "edutu-auto-apply-provider",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "playwright-core": "1.64.1",
+    "zod": "4.6.7"
+  }
+}

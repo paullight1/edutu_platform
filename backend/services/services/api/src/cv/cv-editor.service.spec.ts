@@ -97,6 +97,21 @@ function fixture(
   return { rows, service: new CvEditorService(client as never) };
 }
 describe("cross-platform CV editor", () => {
+  it.each([false, true])(
+    "lists only the owner's CV names and IDs (UUID schema: %s)",
+    async (uuidSchema) => {
+      const { service, rows } = fixture(uuidSchema);
+      rows.push({
+        id: "another-cv",
+        name: "Unrelated learner",
+        user_id: "another-owner",
+        data_json: {},
+      });
+      await expect(service.listSummaries(owner)).resolves.toEqual([
+        { id, name: "Research CV" },
+      ]);
+    },
+  );
   it("preserves complete mobile sections and unknown fields on edit", async () => {
     const { service, rows } = fixture();
     const cv = await service.get(owner, id);

@@ -276,6 +276,18 @@ export class CvEditorService {
     if (error) throw new ServiceUnavailableException("Could not load CVs");
     return Promise.all((data || []).map((row) => this.dto(row)));
   }
+
+  async listSummaries(authId: string) {
+    const owner = await this.ownerKey(authId);
+    const { data, error } = await this.client
+      .from("user_cvs")
+      .select("id,name")
+      .eq("user_id", owner)
+      .order("updated_at", { ascending: false })
+      .limit(50);
+    if (error) throw new ServiceUnavailableException("Could not load CVs");
+    return (data ?? []).map(({ id, name }) => ({ id, name }));
+  }
   async get(authId: string, id: string) {
     const owner = await this.ownerKey(authId);
     const { data, error } = await this.client

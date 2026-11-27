@@ -31,6 +31,8 @@ export interface AiGenerateOptions {
   userId?: string | null;
   prompt: string;
   systemInstruction?: string | null;
+  /** Keep a caller's task-specific instruction when a shared feature has a configured prompt. */
+  systemInstructionMode?: "replace";
   responseMimeType?: string | null;
   responseJsonSchema?: Record<string, unknown> | null;
   temperature?: number | null;
@@ -38,6 +40,8 @@ export interface AiGenerateOptions {
   /** Cancels provider work when the requesting client disconnects. */
   signal?: AbortSignal;
   metadata?: Record<string, unknown>;
+  /** Skips the shared response cache and omits content from usage logs. */
+  sensitiveContent?: boolean;
 }
 
 export interface AiRouteConfig {
