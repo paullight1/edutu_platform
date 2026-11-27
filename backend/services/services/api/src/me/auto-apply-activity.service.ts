@@ -33,10 +33,12 @@ export function autoApplyActivityPayload(
   action?: AutoApplyActivityAction | null,
 ) {
   const title = opportunityTitle?.trim().slice(0, 80);
+  const ended = terminal.has(state);
   return {
     aps: {
       timestamp,
-      event: terminal.has(state) ? "end" : "update",
+      event: ended ? "end" : "update",
+      ...(ended ? { "dismissal-date": timestamp - 1 } : {}),
       ...(["queued", "running", "submitting"].includes(state)
         ? { "stale-date": timestamp + 120 }
         : {}),

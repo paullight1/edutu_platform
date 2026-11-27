@@ -20,10 +20,20 @@ it("uses the Expo widgets state format without application data", () => {
     actionRequired: true,
   });
   expect(aps).not.toHaveProperty("stale-date");
+  expect(aps).not.toHaveProperty("dismissal-date");
 });
 
-it("ends the activity for a confirmed submission and ages stale work", () => {
-  expect(autoApplyActivityPayload("submitted", 100).aps.event).toBe("end");
+it.each(["submitted", "cancelled", "failed", "unconfirmed"])(
+  "dismisses a %s activity immediately",
+  (state) => {
+    expect(autoApplyActivityPayload(state, 100).aps).toMatchObject({
+      event: "end",
+      "dismissal-date": 99,
+    });
+  },
+);
+
+it("ages stale work while the attempt is running", () => {
   expect(autoApplyActivityPayload("running", 100).aps).toMatchObject({
     event: "update",
     "stale-date": 220,
