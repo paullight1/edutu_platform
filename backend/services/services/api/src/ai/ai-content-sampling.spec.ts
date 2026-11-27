@@ -120,9 +120,13 @@ describe("AiService — sampled content logging", () => {
         }),
       ]),
     );
-    expect(usageRows()).toContainEqual(expect.objectContaining({
-      route: "docs.sop", success: false, error: "Provider request failed",
-    }));
+    expect(usageRows()).toContainEqual(
+      expect.objectContaining({
+        route: "docs.sop",
+        success: false,
+        error: "Provider request failed",
+      }),
+    );
     expect(JSON.stringify(usageRows())).not.toContain("private");
   });
 

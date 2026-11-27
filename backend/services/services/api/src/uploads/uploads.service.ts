@@ -274,7 +274,9 @@ export class UploadsService {
       throw new UnsupportedMediaTypeException("Choose a PDF document");
     const name = String(row.file_name);
     if (!/^[a-zA-Z0-9._-]{1,120}$/.test(name))
-      throw new BadRequestException("Upload this PDF again with a valid file name");
+      throw new BadRequestException(
+        "Upload this PDF again with a valid file name",
+      );
     const { data: blob, error: downloadError } = await this.supabase.storage
       .from(BUCKET)
       .download(row.storage_path);

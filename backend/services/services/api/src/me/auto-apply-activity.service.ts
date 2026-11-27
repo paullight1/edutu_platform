@@ -43,7 +43,10 @@ export function autoApplyActivityPayload(
       "content-state": {
         name: "AutoApplyProgress",
         props: JSON.stringify({
-          status: (action && autoApplyActivityActionLabels[action]) || statuses[state] || "Open Edutu for status",
+          status:
+            (action && autoApplyActivityActionLabels[action]) ||
+            statuses[state] ||
+            "Open Edutu for status",
           actionRequired: [
             "needs_input",
             "needs_review",
@@ -146,14 +149,19 @@ export class AutoApplyActivityService {
   async sendAndroidUpdates() {
     if (
       this.sendingAndroid ||
-      (!process.env.AUTO_APPLY_PILOT_OPPORTUNITIES?.trim() && !autoApplyReceiptConfig())
+      (!process.env.AUTO_APPLY_PILOT_OPPORTUNITIES?.trim() &&
+        !autoApplyReceiptConfig())
     )
       return;
     this.sendingAndroid = true;
     try {
       await Promise.all([
-        pool.query("delete from private.auto_apply_android_activities where expires_at <= now()"),
-        pool.query("delete from private.auto_apply_live_activities where platform = 'android' and expires_at <= now()"),
+        pool.query(
+          "delete from private.auto_apply_android_activities where expires_at <= now()",
+        ),
+        pool.query(
+          "delete from private.auto_apply_live_activities where platform = 'android' and expires_at <= now()",
+        ),
       ]);
       const { rows } = await pool.query<{
         token: string;

@@ -1115,9 +1115,13 @@ export class AiService {
       provider,
       model,
       apiKey,
-      systemPrompt: options.systemInstructionMode === "replace"
-        ? options.systemInstruction || null
-        : storedRoute?.systemPrompt || fallback.systemPrompt || options.systemInstruction || null,
+      systemPrompt:
+        options.systemInstructionMode === "replace"
+          ? options.systemInstruction || null
+          : storedRoute?.systemPrompt ||
+            fallback.systemPrompt ||
+            options.systemInstruction ||
+            null,
       temperature:
         typeof options.temperature === "number"
           ? options.temperature
@@ -1376,9 +1380,12 @@ export class AiService {
      */
     content?: { prompt?: string | (() => string); response?: string | null },
   ) {
-    const errorMessage = error instanceof Error
-      ? options.sensitiveContent ? "Provider request failed" : error.message.slice(0, 1000)
-      : null;
+    const errorMessage =
+      error instanceof Error
+        ? options.sensitiveContent
+          ? "Provider request failed"
+          : error.message.slice(0, 1000)
+        : null;
     const sample =
       !options.sensitiveContent && this.shouldSampleContent()
         ? this.sampledContent(

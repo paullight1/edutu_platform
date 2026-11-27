@@ -859,7 +859,8 @@ export class NotificationsService {
     }
     const isAutoApplyAction = dto.metadata?.source === "auto-apply-action";
     if (isAutoApplyAction) {
-      const { attemptId, attemptVersion, state, reviewCorrection } = dto.metadata ?? {};
+      const { attemptId, attemptVersion, state, reviewCorrection } =
+        dto.metadata ?? {};
       const owner =
         dto.audience === "specific" && dto.targetUserIds?.length === 1
           ? dto.targetUserIds[0]
@@ -871,7 +872,9 @@ export class NotificationsService {
         typeof attemptVersion !== "number" ||
         !Number.isSafeInteger(attemptVersion) ||
         typeof state !== "string" ||
-        !["needs_input", "needs_review", "unconfirmed", "failed"].includes(state)
+        !["needs_input", "needs_review", "unconfirmed", "failed"].includes(
+          state,
+        )
       ) {
         return { queued: false, recipientCount: 0, insertedCount: 0 };
       }
@@ -1625,9 +1628,11 @@ export class NotificationsService {
   private applicationPushKey(
     dto: BroadcastNotificationDto,
   ): string | undefined {
-    return ["application-confirmation", "application-status", "auto-apply-action"].includes(
-      String(dto.metadata?.source),
-    )
+    return [
+      "application-confirmation",
+      "application-status",
+      "auto-apply-action",
+    ].includes(String(dto.metadata?.source))
       ? dto.dedupeKey
       : undefined;
   }

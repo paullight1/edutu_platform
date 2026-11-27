@@ -7,7 +7,8 @@ export const autoApplyActivityActionLabels = {
   correction: "Correct your draft",
 };
 
-export type AutoApplyActivityAction = keyof typeof autoApplyActivityActionLabels;
+export type AutoApplyActivityAction =
+  keyof typeof autoApplyActivityActionLabels;
 
 // Use the same public action codes in the attempt API and both push transports.
 // These codes describe the next step without copying any application content.

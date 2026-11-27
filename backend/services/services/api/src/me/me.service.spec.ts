@@ -56,7 +56,10 @@ function buildMockClient(
       };
       builder.maybeSingle = () => {
         if (table === "opportunity_applications") {
-          return Promise.resolve({ data: applicationError ? null : updatedRow, error: applicationError });
+          return Promise.resolve({
+            data: applicationError ? null : updatedRow,
+            error: applicationError,
+          });
         }
         // user_opportunity_signals existence check: none exists yet.
         return Promise.resolve({ data: null, error: null });
@@ -66,10 +69,11 @@ function buildMockClient(
       builder.then = (
         resolve: (value: unknown) => unknown,
         reject: (reason?: unknown) => unknown,
-      ) => Promise.resolve({
-        data: table === "opportunity_applications" ? applications : [],
-        error: null,
-      }).then(resolve, reject);
+      ) =>
+        Promise.resolve({
+          data: table === "opportunity_applications" ? applications : [],
+          error: null,
+        }).then(resolve, reject);
       return builder;
     },
   };
@@ -98,32 +102,56 @@ describe("ApplicationStatusSchema", () => {
 
 describe("MeService.listApplications Auto Apply recovery", () => {
   const env = process.env;
-  const query = pool.query as jest.Mock<(...args: unknown[]) => Promise<unknown>>;
+  const query = jest.spyOn(pool, "query") as jest.Mock<
+    (...args: unknown[]) => Promise<unknown>
+  >;
   const application = { id: APP_ID, opportunity_id: OPP_ID, status: "draft" };
   const attemptId = "33333333-3333-4333-8333-333333333333";
 
   beforeEach(() => {
-    process.env = { ...env, SUPABASE_URL: "https://example.supabase.co", SUPABASE_SERVICE_ROLE_KEY: "test-key", DATABASE_URL: "postgresql://test" };
+    process.env = {
+      ...env,
+      SUPABASE_URL: "https://example.supabase.co",
+      SUPABASE_SERVICE_ROLE_KEY: "test-key",
+      DATABASE_URL: "postgresql://test",
+    };
     query.mockReset();
-    (createClient as jest.Mock).mockReturnValue(buildMockClient(application, [application]).client);
+    (createClient as jest.Mock).mockReturnValue(
+      buildMockClient(application, [application]).client,
+    );
   });
 
-  afterEach(() => { process.env = env; });
+  afterEach(() => {
+    process.env = env;
+  });
 
   it("returns only the attempt ID and state for the tracker's owner", async () => {
-    query.mockResolvedValue({ rows: [{
-      application_id: APP_ID, id: attemptId, state: "needs_input", internal_data: "private",
-    }] });
+    query.mockResolvedValue({
+      rows: [
+        {
+          application_id: APP_ID,
+          id: attemptId,
+          state: "needs_input",
+          internal_data: "private",
+        },
+      ],
+    });
     const rows = await new MeService().listApplications(USER_ID);
-    expect(query).toHaveBeenCalledWith(expect.stringContaining("owner_id in ($2, $3)"), [
-      [APP_ID], USER_ID, toDatabaseUserId(USER_ID),
-    ]);
-    expect(rows[0]).toMatchObject({ ...application, auto_apply: { id: attemptId, state: "needs_input" } });
+    expect(query).toHaveBeenCalledWith(
+      expect.stringContaining("owner_id in ($2, $3)"),
+      [[APP_ID], USER_ID, toDatabaseUserId(USER_ID)],
+    );
+    expect(rows[0]).toMatchObject({
+      ...application,
+      auto_apply: { id: attemptId, state: "needs_input" },
+    });
     expect(rows[0]).not.toHaveProperty("auto_apply.internal_data");
   });
 
   it("keeps the tracker available before the Auto Apply migration is installed", async () => {
-    query.mockRejectedValue(Object.assign(new Error("relation does not exist"), { code: "42P01" }));
+    query.mockRejectedValue(
+      Object.assign(new Error("relation does not exist"), { code: "42P01" }),
+    );
     const rows = await new MeService().listApplications(USER_ID);
     expect(rows[0]).toMatchObject(application);
     expect(rows[0]).not.toHaveProperty("auto_apply");
@@ -178,11 +206,13 @@ describe("MeService.updateApplication no_response outcome signal", () => {
     const { client } = buildMockClient({}, [], { code: "55P03" });
     (createClient as jest.Mock).mockReturnValue(client);
     const service = new MeService();
-    await expect(service.updateApplication(USER_ID, APP_ID, { status: "submitted" }))
-      .rejects.toMatchObject({
-        status: 409,
-        message: "Auto Apply is updating this application. Check its status before marking it submitted.",
-      });
+    await expect(
+      service.updateApplication(USER_ID, APP_ID, { status: "submitted" }),
+    ).rejects.toMatchObject({
+      status: 409,
+      message:
+        "Auto Apply is updating this application. Check its status before marking it submitted.",
+    });
   });
 
   it("does not stamp submitted_at when transitioning to no_response", async () => {

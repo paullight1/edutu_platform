@@ -139,7 +139,10 @@ export class MeService {
     if (!applications.length) return [];
     const [hydrated, attempts] = await Promise.all([
       this.hydrateApplications(applications),
-      this.loadAutoApplySummaries(userId, applications.map(({ id }) => this.asString(id))),
+      this.loadAutoApplySummaries(
+        userId,
+        applications.map(({ id }) => this.asString(id)),
+      ),
     ]);
     return hydrated.map((application) => {
       const attempt = attempts.get(this.asString(application.id));
@@ -147,7 +150,10 @@ export class MeService {
     });
   }
 
-  private async loadAutoApplySummaries(userId: string, applicationIds: string[]) {
+  private async loadAutoApplySummaries(
+    userId: string,
+    applicationIds: string[],
+  ) {
     const attempts = new Map<string, { id: string; state: string }>();
     if (!process.env.DATABASE_URL) return attempts;
     try {
@@ -166,7 +172,9 @@ export class MeService {
       }
     } catch (error) {
       const code = (error as { code?: string }).code;
-      this.logger.warn(`Could not load Auto Apply summaries (${code ?? "unknown"})`);
+      this.logger.warn(
+        `Could not load Auto Apply summaries (${code ?? "unknown"})`,
+      );
     }
     return attempts;
   }
@@ -319,7 +327,9 @@ export class MeService {
     const { data, error } = await update.select("*").maybeSingle();
 
     if (error?.code === "55P03") {
-      throw new ConflictException("Auto Apply is updating this application. Check its status before marking it submitted.");
+      throw new ConflictException(
+        "Auto Apply is updating this application. Check its status before marking it submitted.",
+      );
     }
     this.throwIfSupabaseError(error, "Could not update application");
     if (!data) {
@@ -421,7 +431,11 @@ export class MeService {
     }
   }
 
-  async deleteApplication(userId: string, applicationId: string, discardUnconfirmed = false) {
+  async deleteApplication(
+    userId: string,
+    applicationId: string,
+    discardUnconfirmed = false,
+  ) {
     this.assertUuid(applicationId, "Application id");
     const dbUserId = toDatabaseUserId(userId);
     const client = await pool.connect();
@@ -435,25 +449,42 @@ export class MeService {
       );
       if (tracker.rowCount) {
         // The worker may already hold the attempt lock while updating the tracker.
-        const { rows: [attempt] } = await client.query<{ state: string }>(
+        const {
+          rows: [attempt],
+        } = await client.query<{ state: string }>(
           `select state from private.auto_apply_attempts where application_id = $1 for update nowait`,
           [applicationId],
         );
         if (attempt?.state === "submitting") {
-          throw new ConflictException("Auto Apply is submitting this application. Check its status before removing it.");
+          throw new ConflictException(
+            "Auto Apply is submitting this application. Check its status before removing it.",
+          );
         }
         if (attempt?.state === "unconfirmed" && !discardUnconfirmed) {
-          throw new ConflictException({ code: "auto_apply_unconfirmed",
-            message: "The provider may have received this application. Check the provider first. Removing it will stop Edutu from checking for a receipt." });
+          throw new ConflictException({
+            code: "auto_apply_unconfirmed",
+            message:
+              "The provider may have received this application. Check the provider first. Removing it will stop Edutu from checking for a receipt.",
+          });
         }
-        await client.query("delete from public.opportunity_applications where id = $1", [applicationId]);
+        await client.query(
+          "delete from public.opportunity_applications where id = $1",
+          [applicationId],
+        );
       }
       await client.query("commit");
       return { success: true };
     } catch (error) {
       await client.query("rollback").catch(() => undefined);
-      if (typeof error === "object" && error && "code" in error && error.code === "55P03") {
-        throw new ConflictException("Auto Apply is updating this application. Refresh its status before removing it.");
+      if (
+        typeof error === "object" &&
+        error &&
+        "code" in error &&
+        error.code === "55P03"
+      ) {
+        throw new ConflictException(
+          "Auto Apply is updating this application. Refresh its status before removing it.",
+        );
       }
       throw error;
     } finally {

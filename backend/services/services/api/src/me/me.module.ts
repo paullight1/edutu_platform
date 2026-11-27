@@ -14,7 +14,13 @@ import { MeService } from "./me.service";
 import { ApplicationListService } from "./application-list.service";
 
 @Module({
-  imports: [NotificationsModule, BillingModule, CvModule, AiModule, UploadsModule],
+  imports: [
+    NotificationsModule,
+    BillingModule,
+    CvModule,
+    AiModule,
+    UploadsModule,
+  ],
   controllers: [MeController, AutoApplyController, AutoApplyAdminController],
   providers: [
     MeService,

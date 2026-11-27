@@ -4,7 +4,7 @@ import { pool } from "../db";
 import { AutoApplyAdminController } from "./auto-apply-admin.controller";
 
 jest.mock("../db", () => ({ pool: { query: jest.fn() } }));
-const query = jest.mocked(pool.query);
+const query = jest.spyOn(pool, "query");
 
 beforeEach(() => query.mockReset());
 

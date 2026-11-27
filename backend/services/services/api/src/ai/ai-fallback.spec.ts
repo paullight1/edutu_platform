@@ -109,25 +109,50 @@ describe("AiService — provider failover", () => {
   });
 
   it("preserves task-specific system instructions across configured routes and failover", async () => {
-    const route = { from: () => route, where: () => route, limit: () => route,
-      execute: async () => [{ provider: "deepseek", model: "deepseek-chat", systemPrompt: "Stored studio prompt" }] };
+    const route = {
+      from: () => route,
+      where: () => route,
+      limit: () => route,
+      execute: async () => [
+        {
+          provider: "deepseek",
+          model: "deepseek-chat",
+          systemPrompt: "Stored studio prompt",
+        },
+      ],
+    };
     const select = jest.spyOn(db, "select").mockReturnValueOnce(route as never);
-    const fallback = jest.fn(async () => ({ provider: "openrouter" as const, model: "test", text: "{}" }));
-    const service = buildService({
-      generateText: async () => { throw new Error("Provider unavailable"); },
-    }, { generateText: fallback });
+    const fallback = jest.fn(async () => ({
+      provider: "openrouter" as const,
+      model: "test",
+      text: "{}",
+    }));
+    const service = buildService(
+      {
+        generateText: async () => {
+          throw new Error("Provider unavailable");
+        },
+      },
+      { generateText: fallback },
+    );
     await service.generateJson({
-      feature: "docs.sop", prompt: "Synthetic facts",
-      systemInstruction: "Use only supplied learner facts.", systemInstructionMode: "replace",
+      feature: "docs.sop",
+      prompt: "Synthetic facts",
+      systemInstruction: "Use only supplied learner facts.",
+      systemInstructionMode: "replace",
     });
     expect(fallback.mock.calls[0]).toBeDefined();
     expect(fallback).toHaveBeenCalledWith(
-      expect.objectContaining({ systemPrompt: "Use only supplied learner facts." }),
+      expect.objectContaining({
+        systemPrompt: "Use only supplied learner facts.",
+      }),
       expect.objectContaining({ feature: "docs.sop" }),
     );
     select.mockReturnValueOnce(route as never);
     await service.generateJson({
-      feature: "docs.sop", prompt: "A separate synthetic prompt", systemInstruction: "Caller default",
+      feature: "docs.sop",
+      prompt: "A separate synthetic prompt",
+      systemInstruction: "Caller default",
     });
     expect(fallback).toHaveBeenLastCalledWith(
       expect.objectContaining({ systemPrompt: "Stored studio prompt" }),
