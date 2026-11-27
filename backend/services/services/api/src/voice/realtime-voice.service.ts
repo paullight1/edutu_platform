@@ -155,7 +155,8 @@ export class RealtimeVoiceService {
     if (typeof value !== "string") {
       throw new BadRequestException("A WebRTC SDP offer is required");
     }
-    const sdp = value.trim();
+    // OpenAI's SDP parser requires a line ending after the final attribute.
+    const sdp = `${value.trim()}\r\n`;
     if (
       !sdp.startsWith("v=0") ||
       !/(?:^|\r?\n)m=audio\s/m.test(sdp) ||

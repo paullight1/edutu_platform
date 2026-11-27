@@ -16,6 +16,7 @@ const SDP_OFFER = [
   "t=0 0",
   "m=audio 9 UDP/TLS/RTP/SAVPF 111",
   "a=rtpmap:111 opus/48000/2",
+  "",
 ].join("\r\n");
 
 function charge() {
