@@ -155,6 +155,17 @@ test('explains a temporary provider outage without starting an application', asy
   expect(track).not.toHaveBeenCalled();
 });
 
+test.each([
+  ['workday_sign_in', /sign in to Workday/],
+  ['itu_provider_form', /AI disclosure and consent/],
+])('shows %s guidance without creating an attempt', async (manualApplication, message) => {
+  request.mockResolvedValueOnce({ available: false, manualApplication, attempt: null });
+  const screen = render(<AutoApplyAction opportunityId="opportunity" userId="learner" getToken={getToken} />);
+  expect(await screen.findByText(message)).toBeTruthy();
+  expect(screen.queryByText('Auto Apply with Edutu')).toBeNull();
+  expect(track).not.toHaveBeenCalled();
+});
+
 test('prefills Edutu profile details and saves the learner’s changes before creating the first attempt', async () => {
   request.mockResolvedValueOnce({ available: true, attempt: null, profileRequired: true })
     .mockResolvedValueOnce({ background: '', statement: '', version: 0, suggestedBackground: 'School: Example University',

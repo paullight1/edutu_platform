@@ -19,6 +19,7 @@ type Availability = {
   available: boolean;
   applicantOnly?: boolean;
   providerUnavailable?: boolean;
+  manualApplication?: 'workday_sign_in' | 'itu_provider_form';
   profileRequired?: boolean;
   allowance?: AutoApplyAllowance | null;
   attempt: Required<AttemptLaunch> | null;
@@ -175,6 +176,11 @@ export function AutoApplyAction({ opportunityId, opportunityTitle, userId, getTo
 
   if (data?.applicantOnly && !data.attempt) return <Text style={{ color: colors.textSecondary }}>
     This provider asks you to complete and submit your own application. Use Apply Now to open its website.
+  </Text>;
+  if (data?.manualApplication && !data.attempt) return <Text style={{ color: colors.textSecondary }}>
+    {data.manualApplication === 'workday_sign_in'
+      ? 'Use Apply Now to sign in to Workday and continue your Chevron application.'
+      : 'Use Apply Now to complete the ITU form and answer its AI disclosure and consent questions.'}
   </Text>;
   if (data?.providerUnavailable && !data.attempt) return <Text style={{ color: colors.textSecondary }}>
     Auto Apply is unavailable for this opportunity right now. Use Apply Now to continue.
