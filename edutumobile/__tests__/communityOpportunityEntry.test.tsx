@@ -13,6 +13,7 @@ let mockIsSignedIn = false;
 let mockIsGuest = false;
 
 jest.mock('expo-router', () => ({
+  useFocusEffect: jest.fn(),
   useLocalSearchParams: () => ({ id: 'opp-1' }),
   useRouter: () => ({ push: mockPush, back: mockBack }),
 }));
@@ -185,6 +186,9 @@ jest.mock('../lib/supabase', () => ({
 
 jest.mock('@edutu/core/src/services/opportunities', () => ({
   fetchOpportunityRanking: jest.fn().mockResolvedValue(null),
+  getMemoryOpportunitiesSnapshot: jest.fn(() => []),
+  getCachedOpportunity: jest.fn(async () => null),
+  getCachedOpportunitiesSnapshot: jest.fn(async () => []),
   getOpportunity: (...args: unknown[]) => mockGetOpportunity(...args),
   getOpportunityWithStatus: async (...args: unknown[]) => {
     const opportunity = await mockGetOpportunity(...args);
