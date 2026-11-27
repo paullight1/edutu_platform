@@ -52,8 +52,7 @@ function knownManualApplication(primary: unknown, fallback: unknown) {
   const path = url?.pathname.replace(/\/$/, "");
   if (
     url?.origin === "https://careers.chevron.com" &&
-    path ===
-      "/job/lekki/nma-undergraduate-internship-jan-2027/38138/103152674816"
+    path === "/job/lekki/nma-undergraduate-internship-jan-2027/38138/103152674816"
   ) {
     return "workday_sign_in";
   }
@@ -84,10 +83,7 @@ const cvSelectionSchema = z
   .strict();
 
 const cvPreviewSchema = z
-  .object({
-    version: z.number().int().positive(),
-    fieldIndex: z.number().int().min(0).max(59),
-  })
+  .object({ version: z.number().int().positive(), fieldIndex: z.number().int().min(0).max(59) })
   .strict();
 const maxCvPreviewBytes = 512 * 1024;
 
@@ -126,34 +122,18 @@ const applicationEmail = z
   .trim()
   .max(254)
   .pipe(z.union([z.literal(""), z.email()]));
-const applicationPhone = z
-  .string()
-  .trim()
-  .max(40)
-  .refine((value) => {
-    const digits = value.replace(/\D/g, "").length;
-    return (
-      !value || (/^\+?[\d ().-]+$/.test(value) && digits >= 7 && digits <= 15)
-    );
-  });
+const applicationPhone = z.string().trim().max(40).refine(value => {
+  const digits = value.replace(/\D/g, "").length;
+  return !value || (/^\+?[\d ().-]+$/.test(value) && digits >= 7 && digits <= 15);
+});
 const educationText = z.string().trim().max(160);
-const educationSchema = z
-  .object({
-    school: educationText,
-    degree: educationText,
-    major: educationText,
-    graduationYear: z
-      .string()
-      .trim()
-      .regex(/^(?:[1-9]\d{3})?$/),
-  })
-  .strict();
-const emptyEducation = {
-  school: "",
-  degree: "",
-  major: "",
-  graduationYear: "",
-};
+const educationSchema = z.object({
+  school: educationText,
+  degree: educationText,
+  major: educationText,
+  graduationYear: z.string().trim().regex(/^(?:[1-9]\d{3})?$/),
+}).strict();
+const emptyEducation = { school: "", degree: "", major: "", graduationYear: "" };
 
 const profileSchema = z
   .object({
@@ -161,11 +141,7 @@ const profileSchema = z
     statement: z.string().trim().max(16000),
     version: z.number().int().nonnegative(),
     contact: z
-      .object({
-        name: applicationName,
-        email: applicationEmail,
-        phone: applicationPhone.optional(),
-      })
+      .object({ name: applicationName, email: applicationEmail, phone: applicationPhone.optional() })
       .strict()
       .optional(),
     education: educationSchema.optional(),
@@ -174,10 +150,7 @@ const profileSchema = z
 
 function canJoinAutoApplyPilot(owner: string) {
   const configured = process.env.AUTO_APPLY_PILOT_LEARNERS;
-  return (
-    configured === undefined ||
-    configured.split(",").some((id) => id.trim() === owner)
-  );
+  return configured === undefined || configured.split(",").some((id) => id.trim() === owner);
 }
 
 @Controller("me/auto-apply")
@@ -246,31 +219,13 @@ export class AutoApplyController {
       [owner],
     );
     if (rows[0]) {
-      const {
-        contact_name,
-        contact_email,
-        contact_phone,
-        education,
-        ...profile
-      } = rows[0];
+      const { contact_name, contact_email, contact_phone, education, ...profile } = rows[0];
       if (includeSavedDetails !== "true") return profile;
-      const saved =
-        education ??
-        (
-          await pool.query<{ education: Partial<typeof emptyEducation> }>(
-            "select private.auto_apply_saved_education($1,$2) as education",
-            [owner, toDatabaseUserId(owner)],
-          )
-        ).rows[0]?.education;
-      return {
-        ...profile,
-        contact: {
-          name: contact_name,
-          email: contact_email,
-          phone: contact_phone,
-        },
-        education: { ...emptyEducation, ...saved },
-      };
+      const saved = education ?? (await pool.query<{ education: Partial<typeof emptyEducation> }>(
+        "select private.auto_apply_saved_education($1,$2) as education",
+        [owner, toDatabaseUserId(owner)],
+      )).rows[0]?.education;
+      return { ...profile, contact: { name: contact_name, email: contact_email, phone: contact_phone }, education: { ...emptyEducation, ...saved } };
     }
     const empty = { background: "", statement: "", version: 0 };
     if (includeSavedDetails !== "true") return empty;
@@ -314,20 +269,13 @@ export class AutoApplyController {
     return {
       ...empty,
       suggestedBackground: facts.join("\n").slice(0, 8000),
-      suggestedExperience: facts
-        .filter((fact) => /^(Skills|Interests): /.test(fact))
-        .join("\n")
-        .slice(0, 8000),
+      suggestedExperience: facts.filter(fact => /^(Skills|Interests): /.test(fact)).join("\n").slice(0, 8000),
       education: {
         school: learner?.school?.trim().slice(0, 160) ?? "",
         degree: learner?.degree?.trim().slice(0, 160) ?? "",
         major: learner?.major?.trim().slice(0, 160) ?? "",
-        graduationYear:
-          learner?.grad_year &&
-          learner.grad_year >= 1000 &&
-          learner.grad_year <= 9999
-            ? String(learner.grad_year)
-            : "",
+        graduationYear: learner?.grad_year && learner.grad_year >= 1000 && learner.grad_year <= 9999
+          ? String(learner.grad_year) : "",
       },
       contact: {
         name: name.success ? name.data : "",
@@ -421,8 +369,7 @@ export class AutoApplyController {
     );
     const config = autoApplyProviderConfig();
     const available =
-      rows[0]?.blockReason === null &&
-      Boolean(config?.pilotIds.includes(id)) &&
+      rows[0]?.blockReason === null && Boolean(config?.pilotIds.includes(id)) &&
       canJoinAutoApplyPilot(owner);
     const attempt = rows[0]?.attempt ?? null;
     if (rows[0]?.blockReason === "applicant_only")
@@ -433,10 +380,9 @@ export class AutoApplyController {
         profileRequired: false,
         allowance: null,
       };
-    const manualApplication =
-      !attempt && rows[0]?.blockReason === null
-        ? knownManualApplication(rows[0].catalogUrl, rows[0].fallbackCatalogUrl)
-        : undefined;
+    const manualApplication = !attempt && rows[0]?.blockReason === null
+      ? knownManualApplication(rows[0].catalogUrl, rows[0].fallbackCatalogUrl)
+      : undefined;
     if (!available || attempt)
       return {
         available,
@@ -445,15 +391,21 @@ export class AutoApplyController {
         allowance: null,
         ...(manualApplication ? { manualApplication } : {}),
       };
-    if (
-      !config?.submitEndpoint ||
-      !(await this.worker.supportsOpportunity(
-        id,
-        false,
-        rows[0].catalogUrl,
-        rows[0].fallbackCatalogUrl,
-      ))
-    ) {
+    if (!config?.submitEndpoint || !(await this.worker.supportsOpportunity(
+      id, false, rows[0].catalogUrl, rows[0].fallbackCatalogUrl,
+    ))) {
+      return {
+        available: false,
+        attempt,
+        profileRequired: false,
+        allowance: null,
+        providerUnavailable: true,
+        ...(manualApplication ? { manualApplication } : {}),
+      };
+    }
+    if (config.verifyEndpoint === undefined || !(await this.worker.verifyOpportunityForm(
+      id, rows[0].catalogUrl, rows[0].fallbackCatalogUrl,
+    ))) {
       return {
         available: false,
         attempt,
@@ -512,7 +464,13 @@ export class AutoApplyController {
         (application.status = 'draft' and attempt.previous_answers is not null
           and (attempt.state = 'needs_review' or (attempt.state = 'failed' and attempt.failure_reason = 'mapping_changed')))
           as "hasPreviousAnswers",
-        attempt.provider_receipt as receipt, opportunity.title,
+        attempt.provider_receipt as receipt,
+        case when attempt.state = 'submitted' and attempt.provider_receipt is not null then 'confirmed'
+          when attempt.state = 'submitted' then 'self_reported'
+          when attempt.state = 'unconfirmed' then 'pending'
+          when attempt.state = 'submitting' then 'sending'
+          else null end as "receiptStatus",
+        opportunity.title,
         (attempt.state = 'submitted' and attempt.provider_receipt is null) as "manuallySubmitted",
         attempt.handoff_required as "handoffRequired",
         attempt.handoff_step_url as "handoffStepUrl",
@@ -546,8 +504,7 @@ export class AutoApplyController {
     const config = autoApplyProviderConfig();
     const applicantOnly = blockReason === "applicant_only";
     const awaitingReceipt = attempt.state === "unconfirmed";
-    const needsProvider =
-      attempt.state === "needs_input" && attempt.handoffRequired;
+    const needsProvider = attempt.state === "needs_input" && attempt.handoffRequired;
     const changedForm =
       blockReason === null &&
       applicationIsDraft &&
@@ -566,60 +523,34 @@ export class AutoApplyController {
       listing &&
       step &&
       (handoffCatalogFingerprint
-        ? handoffCatalogFingerprint ===
-          catalogFingerprint(providerUrl, fallbackProviderUrl)
+        ? handoffCatalogFingerprint === catalogFingerprint(providerUrl, fallbackProviderUrl)
         : step.origin === listing.origin) &&
       step.href !== listing.href
         ? step
         : null;
-    const readyReview =
-      applicationIsDraft &&
-      blockReason === null &&
-      hasMapping &&
-      attempt.state === "needs_review";
-    const submissionConfigured = Boolean(
-      config?.submitEndpoint && config.pilotIds.includes(attempt.opportunityId),
-    );
+    const readyReview = applicationIsDraft && blockReason === null && hasMapping && attempt.state === "needs_review";
+    const submissionConfigured = Boolean(config?.submitEndpoint && config.pilotIds.includes(attempt.opportunityId));
     return {
       ...attempt,
-      ...(attempt.state === "needs_input" && attempt.attachmentRequired
-        ? {
-            attachmentBytesRemaining: Math.max(
-              0,
-              maxSupportingPdfBytes - (earlierDocumentBytes ?? 0),
-            ),
-            canResetDocuments:
-              applicationIsDraft &&
-              blockReason === null &&
-              Boolean(hasDocuments),
-          }
-        : {}),
-      statementRetryAvailable: Boolean(
-        attempt.statementRetryAvailable &&
-        applicationIsDraft &&
-        blockReason === null &&
-        config?.pilotIds.includes(attempt.opportunityId),
-      ),
+      ...(attempt.state === "needs_input" && attempt.attachmentRequired ? {
+        attachmentBytesRemaining: Math.max(0, maxSupportingPdfBytes - (earlierDocumentBytes ?? 0)),
+        canResetDocuments: applicationIsDraft && blockReason === null && Boolean(hasDocuments),
+      } : {}),
+      statementRetryAvailable: Boolean(attempt.statementRetryAvailable && applicationIsDraft &&
+        blockReason === null && config?.pilotIds.includes(attempt.opportunityId)),
       listingClosed: blockReason === "opportunity_closed",
       applicantOnly,
       handoffUrl: exactStep?.href ?? listing?.href ?? null,
       exactHandoff: Boolean(exactStep),
       canPreviewCv:
-        applicationIsDraft &&
-        blockReason === null &&
-        hasMapping &&
+        applicationIsDraft && blockReason === null && hasMapping &&
         attempt.state === "needs_review" &&
-        Boolean(
-          config?.cvPreviewEndpoint &&
-          config.pilotIds.includes(attempt.opportunityId),
-        ),
-      canCheckReceipt: awaitingReceipt && Boolean(autoApplyReceiptConfig()),
-      canRecordManualSubmission:
-        applicationIsDraft &&
-        (awaitingReceipt ||
-          needsProvider ||
-          (attempt.state === "failed" &&
-            (attempt.failureReason === "mapping_changed" || applicantOnly))),
+        Boolean(config?.cvPreviewEndpoint && config.pilotIds.includes(attempt.opportunityId)),
+      canCheckReceipt:
+        awaitingReceipt && Boolean(autoApplyReceiptConfig()),
+      canRecordManualSubmission: applicationIsDraft &&
+        (awaitingReceipt || needsProvider ||
+          (attempt.state === "failed" && (attempt.failureReason === "mapping_changed" || applicantOnly))),
       canCancel:
         applicationIsDraft &&
         (["queued", "running", "needs_input", "needs_review"].includes(
@@ -631,12 +562,8 @@ export class AutoApplyController {
         blockReason === null &&
         (["failed", "cancelled"].includes(attempt.state) || needsProvider) &&
         Boolean(config?.pilotIds.includes(attempt.opportunityId)),
-      canSubmit:
-        readyReview &&
-        submissionConfigured &&
-        !attempt.review?.some(
-          (field: { validationHint?: string }) => field.validationHint,
-        ),
+      canSubmit: readyReview && submissionConfigured &&
+        !attempt.review?.some((field: { validationHint?: string }) => field.validationHint),
       submissionUnavailable: readyReview && !submissionConfigured,
     };
   }
@@ -647,10 +574,7 @@ export class AutoApplyController {
     @CurrentUser("authId") owner: string,
     @Param("id", new ParseUUIDPipe()) id: string,
   ) {
-    const { rows } = await pool.query<{
-      version: number;
-      answers: { label: string; value: string }[];
-    }>(
+    const { rows } = await pool.query<{ version: number; answers: { label: string; value: string }[] }>(
       `select attempt.version, coalesce((
          select jsonb_agg(saved.answer order by saved.position)
          from jsonb_array_elements(attempt.previous_answers) with ordinality as saved(answer, position)
@@ -668,8 +592,7 @@ export class AutoApplyController {
          and (attempt.state = 'needs_review' or (attempt.state = 'failed' and attempt.failure_reason = 'mapping_changed'))`,
       [id, owner, toDatabaseUserId(owner)],
     );
-    if (!rows.length)
-      throw new NotFoundException("Previous answers are unavailable");
+    if (!rows.length) throw new NotFoundException("Previous answers are unavailable");
     return rows[0];
   }
 
@@ -685,39 +608,24 @@ export class AutoApplyController {
   ) {
     const attempt = await this.attempt(owner, id);
     if (attempt.state !== "needs_review" || attempt.version !== body.version)
-      throw new ConflictException(
-        "Refresh the application before opening the CV.",
-      );
+      throw new ConflictException("Refresh the application before opening the CV.");
     const field = attempt.review?.[body.fieldIndex];
-    if (
-      field?.attachment?.type !== "pdf" ||
-      field.attachment.uploadId ||
-      typeof field.value !== "string" ||
-      !field.value.trim()
-    )
+    if (field?.attachment?.type !== "pdf" || field.attachment.uploadId ||
+        typeof field.value !== "string" || !field.value.trim())
       throw new NotFoundException("Generated CV not found");
     const config = autoApplyProviderConfig();
     if (!attempt.canPreviewCv || !config?.cvPreviewEndpoint)
-      throw new ServiceUnavailableException(
-        "CV preview is temporarily unavailable.",
-      );
+      throw new ServiceUnavailableException("CV preview is temporarily unavailable.");
 
     try {
       const response = await fetch(config.cvPreviewEndpoint, {
         method: "POST",
         redirect: "error",
-        headers: {
-          Authorization: `Bearer ${config.token}`,
-          "Content-Type": "application/json",
-        },
+        headers: { Authorization: `Bearer ${config.token}`, "Content-Type": "application/json" },
         body: JSON.stringify({ value: field.value }),
         signal: AbortSignal.timeout(12_000),
       });
-      if (
-        !response.ok ||
-        response.headers.get("content-type") !== "application/pdf" ||
-        !response.body
-      ) {
+      if (!response.ok || response.headers.get("content-type") !== "application/pdf" || !response.body) {
         await response.body?.cancel();
         throw new Error();
       }
@@ -742,9 +650,7 @@ export class AutoApplyController {
       if (pdf.subarray(0, 5).toString("ascii") !== "%PDF-") throw new Error();
       return { pdf: pdf.toString("base64") };
     } catch {
-      throw new ServiceUnavailableException(
-        "CV preview is temporarily unavailable.",
-      );
+      throw new ServiceUnavailableException("CV preview is temporarily unavailable.");
     }
   }
 
@@ -764,11 +670,7 @@ export class AutoApplyController {
   async recordManualSubmission(
     @CurrentUser("authId") owner: string,
     @Param("id", new ParseUUIDPipe()) id: string,
-    @Body(
-      new ZodValidationPipe(
-        z.object({ version: z.number().int().positive() }).strict(),
-      ),
-    )
+    @Body(new ZodValidationPipe(z.object({ version: z.number().int().positive() }).strict()))
     body: { version: number },
   ) {
     try {
@@ -801,24 +703,12 @@ export class AutoApplyController {
         [id, owner, toDatabaseUserId(owner), body.version],
       );
     } catch (error) {
-      if (
-        !(
-          typeof error === "object" &&
-          error &&
-          "code" in error &&
-          error.code === "55P03"
-        )
-      )
-        throw error;
-      throw new ConflictException(
-        "Auto Apply is updating this application. Refresh its status before recording the submission.",
-      );
+      if (!(typeof error === "object" && error && "code" in error && error.code === "55P03")) throw error;
+      throw new ConflictException("Auto Apply is updating this application. Refresh its status before recording the submission.");
     }
     const current = await this.attempt(owner, id);
     if (current.state === "submitted") return current;
-    throw new ConflictException(
-      "Refresh the application status before recording the submission.",
-    );
+    throw new ConflictException("Refresh the application status before recording the submission.");
   }
 
   @Post("attempts/:id/control")
@@ -897,12 +787,7 @@ export class AutoApplyController {
            set expires_at = greatest(auto_apply_android_activities.expires_at, excluded.expires_at)`,
         [id, owner, legacy, body.token],
       );
-      return this.activityRegistrationResult(
-        id,
-        owner,
-        legacy,
-        Boolean(result.rowCount),
-      );
+      return this.activityRegistrationResult(id, owner, legacy, Boolean(result.rowCount));
     }
     const result = await pool.query(
       `insert into private.auto_apply_live_activities (attempt_id, activity_id, token)
@@ -915,27 +800,13 @@ export class AutoApplyController {
          where auto_apply_live_activities.token <> excluded.token`,
       [id, owner, legacy, body.activityId, body.token],
     );
-    return this.activityRegistrationResult(
-      id,
-      owner,
-      legacy,
-      Boolean(result.rowCount),
-    );
+    return this.activityRegistrationResult(id, owner, legacy, Boolean(result.rowCount));
   }
 
-  private async activityRegistrationResult(
-    id: string,
-    owner: string,
-    legacy: string,
-    updated: boolean,
-  ) {
+  private async activityRegistrationResult(id: string, owner: string, legacy: string, updated: boolean) {
     if (updated) return { updated };
     // A device can finish registering just after the attempt ends, before it has a push binding.
-    const { rows } = await pool.query<{
-      id: string;
-      state: string;
-      version: number;
-    }>(
+    const { rows } = await pool.query<{ id: string; state: string; version: number }>(
       `select attempt.id, attempt.state, attempt.version
        from private.auto_apply_attempts attempt
        join public.opportunity_applications application on application.id = attempt.application_id
@@ -992,48 +863,26 @@ export class AutoApplyController {
     if (rows.length) return rows[0];
     const current = await this.attempt(owner, id);
     if (
-      current.state === "needs_review" &&
-      current.version === body.version &&
+      current.state === "needs_review" && current.version === body.version &&
       current.review?.length === body.values.length &&
-      current.review.some(
-        (field: { optional?: boolean }, index: number) =>
-          !field.optional && !body.values[index],
+      current.review.some((field: { optional?: boolean }, index: number) =>
+        !field.optional && !body.values[index],
       )
-    )
-      throw new UnprocessableEntityException(
-        "Fill in the required answers before saving the draft.",
-      );
+    ) throw new UnprocessableEntityException("Fill in the required answers before saving the draft.");
+    if (
+      current.state === "needs_review" && current.version === body.version &&
+      current.review?.length === body.values.length &&
+      current.review.some((field: { maxLength?: number }, index: number) =>
+        field.maxLength !== undefined && body.values[index]!.length > field.maxLength,
+      )
+    ) throw new UnprocessableEntityException("Shorten answers that exceed the provider's character limits.");
     if (
       current.state === "needs_review" &&
       current.version === body.version &&
       current.review?.length === body.values.length &&
       current.review.some(
-        (field: { maxLength?: number }, index: number) =>
-          field.maxLength !== undefined &&
-          body.values[index].length > field.maxLength,
-      )
-    )
-      throw new UnprocessableEntityException(
-        "Shorten answers that exceed the provider's character limits.",
-      );
-    if (
-      current.state === "needs_review" &&
-      current.version === body.version &&
-      current.review?.length === body.values.length &&
-      current.review.some(
-        (
-          field: {
-            choices?: string[];
-            selectionMode?: "multiple_required" | "multiple_optional";
-          },
-          index: number,
-        ) =>
-          field.choices &&
-          !validProviderChoice(
-            field.choices,
-            body.values[index],
-            field.selectionMode,
-          ),
+        (field: { choices?: string[]; selectionMode?: "multiple_required" | "multiple_optional" }, index: number) =>
+          field.choices && !validProviderChoice(field.choices, body.values[index]!, field.selectionMode),
       )
     ) {
       throw new UnprocessableEntityException(
@@ -1083,28 +932,15 @@ export class AutoApplyController {
     const current = await this.attempt(owner, id);
     if (current.state === "submitting" && current.version === body.version + 1)
       return { id };
-    if (
-      current.state === "needs_review" &&
-      current.version === body.version &&
-      current.review?.some(
-        (field: { validationHint?: string }) => field.validationHint,
-      )
-    ) {
-      throw new UnprocessableEntityException(
-        "Correct the highlighted field before approving.",
-      );
+    if (current.state === "needs_review" && current.version === body.version &&
+        current.review?.some((field: { validationHint?: string }) => field.validationHint)) {
+      throw new UnprocessableEntityException("Correct the highlighted field before approving.");
     }
-    if (
-      current.state === "needs_review" &&
-      current.version === body.version &&
-      current.review?.some(
-        (field: { maxLength?: number; value: string }) =>
-          field.maxLength !== undefined && field.value.length > field.maxLength,
+    if (current.state === "needs_review" && current.version === body.version &&
+      current.review?.some((field: { maxLength?: number; value: string }) =>
+        field.maxLength !== undefined && field.value.length > field.maxLength,
       )
-    )
-      throw new UnprocessableEntityException(
-        "Shorten answers that exceed the provider's character limits.",
-      );
+    ) throw new UnprocessableEntityException("Shorten answers that exceed the provider's character limits.");
     if (current.listingClosed)
       throw new ConflictException("This opportunity has closed.");
     if (current.applicantOnly)
@@ -1122,11 +958,7 @@ export class AutoApplyController {
   async retryStatement(
     @CurrentUser("authId") owner: string,
     @Param("id", new ParseUUIDPipe()) id: string,
-    @Body(
-      new ZodValidationPipe(
-        z.object({ version: z.number().int().positive() }).strict(),
-      ),
-    )
+    @Body(new ZodValidationPipe(z.object({ version: z.number().int().positive() }).strict()))
     body: { version: number },
   ) {
     const { rows } = await pool.query<{ id: string }>(
@@ -1142,19 +974,11 @@ export class AutoApplyController {
          and attempt.question_statement and attempt.question_statement_retryable and not attempt.statement_retry_used
          and private.auto_apply_block_reason(opportunity) is null
        returning attempt.id`,
-      [
-        id,
-        owner,
-        toDatabaseUserId(owner),
-        body.version,
-        this.pilotOpportunityIds(),
-      ],
+      [id, owner, toDatabaseUserId(owner), body.version, this.pilotOpportunityIds()],
     );
     if (rows[0]) return rows[0];
     await this.attempt(owner, id);
-    throw new ConflictException(
-      "This statement draft can no longer be retried. Refresh the application to continue.",
-    );
+    throw new ConflictException("This statement draft can no longer be retried. Refresh the application to continue.");
   }
 
   @Post("attempts/:id/answer")
@@ -1164,17 +988,9 @@ export class AutoApplyController {
     @Body(new ZodValidationPipe(answerSchema))
     body: z.infer<typeof answerSchema>,
   ) {
-    const phone = body.rememberPhone
-      ? body.answer.replace(/[ ().-]/g, "")
-      : null;
-    if (
-      phone !== null &&
-      (!applicationPhone.safeParse(body.answer).success ||
-        !/^\+[1-9]\d{6,14}$/.test(phone))
-    ) {
-      throw new UnprocessableEntityException(
-        "Use an international phone number beginning with + to save it.",
-      );
+    const phone = body.rememberPhone ? body.answer.replace(/[ ().-]/g, "") : null;
+    if (phone !== null && (!applicationPhone.safeParse(body.answer).success || !/^\+[1-9]\d{6,14}$/.test(phone))) {
+      throw new UnprocessableEntityException("Use an international phone number beginning with + to save it.");
     }
     const { rows } = await pool.query(
       `with answered as (
@@ -1215,15 +1031,9 @@ export class AutoApplyController {
         throw new ConflictException(
           "Complete and submit your own application on the provider’s website.",
         );
-      if (
-        current.state === "needs_input" &&
-        current.version === body.version &&
-        current.answerMaxLength &&
-        body.answer.length > current.answerMaxLength
-      ) {
-        throw new UnprocessableEntityException(
-          `Enter up to ${current.answerMaxLength} characters for this answer.`,
-        );
+      if (current.state === "needs_input" && current.version === body.version &&
+          current.answerMaxLength && body.answer.length > current.answerMaxLength) {
+        throw new UnprocessableEntityException(`Enter up to ${current.answerMaxLength} characters for this answer.`);
       }
       if (
         current.state === "needs_input" &&
@@ -1250,16 +1060,9 @@ export class AutoApplyController {
     body: z.infer<typeof cvSelectionSchema>,
   ) {
     const current = await this.attempt(owner, id);
-    if (
-      current.state !== "needs_input" ||
-      !current.cvRequested ||
-      current.version !== body.version ||
-      current.listingClosed ||
-      current.applicantOnly
-    ) {
-      throw new ConflictException(
-        "Refresh the application before choosing a CV.",
-      );
+    if (current.state !== "needs_input" || !current.cvRequested ||
+        current.version !== body.version || current.listingClosed || current.applicantOnly) {
+      throw new ConflictException("Refresh the application before choosing a CV.");
     }
     const cv = await this.applicationCvSnapshot(owner, body.cvId);
     const { rows } = await pool.query(
@@ -1276,9 +1079,7 @@ export class AutoApplyController {
       [id, owner, toDatabaseUserId(owner), body.version, cv],
     );
     if (!rows.length)
-      throw new ConflictException(
-        "Refresh the application before choosing a CV.",
-      );
+      throw new ConflictException("Refresh the application before choosing a CV.");
     return rows[0];
   }
 
@@ -1298,26 +1099,12 @@ export class AutoApplyController {
     const current = await this.attempt(owner, id);
     if (body.fieldIndex !== undefined) {
       const field = current.review?.[body.fieldIndex];
-      if (
-        current.state !== "needs_review" ||
-        current.version !== body.version ||
-        current.listingClosed ||
-        current.applicantOnly ||
-        field?.attachment?.type !== "pdf" ||
-        !field.attachment.uploadId
-      ) {
-        throw new ConflictException(
-          "Refresh the review before replacing a document.",
-        );
+      if (current.state !== "needs_review" || current.version !== body.version ||
+          current.listingClosed || current.applicantOnly || field?.attachment?.type !== "pdf" ||
+          !field.attachment.uploadId) {
+        throw new ConflictException("Refresh the review before replacing a document.");
       }
-      return this.replaceReviewedPdf(
-        owner,
-        id,
-        body.version,
-        body.fieldIndex,
-        field,
-        body.uploadId,
-      );
+      return this.replaceReviewedPdf(owner, id, body.version, body.fieldIndex, field, body.uploadId);
     }
     if (
       current.state !== "needs_input" ||
@@ -1335,12 +1122,8 @@ export class AutoApplyController {
       ownerId,
       body.uploadId,
     );
-    if (
-      bytes.length > (current.attachmentBytesRemaining ?? maxSupportingPdfBytes)
-    )
-      throw new PayloadTooLargeException(
-        "Supporting PDFs can total up to 10 MB. Choose a smaller PDF.",
-      );
+    if (bytes.length > (current.attachmentBytesRemaining ?? maxSupportingPdfBytes))
+      throw new PayloadTooLargeException("Supporting PDFs can total up to 10 MB. Choose a smaller PDF.");
     const { rows } = await pool.query(
       `update private.auto_apply_attempts attempt
        set supporting_document = jsonb_build_object('uploadId', $5::text, 'name', $6::text,
@@ -1359,16 +1142,7 @@ export class AutoApplyController {
          and attempt.state = 'needs_input' and attempt.version = $4 and attempt.question_attachment
          and private.auto_apply_block_reason(opportunity) is null
        returning attempt.id`,
-      [
-        id,
-        owner,
-        ownerId,
-        body.version,
-        body.uploadId,
-        name,
-        sha256,
-        bytes.length,
-      ],
+      [id, owner, ownerId, body.version, body.uploadId, name, sha256, bytes.length],
     );
     if (!rows.length)
       throw new ConflictException("The application question has changed.");
@@ -1376,23 +1150,13 @@ export class AutoApplyController {
   }
 
   private async replaceReviewedPdf(
-    owner: string,
-    id: string,
-    version: number,
-    index: number,
-    field: {
-      value: string;
-      attachment: { uploadId: string; question?: string };
-    },
+    owner: string, id: string, version: number, index: number,
+    field: { value: string; attachment: { uploadId: string; question?: string } },
     uploadId: string,
   ) {
     const ownerId = toDatabaseUserId(owner);
-    const changed = new ConflictException(
-      "This review changed. Refresh before replacing a document.",
-    );
-    const {
-      rows: [selection],
-    } = await pool.query<{
+    const changed = new ConflictException("This review changed. Refresh before replacing a document.");
+    const { rows: [selection] } = await pool.query<{
       document: SupportingDocument | null;
       documents: Record<string, SupportingDocument> | null;
     }>(
@@ -1406,41 +1170,24 @@ export class AutoApplyController {
     if (!selection) throw changed;
     const candidates = selection.documents
       ? Object.values(selection.documents)
-      : selection.document
-        ? [selection.document]
-        : [];
-    const matches = candidates.filter(
-      (document) =>
-        document.uploadId === field.attachment.uploadId &&
-        document.name === field.value &&
-        (!field.attachment.question ||
-          document.question === field.attachment.question),
-    );
+      : selection.document ? [selection.document] : [];
+    const matches = candidates.filter(document => document.uploadId === field.attachment.uploadId &&
+      document.name === field.value && (!field.attachment.question || document.question === field.attachment.question));
     if (matches.length !== 1) throw changed;
     const [previous] = matches;
 
     const replacement = await this.uploads.getApplicationPdf(ownerId, uploadId);
-    const documents = field.attachment.question
-      ? { ...selection.documents }
-      : {};
+    const documents = field.attachment.question ? { ...selection.documents } : {};
     let bytes = replacement.bytes.length;
     for (const document of Object.values(documents)) {
       if (document.question === previous.question) continue;
-      bytes +=
-        document.bytes ??
-        (await this.uploads.getApplicationPdf(ownerId, document.uploadId)).bytes
-          .length;
+      bytes += document.bytes ?? (await this.uploads.getApplicationPdf(ownerId, document.uploadId)).bytes.length;
       if (bytes > maxSupportingPdfBytes)
-        throw new PayloadTooLargeException(
-          "Supporting PDFs can total up to 10 MB. Choose a smaller PDF.",
-        );
+        throw new PayloadTooLargeException("Supporting PDFs can total up to 10 MB. Choose a smaller PDF.");
     }
     const updated = {
-      uploadId,
-      question: previous.question,
-      name: replacement.name,
-      bytes: replacement.bytes.length,
-      sha256: replacement.sha256,
+      uploadId, question: previous.question, name: replacement.name,
+      bytes: replacement.bytes.length, sha256: replacement.sha256,
     };
     documents[updated.question] = updated;
     const { rows } = await pool.query(
@@ -1457,17 +1204,7 @@ export class AutoApplyController {
          and attempt.state = 'needs_review' and attempt.version = $4
          and private.auto_apply_block_reason(opportunity) is null
        returning attempt.id, attempt.version`,
-      [
-        id,
-        owner,
-        ownerId,
-        version,
-        index,
-        JSON.stringify(updated),
-        JSON.stringify(documents),
-        updated.name,
-        uploadId,
-      ],
+      [id, owner, ownerId, version, index, JSON.stringify(updated), JSON.stringify(documents), updated.name, uploadId],
     );
     if (!rows.length) throw changed;
     return rows[0];
@@ -1487,15 +1224,8 @@ export class AutoApplyController {
     const config = autoApplyProviderConfig();
     const eligibleConfig = canJoinAutoApplyPilot(owner) ? config : null;
     const verifyForm = eligibleConfig?.verifyEndpoint !== undefined;
-    if (
-      eligibleConfig?.submitEndpoint &&
-      (eligibleConfig.capabilitiesEndpoint || verifyForm)
-    ) {
-      const { rows } = await pool.query<{
-        opportunityId: string;
-        catalogUrl: string | null;
-        fallbackCatalogUrl: string | null;
-      }>(
+    if (eligibleConfig?.submitEndpoint) {
+      const { rows } = await pool.query<{ opportunityId: string; catalogUrl: string | null; fallbackCatalogUrl: string | null }>(
         `select application.opportunity_id as "opportunityId",
            opportunity.application_url as "catalogUrl", opportunity.apply_url as "fallbackCatalogUrl"
          from public.opportunity_applications application
@@ -1507,19 +1237,16 @@ export class AutoApplyController {
         [id, owner, toDatabaseUserId(owner), eligibleConfig.pilotIds],
       );
       if (
-        rows[0] &&
-        (!(await this.worker.supportsOpportunity(
-          rows[0].opportunityId,
-          true,
-          rows[0].catalogUrl,
-          rows[0].fallbackCatalogUrl,
-        )) ||
-          (verifyForm &&
-            !(await this.worker.verifyOpportunityForm(
-              rows[0].opportunityId,
-              rows[0].catalogUrl,
-              rows[0].fallbackCatalogUrl,
-            ))))
+        rows[0] && (
+          !verifyForm ||
+          !(await this.worker.supportsOpportunity(
+            rows[0].opportunityId, true, rows[0].catalogUrl, rows[0].fallbackCatalogUrl,
+          )) ||
+          (verifyForm && !(await this.worker.verifyOpportunityForm(
+            rows[0].opportunityId, rows[0].catalogUrl, rows[0].fallbackCatalogUrl,
+            true,
+          )))
+        )
       ) {
         throw new ServiceUnavailableException(
           "Auto Apply is temporarily unavailable for this opportunity",
@@ -1527,13 +1254,8 @@ export class AutoApplyController {
       }
     }
     const canStart = Boolean(eligibleConfig?.submitEndpoint);
-    const cv =
-      canStart && body.cvId
-        ? await this.applicationCvSnapshot(owner, body.cvId)
-        : null;
-    const planTier = canStart
-      ? (await this.billing.getStatus(owner)).planTier
-      : "none";
+    const cv = canStart && body.cvId ? await this.applicationCvSnapshot(owner, body.cvId) : null;
+    const planTier = canStart ? (await this.billing.getStatus(owner)).planTier : "none";
     try {
       const { rows } = await pool.query<{ id: string }>(
         "select private.start_auto_apply($1,$2,$3,$4,$5,$6::jsonb) as id",
@@ -1550,8 +1272,7 @@ export class AutoApplyController {
         "select id, state, version from private.auto_apply_attempts where id = $1",
         [rows[0].id],
       );
-      if (!snapshot.rows[0])
-        throw new NotFoundException("Application not found");
+      if (!snapshot.rows[0]) throw new NotFoundException("Application not found");
       return snapshot.rows[0];
     } catch (error) {
       if (!(error instanceof Error)) throw error;
@@ -1560,9 +1281,7 @@ export class AutoApplyController {
           throw new NotFoundException("Application not found");
         case "auto_apply_unavailable":
           if (eligibleConfig && !canStart) {
-            throw new ServiceUnavailableException(
-              "Auto Apply is temporarily unavailable for this opportunity",
-            );
+            throw new ServiceUnavailableException("Auto Apply is temporarily unavailable for this opportunity");
           }
           throw new ConflictException(
             "Auto Apply is unavailable for this opportunity",

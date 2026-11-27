@@ -5,7 +5,7 @@ import { AutoApplyWorker } from "./auto-apply-worker.service";
 import { createHash } from "node:crypto";
 
 jest.mock("../db", () => ({ pool: { query: jest.fn() } }));
-const query = jest.spyOn(pool, "query");
+const query = jest.mocked(pool.query);
 const mappingRevision = "a".repeat(64);
 const destinationHost = "provider.example";
 const ai = { generateJson: jest.fn() };
@@ -57,107 +57,57 @@ describe("AutoApplyWorker", () => {
   });
 
   it("compares each catalog link even when the provider capability is cached", async () => {
-    process.env.AUTO_APPLY_PROVIDER_CAPABILITIES_URL =
-      "https://provider.example/capabilities";
+    process.env.AUTO_APPLY_PROVIDER_CAPABILITIES_URL = "https://provider.example/capabilities";
     const approved = "https://catalog.example/application?cycle=2027";
-    const fetchMock = jest.spyOn(global, "fetch").mockResolvedValueOnce(
-      Response.json({
-        status: "ready",
-        opportunityId: "pilot",
-        catalogFingerprint: createHash("sha256").update(approved).digest("hex"),
-      }),
-    );
+    const fetchMock = jest.spyOn(global, "fetch").mockResolvedValueOnce(Response.json({
+      status: "ready", opportunityId: "pilot",
+      catalogFingerprint: createHash("sha256").update(approved).digest("hex"),
+    }));
     const service = worker();
-    await expect(
-      service.supportsOpportunity("pilot", false, approved + "#details"),
-    ).resolves.toBe(true);
-    await expect(
-      service.supportsOpportunity(
-        "pilot",
-        false,
-        "https://catalog.example/application?cycle=2028",
-      ),
-    ).resolves.toBe(false);
-    await expect(
-      service.supportsOpportunity("pilot", false, undefined, approved),
-    ).resolves.toBe(true);
+    await expect(service.supportsOpportunity("pilot", false, approved + "#details")).resolves.toBe(true);
+    await expect(service.supportsOpportunity("pilot", false, "https://catalog.example/application?cycle=2028")).resolves.toBe(false);
+    await expect(service.supportsOpportunity("pilot", false, undefined, approved)).resolves.toBe(true);
     await expect(service.supportsOpportunity("pilot")).resolves.toBe(false);
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("accepts a verified form or a bound learner handoff and rejects stale preflight results", async () => {
-    process.env.AUTO_APPLY_PROVIDER_VERIFY_URL =
-      "https://provider.example/verify/";
+    process.env.AUTO_APPLY_PROVIDER_VERIFY_URL = "https://provider.example/verify/";
     const catalogUrl = "https://catalog.example/apply";
-    const catalogFingerprint = createHash("sha256")
-      .update(catalogUrl)
-      .digest("hex");
-    const fetchMock = jest
-      .spyOn(global, "fetch")
-      .mockResolvedValueOnce(
-        Response.json({
-          status: "verified",
-          opportunityId: "pilot",
-          mappingRevision,
-          catalogFingerprint,
-        }),
-      )
-      .mockResolvedValueOnce(
-        Response.json(
-          {
-            code: "provider_handoff",
-            opportunityId: "pilot",
-            catalogFingerprint,
-          },
-          { status: 409 },
-        ),
-      )
-      .mockResolvedValueOnce(
-        Response.json(
-          {
-            code: "provider_handoff",
-            opportunityId: "pilot",
-            catalogFingerprint,
-          },
-          { status: 409 },
-        ),
-      )
-      .mockResolvedValueOnce(
-        Response.json({ code: "mapping_changed" }, { status: 409 }),
-      )
-      .mockResolvedValueOnce(
-        Response.json({ code: "provider_busy" }, { status: 503 }),
-      );
+    const catalogFingerprint = createHash("sha256").update(catalogUrl).digest("hex");
+    const fetchMock = jest.spyOn(global, "fetch")
+      .mockResolvedValueOnce(Response.json({ status: "verified", opportunityId: "pilot", mappingRevision, catalogFingerprint }))
+      .mockResolvedValueOnce(Response.json({ code: "provider_handoff", opportunityId: "pilot", catalogFingerprint }, { status: 409 }))
+      .mockResolvedValueOnce(Response.json({ code: "provider_handoff", opportunityId: "pilot", catalogFingerprint }, { status: 409 }))
+      .mockResolvedValueOnce(Response.json({ code: "mapping_changed" }, { status: 409 }))
+      .mockResolvedValueOnce(Response.json({ code: "provider_busy" }, { status: 503 }));
     const service = worker();
 
-    await expect(
-      service.verifyOpportunityForm("pilot", catalogUrl, null),
-    ).resolves.toBe(true);
-    await expect(
-      service.verifyOpportunityForm("pilot", catalogUrl, null),
-    ).resolves.toBe(true);
-    await expect(
-      service.verifyOpportunityForm("pilot", catalogUrl + "?changed=1", null),
-    ).resolves.toBe(false);
-    await expect(
-      service.verifyOpportunityForm("pilot", catalogUrl, null),
-    ).resolves.toBe(false);
-    await expect(
-      service.verifyOpportunityForm("pilot", catalogUrl, null),
-    ).resolves.toBe(false);
-    expect(fetchMock).toHaveBeenCalledWith(
-      "https://provider.example/verify/pilot",
-      expect.objectContaining({
-        redirect: "error",
-        headers: { Authorization: "Bearer test-token" },
-      }),
-    );
+    await expect(service.verifyOpportunityForm("pilot", catalogUrl, null, true)).resolves.toBe(true);
+    await expect(service.verifyOpportunityForm("pilot", catalogUrl, null, true)).resolves.toBe(true);
+    await expect(service.verifyOpportunityForm("pilot", catalogUrl + "?changed=1", null)).resolves.toBe(false);
+    await expect(service.verifyOpportunityForm("pilot", catalogUrl, null, true)).resolves.toBe(false);
+    await expect(service.verifyOpportunityForm("pilot", catalogUrl, null, true)).resolves.toBe(false);
+    expect(fetchMock).toHaveBeenCalledWith("https://provider.example/verify/pilot", expect.objectContaining({
+      redirect: "error", headers: { Authorization: "Bearer test-token" },
+    }));
     expect(fetchMock.mock.calls[0]?.[1]).not.toHaveProperty("body");
     process.env.AUTO_APPLY_PROVIDER_VERIFY_URL = "https://other.example/verify";
-    await expect(
-      service.verifyOpportunityForm("pilot", catalogUrl, null),
-    ).resolves.toBe(false);
+    await expect(service.verifyOpportunityForm("pilot", catalogUrl, null)).resolves.toBe(false);
     expect(fetchMock).toHaveBeenCalledTimes(5);
+  });
+
+  it("fails closed without verification and requires a catalog binding before a fresh start", async () => {
+    const service = worker();
+    delete process.env.AUTO_APPLY_PROVIDER_VERIFY_URL;
+    await expect(service.verifyOpportunityForm("pilot", "https://catalog.example/apply", null)).resolves.toBe(false);
+
+    process.env.AUTO_APPLY_PROVIDER_VERIFY_URL = "https://provider.example/verify";
+    jest.spyOn(global, "fetch").mockResolvedValue(Response.json({
+      status: "verified", opportunityId: "pilot", mappingRevision,
+    }));
+    await expect(service.verifyOpportunityForm("pilot", "https://catalog.example/apply", null)).resolves.toBe(true);
+    await expect(service.verifyOpportunityForm("pilot", "https://catalog.example/apply", null, true)).resolves.toBe(false);
   });
 
   it("resumes with stored answers and saves the new review using the claimed version", async () => {
@@ -200,14 +150,10 @@ describe("AutoApplyWorker", () => {
     );
     await worker().process();
     expect(
-      JSON.parse(fetchMock.mock.calls[0][1]!.body as string),
+      JSON.parse(fetchMock.mock.calls[0]![1]!.body as string),
     ).toMatchObject({
       answers,
-      contact: {
-        name: "Example Learner",
-        email: "learner@example.test",
-        phone: "+234 800 555 0100",
-      },
+      contact: { name: "Example Learner", email: "learner@example.test", phone: "+234 800 555 0100" },
     });
     expect(query).toHaveBeenNthCalledWith(
       2,
@@ -329,61 +275,29 @@ describe("AutoApplyWorker", () => {
   });
 
   it("records a changed form during preparation so the learner can continue on the portal", async () => {
-    query.mockResolvedValueOnce({
-      rows: [{ id: "attempt", version: 4 }],
-    } as never);
+    query.mockResolvedValueOnce({ rows: [{ id: "attempt", version: 4 }] } as never);
     query.mockResolvedValueOnce({ rows: [] } as never);
-    jest
-      .spyOn(global, "fetch")
-      .mockResolvedValue(
-        Response.json({ code: "mapping_changed" }, { status: 409 }),
-      );
+    jest.spyOn(global, "fetch").mockResolvedValue(
+      Response.json({ code: "mapping_changed" }, { status: 409 }),
+    );
     await worker().process();
     expect(query).toHaveBeenNthCalledWith(
-      2,
-      expect.stringContaining("failure_reason = 'mapping_changed'"),
+      2, expect.stringContaining("failure_reason = 'mapping_changed'"),
       ["attempt", 4, "running"],
     );
     expect(query).toHaveBeenCalledTimes(2);
   });
 
   it("stores a CV request for the existing attempt", async () => {
-    query.mockResolvedValueOnce({
-      rows: [{ id: "attempt", version: 4 }],
-    } as never);
+    query.mockResolvedValueOnce({ rows: [{ id: "attempt", version: 4 }] } as never);
     query.mockResolvedValueOnce({ rows: [] } as never);
-    jest.spyOn(global, "fetch").mockResolvedValue(
-      Response.json({
-        state: "needs_input",
-        question: "Choose your CV.",
-        cvRequested: true,
-      }),
-    );
+    jest.spyOn(global, "fetch").mockResolvedValue(Response.json({
+      state: "needs_input", question: "Choose your CV.", cvRequested: true,
+    }));
     await worker().process();
     expect(query).toHaveBeenNthCalledWith(
-      2,
-      expect.stringContaining("question_cv = $12"),
-      [
-        "attempt",
-        4,
-        "needs_input",
-        "Choose your CV.",
-        null,
-        null,
-        null,
-        null,
-        false,
-        null,
-        false,
-        true,
-        null,
-        false,
-        null,
-        null,
-        null,
-        false,
-        false,
-      ],
+      2, expect.stringContaining("question_cv = $12"),
+      ["attempt", 4, "needs_input", "Choose your CV.", null, null, null, null, false, null, false, true, null, false, null, null, null, false, false],
     );
   });
 
@@ -437,49 +351,28 @@ describe("AutoApplyWorker", () => {
   });
 
   it("stops before contacting the provider when the approved PDFs exceed 10 MiB together", async () => {
-    process.env.AUTO_APPLY_PROVIDER_SUBMIT_URL =
-      "https://provider.example/submit";
+    process.env.AUTO_APPLY_PROVIDER_SUBMIT_URL = "https://provider.example/submit";
     const bytes = Buffer.alloc(6 * 1024 * 1024);
     const sha256 = "a".repeat(64);
     const documents = {
-      Letter: {
-        uploadId: "letter",
-        question: "Letter",
-        name: "letter.pdf",
-        sha256,
-      },
-      Transcript: {
-        uploadId: "transcript",
-        question: "Transcript",
-        name: "transcript.pdf",
-        sha256,
-      },
+      Letter: { uploadId: "letter", question: "Letter", name: "letter.pdf", sha256 },
+      Transcript: { uploadId: "transcript", question: "Transcript", name: "transcript.pdf", sha256 },
     };
     const uploads = {
-      getApplicationPdf: jest.fn(async (_owner: string, id: string) => ({
-        name: id + ".pdf",
-        sha256,
-        bytes,
-      })),
+      getApplicationPdf: jest.fn(async (_owner: string, id: string) => ({ name: id + ".pdf", sha256, bytes })),
     };
     query
       .mockResolvedValueOnce({ rows: [] } as never)
-      .mockResolvedValueOnce({
-        rows: [
-          {
-            id: "attempt",
-            version: 9,
-            ownerId: "learner",
-            documents,
-            fields: Object.values(documents).map(
-              ({ uploadId, name, question }) => ({
-                value: name,
-                attachment: { uploadId, question },
-              }),
-            ),
-          },
-        ],
-      } as never)
+      .mockResolvedValueOnce({ rows: [{
+        id: "attempt",
+        version: 9,
+        ownerId: "learner",
+        documents,
+        fields: Object.values(documents).map(({ uploadId, name, question }) => ({
+          value: name,
+          attachment: { uploadId, question },
+        })),
+      }] } as never)
       .mockResolvedValueOnce({ rows: [] } as never);
     const request = jest.spyOn(global, "fetch");
 
@@ -500,72 +393,33 @@ describe("AutoApplyWorker", () => {
     ["https://catalog.example/apply?year=2027#details", true],
     ["https://catalog.example/apply?year=2028", false],
   ])(
-    "rechecks the catalog link after reading the approved PDF (%s)",
-    async (liveUrl, matches) => {
-      process.env.AUTO_APPLY_PROVIDER_SUBMIT_URL =
-        "https://provider.example/submit";
+    "rechecks the catalog link after reading the approved PDF (%s)", async (liveUrl, matches) => {
+      process.env.AUTO_APPLY_PROVIDER_SUBMIT_URL = "https://provider.example/submit";
       const approvedUrl = "https://catalog.example/apply?year=2027";
-      const document = {
-        uploadId: "id",
-        name: "letter.pdf",
-        sha256: "a".repeat(64),
-        question: "Choose your letter.",
-      };
+      const document = { uploadId: "id", name: "letter.pdf", sha256: "a".repeat(64), question: "Choose your letter." };
       const upload = { ...document, bytes: Buffer.from("%PDF-1.4") };
       const uploads = { getApplicationPdf: jest.fn(async () => upload) };
-      query
-        .mockResolvedValueOnce({ rows: [] } as never)
-        .mockResolvedValueOnce({
-          rows: [
-            {
-              id: "attempt",
-              version: 9,
-              opportunityId: "pilot",
-              ownerId: "learner",
-              document,
-              catalogUrl: approvedUrl,
-              fallbackCatalogUrl: null,
-              mappingRevision,
-              fields: [
-                {
-                  label: "Letter",
-                  value: document.name,
-                  attachment: { uploadId: document.uploadId },
-                },
-              ],
-            },
-          ],
-        } as never)
-        .mockResolvedValueOnce({
-          rows: [{ catalogUrl: liveUrl, fallbackCatalogUrl: null }],
-        } as never)
+      query.mockResolvedValueOnce({ rows: [] } as never)
+        .mockResolvedValueOnce({ rows: [{
+          id: "attempt", version: 9, opportunityId: "pilot", ownerId: "learner", document,
+          catalogUrl: approvedUrl, fallbackCatalogUrl: null, mappingRevision,
+          fields: [{ label: "Letter", value: document.name, attachment: { uploadId: document.uploadId } }],
+        }] } as never)
+        .mockResolvedValueOnce({ rows: [{ catalogUrl: liveUrl, fallbackCatalogUrl: null }] } as never)
         .mockResolvedValueOnce({ rows: [] } as never);
-      const fetchMock = jest
-        .spyOn(global, "fetch")
-        .mockResolvedValue(Response.json({ receipt: "APPROVED" }));
-      await new AutoApplyWorker(
-        ai as unknown as AiService,
-        uploads as unknown as UploadsService,
-      ).submitApproved();
+      const fetchMock = jest.spyOn(global, "fetch").mockResolvedValue(Response.json({ receipt: "APPROVED" }));
+      await new AutoApplyWorker(ai as unknown as AiService, uploads as unknown as UploadsService).submitApproved();
       expect(uploads.getApplicationPdf).toHaveBeenCalledTimes(1);
-      expect(query).toHaveBeenNthCalledWith(
-        3,
-        expect.stringContaining("lease_until > now()"),
-        ["attempt", 9],
-      );
+      expect(query).toHaveBeenNthCalledWith(3, expect.stringContaining("lease_until > now()"), ["attempt", 9]);
       if (matches) {
         expect(fetchMock).toHaveBeenCalledTimes(1);
-        const sent = JSON.parse(fetchMock.mock.calls[0][1]!.body as string);
+        const sent = JSON.parse(fetchMock.mock.calls[0]![1]!.body as string);
         expect(sent.document.base64).toBe(upload.bytes.toString("base64"));
-        expect(sent.catalogFingerprint).toBe(
-          createHash("sha256").update(approvedUrl).digest("hex"),
-        );
+        expect(sent.catalogFingerprint).toBe(createHash("sha256").update(approvedUrl).digest("hex"));
       } else {
         expect(fetchMock).not.toHaveBeenCalled();
         expect(query).toHaveBeenNthCalledWith(
-          4,
-          expect.stringContaining("failure_reason = 'mapping_changed'"),
-          ["attempt", 9, "submitting"],
+          4, expect.stringContaining("failure_reason = 'mapping_changed'"), ["attempt", 9, "submitting"],
         );
       }
     },
@@ -580,9 +434,7 @@ describe("AutoApplyWorker", () => {
       query.mockResolvedValueOnce({
         rows: [{ id: "attempt", version: 9, fields: [] }],
       } as never);
-      query.mockResolvedValueOnce({
-        rows: [{ catalogUrl: null, fallbackCatalogUrl: null }],
-      } as never);
+      query.mockResolvedValueOnce({ rows: [{ catalogUrl: null, fallbackCatalogUrl: null }] } as never);
       query.mockResolvedValueOnce({ rows: [] } as never);
       jest
         .spyOn(global, "fetch")
@@ -629,9 +481,7 @@ describe("AutoApplyWorker", () => {
       };
       query.mockResolvedValueOnce({ rows: [] } as never);
       query.mockResolvedValueOnce({ rows: [job] } as never);
-      query.mockResolvedValueOnce({
-        rows: [{ catalogUrl: null, fallbackCatalogUrl: null }],
-      } as never);
+      query.mockResolvedValueOnce({ rows: [{ catalogUrl: null, fallbackCatalogUrl: null }] } as never);
       query.mockResolvedValueOnce({ rows: [] } as never);
       const fetchMock = jest.spyOn(global, "fetch").mockResolvedValue(
         new Response(JSON.stringify(receipt ? { receipt } : {}), {
@@ -673,12 +523,7 @@ describe("AutoApplyWorker", () => {
       opportunityDescription:
         "A field research placement focused on water quality.",
       background: "",
-      education: {
-        school: "Edutu School",
-        degree: "BSc",
-        major: "Physics",
-        graduationYear: "2027",
-      },
+      education: { school: "Edutu School", degree: "BSc", major: "Physics", graduationYear: "2027" },
       statement: "",
       draftedStatement: null,
       contactEmail: "private-contact@example.test",
@@ -699,14 +544,8 @@ describe("AutoApplyWorker", () => {
       },
       answers: {
         1: { question: "What topic interests you?", answer: "Older topic" },
-        2: {
-          question: "What topic interests you?",
-          answer: "Student access to rural broadband",
-        },
-        3: {
-          question: "What is your identification number?",
-          answer: "ID-DO-NOT-INCLUDE",
-        },
+        2: { question: "What topic interests you?", answer: "Student access to rural broadband" },
+        3: { question: "What is your identification number?", answer: "ID-DO-NOT-INCLUDE" },
       },
     };
     query.mockResolvedValueOnce({ rows: [job] } as never);
@@ -761,23 +600,11 @@ describe("AutoApplyWorker", () => {
     expect(query).toHaveBeenNthCalledWith(
       2,
       expect.stringContaining("set answers = answers ||"),
-      [
-        "attempt",
-        4,
-        JSON.stringify({
-          question: "Tell us why you are applying.",
-          answer: statement,
-          generatedByAi: true,
-        }),
-      ],
+      ["attempt", 4, JSON.stringify({ question: "Tell us why you are applying.", answer: statement, generatedByAi: true })],
     );
-    const forwarded = JSON.parse(fetchMock.mock.calls[1][1]!.body as string);
+    const forwarded = JSON.parse(fetchMock.mock.calls[1]![1]!.body as string);
     expect(forwarded.statement).toBe("");
-    expect(forwarded.answers[4]).toEqual({
-      question: "Tell us why you are applying.",
-      answer: statement,
-      generatedByAi: true,
-    });
+    expect(forwarded.answers[4]).toEqual({ question: "Tell us why you are applying.", answer: statement, generatedByAi: true });
     expect(forwarded.education).toEqual(job.education);
     expect(forwarded).not.toHaveProperty("ownerId");
     expect(query).toHaveBeenNthCalledWith(
@@ -882,8 +709,7 @@ describe("AutoApplyWorker", () => {
     "only reads the existing provider receipt during reconciliation (%s)",
     async (found) => {
       delete process.env.AUTO_APPLY_PILOT_OPPORTUNITIES;
-      process.env.AUTO_APPLY_PROVIDER_CAPABILITIES_URL =
-        "https://other.example/capabilities";
+      process.env.AUTO_APPLY_PROVIDER_CAPABILITIES_URL = "https://other.example/capabilities";
       process.env.AUTO_APPLY_PROVIDER_RECEIPT_URL =
         "https://provider.example/receipt";
       query.mockResolvedValueOnce({
@@ -914,35 +740,17 @@ describe("AutoApplyWorker", () => {
   );
   it("recovers expired dispatched work and checks due receipts after the pilot is disabled", async () => {
     delete process.env.AUTO_APPLY_PILOT_OPPORTUNITIES;
-    process.env.AUTO_APPLY_PROVIDER_RECEIPT_URL =
-      "https://provider.example/receipt";
-    query
-      .mockResolvedValueOnce({ rows: [] } as never)
+    process.env.AUTO_APPLY_PROVIDER_RECEIPT_URL = "https://provider.example/receipt";
+    query.mockResolvedValueOnce({ rows: [] } as never)
       .mockResolvedValueOnce({ rows: [{ id: "attempt", version: 7 }] } as never)
-      .mockResolvedValueOnce({
-        rows: [{ application_id: "tracker" }],
-      } as never);
-    const fetchMock = jest
-      .spyOn(global, "fetch")
-      .mockResolvedValueOnce(Response.json({ receipt: "RESTORED-1" }));
+      .mockResolvedValueOnce({ rows: [{ application_id: "tracker" }] } as never);
+    const fetchMock = jest.spyOn(global, "fetch").mockResolvedValueOnce(Response.json({ receipt: "RESTORED-1" }));
     await worker().reconcileUnconfirmed();
-    expect(query).toHaveBeenNthCalledWith(
-      1,
-      expect.stringContaining("lease_until <= now()"),
-    );
-    expect(query).toHaveBeenNthCalledWith(
-      2,
-      expect.stringContaining("receipt_check_after <= now()"),
-    );
-    expect(fetchMock).toHaveBeenCalledWith(
-      "https://provider.example/receipt/attempt",
-      expect.objectContaining({ method: "GET" }),
-    );
-    expect(query).toHaveBeenNthCalledWith(
-      3,
-      expect.stringContaining("provider_receipt = $3"),
-      ["attempt", 7, "RESTORED-1", "unconfirmed"],
-    );
+    expect(query).toHaveBeenNthCalledWith(1, expect.stringContaining("lease_until <= now()"));
+    expect(query).toHaveBeenNthCalledWith(2, expect.stringContaining("receipt_check_after <= now()"));
+    expect(fetchMock).toHaveBeenCalledWith("https://provider.example/receipt/attempt", expect.objectContaining({ method: "GET" }));
+    expect(query).toHaveBeenNthCalledWith(3, expect.stringContaining("provider_receipt = $3"),
+      ["attempt", 7, "RESTORED-1", "unconfirmed"]);
   });
   it("requires a fresh review when the provider rejects the old mapping before submission", async () => {
     process.env.AUTO_APPLY_PROVIDER_SUBMIT_URL =
@@ -951,9 +759,7 @@ describe("AutoApplyWorker", () => {
     query.mockResolvedValueOnce({
       rows: [{ id: "attempt", version: 9, mappingRevision, fields: [] }],
     } as never);
-    query.mockResolvedValueOnce({
-      rows: [{ catalogUrl: null, fallbackCatalogUrl: null }],
-    } as never);
+    query.mockResolvedValueOnce({ rows: [{ catalogUrl: null, fallbackCatalogUrl: null }] } as never);
     query.mockResolvedValueOnce({ rows: [] } as never);
     jest.spyOn(global, "fetch").mockResolvedValueOnce(
       new Response(JSON.stringify({ code: "mapping_changed" }), {
@@ -969,98 +775,52 @@ describe("AutoApplyWorker", () => {
     expect(query).toHaveBeenCalledTimes(4);
   });
   it.each([
-    [
-      "https://provider.example/check#identity",
-      "https://provider.example/check#identity",
-    ],
+    ["https://provider.example/check#identity", "https://provider.example/check#identity"],
     ["https://provider.example/check?session=private", null],
-  ])(
-    "pauses an approved attempt for a verified pre-submit handoff (%s)",
-    async (url, savedUrl) => {
-      process.env.AUTO_APPLY_PROVIDER_SUBMIT_URL =
-        "https://provider.example/submit";
-      query.mockResolvedValueOnce({ rows: [] } as never);
-      query.mockResolvedValueOnce({
-        rows: [{ id: "attempt", version: 9, mappingRevision, fields: [] }],
-      } as never);
-      query.mockResolvedValueOnce({
-        rows: [{ catalogUrl: null, fallbackCatalogUrl: null }],
-      } as never);
-      query.mockResolvedValueOnce({ rows: [] } as never);
-      const question = "Complete the security check on the provider’s website.";
-      jest.spyOn(global, "fetch").mockResolvedValueOnce(
-        Response.json(
-          {
-            code: "provider_handoff",
-            question,
-            handoffUrl: url,
-          },
-          { status: 409 },
-        ),
-      );
-
-      await worker().submitApproved();
-
-      expect(query).toHaveBeenNthCalledWith(
-        4,
-        expect.stringContaining(
-          "handoff_required = true, handoff_step_url = $4",
-        ),
-        ["attempt", 9, question, savedUrl, null],
-      );
-      expect(query).toHaveBeenCalledTimes(4);
-    },
-  );
-  it.each([true, false])(
-    "records a cross-origin handoff only for the matching catalog binding (%s)",
-    async (matches) => {
-      const catalogUrl = "https://listing.example/opportunity";
-      const fingerprint = createHash("sha256").update(catalogUrl).digest("hex");
-      const handoffUrl = "https://forms.example/verify#documents";
-      query
-        .mockResolvedValueOnce({
-          rows: [{ id: "attempt", version: 4, catalogUrl }],
-        } as never)
-        .mockResolvedValueOnce({ rows: [] } as never);
-      jest.spyOn(global, "fetch").mockResolvedValueOnce(
-        Response.json({
-          state: "needs_input",
-          handoffRequired: true,
-          question: "Complete verification.",
-          handoffUrl,
-          handoffCatalogFingerprint: matches ? fingerprint : "a".repeat(64),
-        }),
-      );
-      await worker().process();
-      const [, params] = query.mock.calls[1];
-      expect(params?.[9]).toBe(matches ? handoffUrl : null);
-      expect(params?.[14]).toBe(matches ? fingerprint : null);
-    },
-  );
-  it("leaves an incomplete handoff response unconfirmed", async () => {
-    process.env.AUTO_APPLY_PROVIDER_SUBMIT_URL =
-      "https://provider.example/submit";
+  ])("pauses an approved attempt for a verified pre-submit handoff (%s)", async (url, savedUrl) => {
+    process.env.AUTO_APPLY_PROVIDER_SUBMIT_URL = "https://provider.example/submit";
     query.mockResolvedValueOnce({ rows: [] } as never);
-    query.mockResolvedValueOnce({
-      rows: [{ id: "attempt", version: 9, fields: [] }],
-    } as never);
-    query.mockResolvedValueOnce({
-      rows: [{ catalogUrl: null, fallbackCatalogUrl: null }],
-    } as never);
+    query.mockResolvedValueOnce({ rows: [{ id: "attempt", version: 9, mappingRevision, fields: [] }] } as never);
+    query.mockResolvedValueOnce({ rows: [{ catalogUrl: null, fallbackCatalogUrl: null }] } as never);
     query.mockResolvedValueOnce({ rows: [] } as never);
-    jest
-      .spyOn(global, "fetch")
-      .mockResolvedValueOnce(
-        Response.json({ code: "provider_handoff" }, { status: 409 }),
-      );
+    const question = "Complete the security check on the provider’s website.";
+    jest.spyOn(global, "fetch").mockResolvedValueOnce(Response.json({
+      code: "provider_handoff", question, handoffUrl: url,
+    }, { status: 409 }));
 
     await worker().submitApproved();
 
-    expect(query).toHaveBeenNthCalledWith(
-      4,
-      expect.stringContaining("provider_receipt = $3"),
-      ["attempt", 9, null, "submitting"],
-    );
+    expect(query).toHaveBeenNthCalledWith(4, expect.stringContaining("handoff_required = true, handoff_step_url = $4"),
+      ["attempt", 9, question, savedUrl, null]);
+    expect(query).toHaveBeenCalledTimes(4);
+  });
+  it.each([true, false])("records a cross-origin handoff only for the matching catalog binding (%s)", async (matches) => {
+    const catalogUrl = "https://listing.example/opportunity";
+    const fingerprint = createHash("sha256").update(catalogUrl).digest("hex");
+    const handoffUrl = "https://forms.example/verify#documents";
+    query.mockResolvedValueOnce({ rows: [{ id: "attempt", version: 4, catalogUrl }] } as never)
+      .mockResolvedValueOnce({ rows: [] } as never);
+    jest.spyOn(global, "fetch").mockResolvedValueOnce(Response.json({
+      state: "needs_input", handoffRequired: true, question: "Complete verification.", handoffUrl,
+      handoffCatalogFingerprint: matches ? fingerprint : "a".repeat(64),
+    }));
+    await worker().process();
+    const [, params] = query.mock.calls[1]!;
+    expect(params?.[9]).toBe(matches ? handoffUrl : null);
+    expect(params?.[14]).toBe(matches ? fingerprint : null);
+  });
+  it("leaves an incomplete handoff response unconfirmed", async () => {
+    process.env.AUTO_APPLY_PROVIDER_SUBMIT_URL = "https://provider.example/submit";
+    query.mockResolvedValueOnce({ rows: [] } as never);
+    query.mockResolvedValueOnce({ rows: [{ id: "attempt", version: 9, fields: [] }] } as never);
+    query.mockResolvedValueOnce({ rows: [{ catalogUrl: null, fallbackCatalogUrl: null }] } as never);
+    query.mockResolvedValueOnce({ rows: [] } as never);
+    jest.spyOn(global, "fetch").mockResolvedValueOnce(Response.json({ code: "provider_handoff" }, { status: 409 }));
+
+    await worker().submitApproved();
+
+    expect(query).toHaveBeenNthCalledWith(4, expect.stringContaining("provider_receipt = $3"),
+      ["attempt", 9, null, "submitting"]);
   });
   it("persists allowed provider choices with the pending question", async () => {
     query.mockResolvedValueOnce({

@@ -83,4 +83,7 @@ SQL
 fi
 export DATABASE_URL="postgresql://$(whoami)@127.0.0.1:$pilot_db_port/postgres"
 export NODE_EXTRA_CA_CERTS="$pilot_dir/server.crt" AUTO_APPLY_TEST_DIR="$pilot_dir"
-node scripts/auto-apply/simulator-pilot.cjs
+node scripts/auto-apply/simulator-pilot.cjs &
+simulator_pid=$!
+trap 'kill -INT "$simulator_pid" 2>/dev/null || true; wait "$simulator_pid" || true; exit 130' INT TERM
+wait "$simulator_pid"

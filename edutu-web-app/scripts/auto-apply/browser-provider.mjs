@@ -516,10 +516,11 @@ export function createBrowserProvider({ browser, forms, token, receiptsDirectory
 
   let busy = false;
   return createServer({ requestTimeout: 15_000, headersTimeout: 10_000, connectionsCheckingInterval: 5000 }, async (request, response) => {
-    const send = (status, payload) => {
+    const reply = (status, payload) => {
       response.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
       response.end(JSON.stringify(payload));
     };
+    let send = reply;
     if (request.method === 'GET' && request.url === '/healthz') {
       if (await ready()) return send(200, { status: 'ready' });
       return send(503, { status: 'unavailable' });
@@ -555,6 +556,12 @@ export function createBrowserProvider({ browser, forms, token, receiptsDirectory
     if (!healthy || !browser.isConnected()) return send(503, { code: 'provider_unavailable' });
     if (busy) return send(503, { code: 'provider_busy' });
     busy = true;
+    let verificationReply;
+    if (verifyRoute) {
+      // A start can reverify immediately after the opportunity screen receives
+      // this response. Release the browser slot before replying.
+      send = (status, payload) => { verificationReply = [status, payload]; };
+    }
     let context;
     let reservation;
     let digest;
@@ -892,6 +899,7 @@ export function createBrowserProvider({ browser, forms, token, receiptsDirectory
       } finally {
         cleanupDeadline.abort();
         busy = false;
+        if (verificationReply) reply(...verificationReply);
       }
     }
   });
