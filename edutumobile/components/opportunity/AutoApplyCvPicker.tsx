@@ -46,6 +46,8 @@ export function AutoApplyCvPicker({ userId, opportunityId, getToken, onClose, st
       if (!abort.signal.aborted) setMessage('Could not load saved CVs.');
     });
     return () => { abort.abort(); unsubscribe(); };
+  // Retry the focused read even when the CV selection key has not changed.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [getToken, key, reload]));
 
   async function select(cv: SavedCv | null) {

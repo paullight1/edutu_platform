@@ -47,7 +47,6 @@ export function ApplicantBackground({ onReady, initiallyOpen = false }: {
   useEffect(() => {
     if (!open) return;
     const abort = new AbortController();
-    setMessage('');
     requestProductApi<ProfileResponse>(`${path}?includeSavedDetails=true`, { signal: abort.signal }).then(result => {
       if (abort.signal.aborted) return;
       if (!result) {
@@ -276,6 +275,6 @@ export function ApplicantBackground({ onReady, initiallyOpen = false }: {
     </Pressable>}
     {message && <Text accessibilityLiveRegion="polite" style={{ color: colors.foreground }}>{message}</Text>}
     {(message.startsWith('Could not load your application profile') || message.startsWith('Could not save.')) && <Text accessibilityRole="button" style={link}
-      onPress={() => setReload(value => value + 1)}>Reload saved version</Text>}
+      onPress={() => { setMessage(''); setReload(value => value + 1); }}>Reload saved version</Text>}
   </View>;
 }

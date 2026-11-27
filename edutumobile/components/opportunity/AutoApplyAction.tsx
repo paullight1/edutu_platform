@@ -1,5 +1,6 @@
 import React, { useCallback, useRef, useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { ArrowRight } from 'lucide-react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { applicationCvKey, subscribeToApplicationCv, type SelectedApplicationCv } from './applicationCvSelection';
@@ -61,7 +62,7 @@ export function AutoApplyAction({ opportunityId, opportunityTitle, userId, getTo
       activeScreen.abort();
       if (focus.current === activeScreen) focus.current = null;
     };
-  }, [cvKey]));
+  }, []));
 
   useFocusEffect(useCallback(() => {
     const abort = new AbortController();
@@ -179,13 +180,16 @@ export function AutoApplyAction({ opportunityId, opportunityTitle, userId, getTo
     Auto Apply is unavailable for this opportunity right now. Use Apply Now to continue.
   </Text>;
   if (!data?.available && !data?.attempt) return null;
+  const startDisabled = pending || (choosingCv && !data.attempt);
   return <View style={{ borderRadius: 12, padding: 14, gap: 6, backgroundColor: colors.card }}>
-    {(!exhausted || data.attempt) && <Pressable accessibilityRole="button" disabled={pending || (choosingCv && !data.attempt)}
-      accessibilityState={{ busy: pending }} style={{ minHeight: 48, justifyContent: 'center' }}
+    {(!exhausted || data.attempt) && <Pressable accessibilityRole="button" disabled={startDisabled}
+      accessibilityState={{ busy: pending, disabled: startDisabled }}
+      style={[styles.start, { backgroundColor: colors.background, borderColor: startDisabled ? colors.border : colors.accent }]}
       onPress={() => { if (data.attempt) openAttempt(data.attempt); else void start(); }}>
-      <Text style={{ color: choosingCv && !data.attempt ? colors.textSecondary : colors.accent, fontWeight: '700', paddingVertical: 6 }}>
+      <Text style={[styles.startLabel, { color: startDisabled ? colors.textSecondary : colors.foreground }]}>
         {pending ? 'Starting…' : data.attempt ? 'Open Auto Apply' : 'Auto Apply with Edutu'}
       </Text>
+      {!startDisabled && <ArrowRight size={18} color={colors.foreground} />}
     </Pressable>}
     {data.available && !data.attempt && !exhausted && !onboarding && (choosingCv
       ? <AutoApplyCvPicker userId={userId} opportunityId={opportunityId} getToken={getToken}
@@ -243,3 +247,8 @@ export function AutoApplyAction({ opportunityId, opportunityTitle, userId, getTo
     {!!message && <Text accessibilityLiveRegion="polite" style={{ color: colors.foreground }}>{message}</Text>}
   </View>;
 }
+
+const styles = StyleSheet.create({
+  start: { minHeight: 48, borderWidth: 1, borderRadius: 12, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 8 },
+  startLabel: { flex: 1, fontWeight: '700' },
+});
