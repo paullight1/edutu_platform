@@ -124,6 +124,48 @@ jobs:
       - run: npm run test:e2e:production
       - run: npm run build
 
+  auto-apply-android-progress:
+    name: Auto Apply Android Progress
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: |
+            backend/services/services/api/package-lock.json
+            edutu-web-app/package-lock.json
+      - run: npm install --global npm@11.13.0
+      - run: npm --prefix backend/services/services/api ci
+      - run: npm --prefix edutu-web-app ci
+      - name: Verify Android progress transitions against a local provider
+        working-directory: backend/services/services/api
+        run: |
+          export PATH="$(pg_config --bindir):$PATH"
+          AUTO_APPLY_TEST_ANDROID_UPDATES=1 bash scripts/auto-apply/run-simulator-pilot.sh > "$RUNNER_TEMP/auto-apply-pilot.log" 2>&1 &
+          pilot_pid=$!
+          cleanup() {
+            local worker_pid
+            worker_pid=$(pgrep -P "$pilot_pid" -f 'node scripts/auto-apply/simulator-pilot.cjs' || true)
+            if [[ -n "$worker_pid" ]]; then kill -INT "$worker_pid" || true; fi
+            wait "$pilot_pid" || true
+            cat "$RUNNER_TEMP/auto-apply-pilot.log"
+          }
+          trap cleanup EXIT
+          for ((check=0; check<90; check++)); do
+            if curl --max-time 2 -fsS http://127.0.0.1:8093/me/auto-apply/allowance >/dev/null 2>&1; then
+              node scripts/auto-apply/check-simulator-pilot.mjs --android-updates
+              exit
+            fi
+            if ! kill -0 "$pilot_pid" 2>/dev/null; then exit 1; fi
+            sleep 1
+          done
+          exit 1
+
   backend-lint:
     name: Backend Lint
     runs-on: ubuntu-latest
