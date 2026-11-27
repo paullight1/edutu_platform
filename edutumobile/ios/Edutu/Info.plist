@@ -43,7 +43,7 @@
 	<key>ExpoWidgetsAppGroupIdentifier</key>
 	<string>group.com.tegm.edutuios</string>
 	<key>ExpoWidgets_EnablePushNotifications</key>
-	<false/>
+	<true/>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>LSMinimumSystemVersion</key>

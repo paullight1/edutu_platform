@@ -1,6 +1,43 @@
-export type GetAuthToken = () => Promise<string | null | undefined>;
+export type GetAuthToken = (options?: { skipCache?: boolean }) => Promise<string | null | undefined>;
+
+/** Opt-in transport errors for actions that must distinguish retryable failures. */
+export class ProductApiRequestError extends Error {
+  constructor(public readonly kind: 'auth' | 'http' | 'network' | 'cancelled', public readonly status = 0) {
+    super(kind === 'auth' || status === 401
+      ? 'Your session could not be confirmed. Sign in and try again.'
+      : 'Unable to confirm your save. Check your connection and try again.');
+    this.name = 'ProductApiRequestError';
+  }
+}
+export interface ProductApiRequestPolicy {
+  throwOnError?: boolean;
+  forceRefreshToken?: boolean;
+}
+
+
+let sessionTokenGetter: GetAuthToken | undefined;
+export function setProductApiTokenGetter(getter?: GetAuthToken) { sessionTokenGetter = getter; }
 
 const DEFAULT_TIMEOUT_MS = 12000;
+const productGetRequests = new Map<string, Promise<unknown>>();
+
+async function getTokenWithTimeout(
+  getAuthToken: GetAuthToken,
+  timeoutMs: number,
+  forceRefresh = false,
+): Promise<string | null | undefined> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      getAuthToken(forceRefresh ? { skipCache: true } : undefined),
+      new Promise<null>((resolve) => {
+        timeout = setTimeout(() => resolve(null), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
+}
 
 /**
  * Thrown when the backend refuses an AI action for billing reasons — the
@@ -63,7 +100,7 @@ export async function throwIfBillingResponse(response: Response): Promise<void> 
 }
 
 export function getApiBaseUrl() {
-  return (process.env.EXPO_PUBLIC_API_URL || 'https://edutu-platform.onrender.com').replace(/\/$/, '');
+  return (process.env.EXPO_PUBLIC_API_URL || 'https://backend.edutu.org').replace(/\/$/, '');
 }
 
 export async function requestProductApi<T>(
@@ -74,59 +111,107 @@ export async function requestProductApi<T>(
   // exceed the 12s default; callers pass a longer budget so the client doesn't
   // abort a request the server is about to complete (and charge for).
   timeoutMs: number = DEFAULT_TIMEOUT_MS,
+  policy: ProductApiRequestPolicy = {},
 ): Promise<T | null> {
   const apiBaseUrl = getApiBaseUrl();
+  getAuthToken = getAuthToken ?? sessionTokenGetter;
 
   if (!apiBaseUrl || !getAuthToken) {
+    if (policy.throwOnError) throw new ProductApiRequestError('auth');
     return null;
   }
 
   try {
     // Clerk's getToken can stall indefinitely on a flaky connection (it may
     // refresh the session over the network) — cap it so callers never hang.
-    const token = await Promise.race([
-      getAuthToken(),
-      new Promise<null>((resolve) => setTimeout(() => resolve(null), timeoutMs)),
-    ]);
+    if (options.signal?.aborted) throw new ProductApiRequestError('cancelled');
+    const token = await getTokenWithTimeout(getAuthToken, policy.throwOnError ? Math.min(timeoutMs, 3500) : timeoutMs, policy.forceRefreshToken);
     if (!token) {
+      if (policy.throwOnError) throw new ProductApiRequestError('auth');
       return null;
     }
 
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), timeoutMs);
-
     const hasBody = options.body !== undefined && options.body !== null;
+    const multipart = typeof FormData !== 'undefined' && options.body instanceof FormData;
     const headers = {
       Accept: 'application/json',
-      ...(hasBody ? { 'Content-Type': 'application/json' } : {}),
+      ...(hasBody && !multipart ? { 'Content-Type': 'application/json' } : {}),
       ...(options.headers || {}),
       Authorization: `Bearer ${token}`,
     };
+    const method = (options.method ?? 'GET').toUpperCase();
+    const url = `${apiBaseUrl}${path.startsWith('/') ? path : `/${path}`}`;
 
-    const response = await fetch(`${apiBaseUrl}${path.startsWith('/') ? path : `/${path}`}`, {
-      ...options,
-      headers,
-      signal: options.signal || controller.signal,
-    }).finally(() => clearTimeout(timeout));
+    const execute = async (): Promise<T | null> => {
+      const controller = new AbortController();
+      const upstreamSignal = options.signal;
+      const abortFromUpstream = () => controller.abort();
+      if (upstreamSignal?.aborted) {
+        controller.abort();
+      } else {
+        upstreamSignal?.addEventListener('abort', abortFromUpstream, { once: true });
+      }
+      const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
-    if (!response.ok) {
-      // Billing refusals (402 insufficient credits / 429 limit) must surface
-      // to the user rather than degrade into a silent local fallback.
-      await throwIfBillingResponse(response);
-      return null;
-    }
+      try {
+        // Always use our controller so the timeout remains active even when a
+        // caller supplies its own signal. The listener above composes both.
+        const response = await fetch(url, {
+          ...options,
+          headers,
+          signal: controller.signal,
+        });
 
-    if (response.status === 204) {
-      return {} as T;
-    }
+        if (!response.ok) {
+          if (__DEV__) console.warn('[product-api]', method, path.split('?')[0], response.status);
+          // Billing refusals (402 insufficient credits / 429 limit) must surface
+          // to the user rather than degrade into a silent local fallback.
+          await throwIfBillingResponse(response);
+          if (policy.throwOnError) throw new ProductApiRequestError('http', response.status);
+          return null;
+        }
 
+        if (response.status === 204) {
+          return {} as T;
+        }
+
+        try {
+          return await response.json() as T;
+        } catch {
+          return {} as T;
+        }
+      } finally {
+        clearTimeout(timeout);
+        upstreamSignal?.removeEventListener('abort', abortFromUpstream);
+      }
+    };
+
+    // Layout/header + destination screens frequently ask for the same data at
+    // once. Share only plain GETs; requests with custom headers/signals retain
+    // their independent cancellation and response semantics.
+    const canCoalesce = !policy.throwOnError && method === 'GET' && !hasBody && !options.headers && !options.signal;
+    if (!canCoalesce) return await execute();
+
+    const requestKey = `${token}\n${url}\n${timeoutMs}`;
+    const existing = productGetRequests.get(requestKey) as Promise<T | null> | undefined;
+    if (existing) return await existing;
+
+    const request = execute();
+    productGetRequests.set(requestKey, request);
     try {
-      return await response.json() as T;
-    } catch {
-      return {} as T;
+      return await request;
+    } finally {
+      if (productGetRequests.get(requestKey) === request) {
+        productGetRequests.delete(requestKey);
+      }
     }
   } catch (error) {
     if (isAiBillingError(error)) throw error;
+    if (policy.throwOnError) {
+      if (options.signal?.aborted) throw new ProductApiRequestError('cancelled');
+      if (error instanceof ProductApiRequestError) throw error;
+      throw new ProductApiRequestError('network');
+    }
     return null;
   }
 }

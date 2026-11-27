@@ -75,6 +75,7 @@ import { noteRecentlyOpenedOpportunity } from "../../../lib/recentlyOpenedOpport
 import { dismissOpportunity } from "@edutu/core/src/services/dismissedOpportunities";
 import type { DismissReason } from "@edutu/core/src/services/opportunitySignals";
 import { DismissReasonSheet } from "../../../components/opportunity/DismissReasonSheet";
+import { AutoApplyAction } from "../../../components/opportunity/AutoApplyAction";
 import { OpportunityHero } from "../../../components/opportunity/OpportunityHero";
 import { DecisionStrip } from "../../../components/opportunity/DecisionStrip";
 import { OpportunityApplicationSupportActions } from "../../../components/opportunity/OpportunityApplicationSupportActions";
@@ -1722,6 +1723,10 @@ export default function OpportunityDetailScreen() {
               <Text style={styles.primaryActionText}>{nextActionLabel}</Text>
             </View>
           </AnimatedPressable>
+
+          {hasApplyUrl && userId && (
+            <AutoApplyAction key={`auto-apply:${userId}:${opportunity.id}`} opportunityId={opportunity.id} opportunityTitle={opportunity.title} userId={userId} getToken={getToken} />
+          )}
 
           <PlanOpportunityActions opportunityId={opportunity.id} onSignIn={() => authWall?.promptAuth('apply')} />
 

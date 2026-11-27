@@ -191,6 +191,7 @@ export default {
       [
         "expo-widgets",
         {
+          enablePushNotifications: true,
           widgets: [
             {
               name: "OpportunityWidget",

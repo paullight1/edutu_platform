@@ -601,27 +601,59 @@ describe('mobile discovery and tracking routes', () => {
     const submittedLabels = getAllByText('Submitted');
     expect(submittedLabels).toHaveLength(2);
 
-    pressNearestTouchTarget(submittedLabels[submittedLabels.length - 1]);
-    await waitFor(() => expect(Alert.alert).toHaveBeenCalledWith(
-      'Update application status',
-      'Global Fellowship',
-      expect.any(Array),
-    ));
-
-    const alertButtons = (Alert.alert as jest.Mock).mock.calls[0][2] as Array<{ text: string; onPress?: () => void }>;
-    await act(async () => {
-      alertButtons.find((option) => option.text === 'Interview')?.onPress?.();
-    });
+    fireEvent.press(submittedLabels[submittedLabels.length - 1], { stopPropagation: jest.fn() });
+    await waitFor(() => expect(getByText('Update application status')).toBeTruthy());
+    await act(async () => fireEvent.press(getAllByText('Interview').at(-1)!));
     expect(mockUpdateTrackedApplicationStatus).toHaveBeenCalledWith(
       expect.any(Object),
       'user-1',
       'app-1',
       'interview',
-      mockGetToken,
+      expect.any(Function),
     );
 
     fireEvent.press(getByText('Global Fellowship'));
     expect(mockPush).toHaveBeenCalledWith('/opportunities/opp-1');
+  });
+
+  it('reopens the exact Auto Apply attempt from a tracked opportunity', async () => {
+    const attemptId = '33333333-3333-4333-8333-333333333333';
+    mockFetchTrackedApplications.mockResolvedValue([{
+      id: 'draft-1', opportunity_id: 'opp-1', status: 'draft',
+      title: 'Draft fellowship', organization: 'Edutu', category: 'Fellowship',
+      autoApply: { id: attemptId, state: 'needs_input' },
+    }]);
+    const { getByRole, getByText, queryByText } = render(<AppliedScreen />);
+    const action = await waitFor(() => getByRole('button', { name: 'Open Auto Apply for Draft fellowship' }));
+    expect(getByText('Your input is needed')).toBeTruthy();
+    expect(queryByText('Advance to Submitted')).toBeNull();
+    fireEvent.press(action);
+    expect(mockPush).toHaveBeenCalledWith({ pathname: '/(app)/auto-apply/[id]', params: { id: attemptId } });
+  });
+
+  it('shows waiting attempts above status filters and opens the matching application', async () => {
+    const ids = [
+      '11111111-1111-4111-8111-111111111111',
+      '22222222-2222-4222-8222-222222222222',
+      '33333333-3333-4333-8333-333333333333',
+      '44444444-4444-4444-8444-444444444444',
+    ];
+    mockFetchTrackedApplications.mockResolvedValue(
+      ['needs_input', 'needs_review', 'unconfirmed', 'running'].map((state, index) => ({
+        id: 'app-' + index, opportunity_id: 'opp-' + index, status: 'draft',
+        title: 'Fellowship ' + index, organization: 'Edutu', autoApply: { id: ids[index], state },
+      })),
+    );
+    const screen = render(<AppliedScreen />);
+    expect(await screen.findByRole('header', { name: 'Needs your attention' })).toBeTruthy();
+    fireEvent.press(screen.getByRole('button', { name: 'Fellowship 1. Review your draft' }));
+    expect(mockPush).toHaveBeenCalledWith({ pathname: '/(app)/auto-apply/[id]', params: { id: ids[1] } });
+    fireEvent.press(screen.getByRole('button', { name: 'See all 3 waiting applications' }));
+    expect(screen.queryByText('Fellowship 3')).toBeNull();
+    fireEvent.press(screen.getByRole('button', { name: 'Fellowship 2. Check the submission receipt' }));
+    expect(mockPush).toHaveBeenLastCalledWith({ pathname: '/(app)/auto-apply/[id]', params: { id: ids[2] } });
+    fireEvent.press(screen.getByRole('button', { name: 'Show all applications' }));
+    expect(screen.getByText('Fellowship 3')).toBeTruthy();
   });
 
   it('renders the applied empty state and routes to discovery', async () => {
@@ -759,3 +791,5 @@ describe('mobile discovery and tracking routes', () => {
     expect(mockPush).toHaveBeenCalledWith('/opportunities/opp-4');
   });
 });
+
+jest.mock('../lib/autoApplyActivity', () => ({ syncAutoApplyActivity: jest.fn() }));

@@ -47,8 +47,9 @@ import { VoiceModeOverlay } from "../../components/chat/VoiceModeOverlay";
 import { openVoiceMode } from "../../lib/voiceModeStore";
 import { useNavStyleSettings, isBarStyle, type NavBarStyle } from "../../lib/navStyleStore";
 import { setStatusBarStyle } from "expo-status-bar";
+import { autoApplyNotificationRoute } from "../../lib/autoApplyNotification";
+import { usePushRegistration } from "../../hooks/usePushRegistration";
 import * as Notifications from "expo-notifications";
-import { registerForPushNotificationsAsync } from "../../lib/notifications";
 import { reportNotificationOpened } from "../../lib/notificationTelemetry";
 import { ACTION_ASK, ACTION_SAVE } from "../../lib/notificationCategories";
 import { saveOpportunity } from "@edutu/core/src/services/bookmarks";
@@ -1174,7 +1175,7 @@ export default function AppLayout() {
     const isPlanNav = pathname === '/my-plan' ||
         (params.planNav === '1' && ['/applied', '/deadlines', '/roadmaps', '/goals'].includes(pathname));
     const { unreadCount } = useNotifications(supabase, user?.id ?? null, getToken);
-    const registeredPushUserRef = React.useRef<string | null>(null);
+    usePushRegistration(isSignedIn ? userId : null, getToken);
     const [featureMenuOpen, setFeatureMenuOpen] = useState(false);
     const [featureMenuPath, setFeatureMenuPath] = useState(pathname);
     const featureMenuProgress = useAnimatedValue(0);
@@ -1242,37 +1243,7 @@ export default function AppLayout() {
     }, [isDark, pathname]);
 
     useEffect(() => {
-        if (!isSignedIn || !userId) {
-            registeredPushUserRef.current = null;
-            return;
-        }
-        if (registeredPushUserRef.current === userId) {
-            return;
-        }
-
-        registeredPushUserRef.current = userId;
-        void (async () => {
-            // Launch registration is SILENT: `promptIfNeeded: false` means a
-            // user who hasn't granted permission is left alone here. The ask
-            // now happens in context (saving an opportunity with a deadline),
-            // where there is an actual reason to say yes. Users who already
-            // granted still get their token refreshed and re-synced on launch.
-            //
-            // Pass the token *getter*, not a pre-fetched token: registration does
-            // slow work (Expo push-token fetch) and Clerk session tokens expire
-            // in ~60s, so the token must be minted fresh right before the sync
-            // POST — otherwise it 401s as expired.
-            try {
-                await registerForPushNotificationsAsync(userId, getToken, { promptIfNeeded: false });
-            } catch {
-                // getExpoPushTokenAsync throws on simulators and when FCM/APNs
-                // is misconfigured. Swallow it here so it cannot take the
-                // timezone sync below down with it.
-            }
-            // Sync the device timezone so proactive alerts honor quiet hours in
-            // the user's local time. Idempotent: a no-op after the first launch.
-            await syncDeviceTimezone(getToken);
-        })();
+        if (isSignedIn && userId) void syncDeviceTimezone(getToken);
     }, [getToken, isSignedIn, userId]);
 
     // Route the user when they tap a notification (foreground, background,
@@ -1284,16 +1255,23 @@ export default function AppLayout() {
         const handleResponse = (response: Notifications.NotificationResponse | null) => {
             if (!response) return;
             const id = response.notification.request.identifier;
-            if (handledIds.has(id)) return;
-            handledIds.add(id);
-
             const data = response.notification.request.content.data as Record<string, unknown> | undefined;
+            if (data?.source !== "auto-apply-progress") {
+                if (handledIds.has(id)) return;
+                handledIds.add(id);
+            }
 
             // Attribute the tap before any routing branch returns — every path
             // below this point exits, so anything placed later would only ever
             // record the fall-through case.
             reportNotificationOpened(data?.notificationId);
             if (!data) return;
+
+            const autoApplyRoute = autoApplyNotificationRoute(data);
+            if (autoApplyRoute) {
+                router.navigate(autoApplyRoute as never);
+                return;
+            }
 
             // Action buttons. Android handles these headlessly in
             // notificationActionTask; this path is iOS (and the foreground case
@@ -1356,6 +1334,7 @@ export default function AppLayout() {
 
         if (
             normalizedPath.startsWith("/my-plan/") ||
+            normalizedPath.startsWith("/auto-apply/") ||
             normalizedPath.includes("chat") ||
             normalizedPath.includes("onboarding") ||
             normalizedPath.includes("/cv") ||
@@ -1521,6 +1500,8 @@ export default function AppLayout() {
                     <Stack.Screen name="goals" />
                     <Stack.Screen name="paywall" />
                     <Stack.Screen name="copilot/[id]" />
+                    <Stack.Screen name="auto-apply/[id]" />
+                    <Stack.Screen name="profile/application" />
                     <Stack.Screen name="saved-searches" />
                 </Stack>
             </View>

@@ -30,6 +30,7 @@ export interface AppliedOpportunity {
   location: string;
   image: string | null;
   category: string;
+  autoApply?: { id: string; state: string };
 }
 
 export interface TrackApplicationInput {
@@ -37,6 +38,33 @@ export interface TrackApplicationInput {
   status?: ApplicationStatus;
   submittedAt?: string;
   metadata?: Record<string, unknown>;
+}
+
+interface ApplicationConfirmationRecord {
+  id: string;
+  status: ApplicationStatus;
+  version: number;
+}
+
+export async function openTrackedApplication(opportunityId: string, getToken: GetAuthToken) {
+  const record = await requestProductApi<ApplicationConfirmationRecord>('/me/applications', {
+    method: 'POST',
+    body: JSON.stringify({
+      opportunityId,
+      status: 'draft',
+      metadata: { application_opened_at: new Date().toISOString() },
+    }),
+  }, getToken, 10_000);
+  return record?.id && typeof record.version === 'number' ? record : null;
+}
+
+export async function confirmTrackedApplication(record: ApplicationConfirmationRecord, getToken: GetAuthToken) {
+  if (record.status !== 'draft') return true;
+  const saved = await requestProductApi<ApplicationConfirmationRecord>(`/me/applications/${encodeURIComponent(record.id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status: 'submitted', expectedVersion: record.version }),
+  }, getToken, 10_000);
+  return saved?.status === 'submitted';
 }
 
 function getUserLookupIds(userId: string): string[] {
@@ -78,6 +106,12 @@ function getApiRows(payload: any): any[] | null {
 function normaliseApiApplication(row: any): AppliedOpportunity {
   const opportunity = row.opportunity || row.opportunities || row;
   const opportunityId = row.opportunityId || row.opportunity_id || opportunity.id;
+  const attempt = row.auto_apply;
+  const autoApply = typeof attempt?.id === 'string'
+    && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(attempt.id)
+    && typeof attempt.state === 'string'
+    ? { id: attempt.id, state: attempt.state }
+    : undefined;
 
   return {
     id: row.applicationId || row.application_id || row.id || opportunityId,
@@ -90,72 +124,17 @@ function normaliseApiApplication(row: any): AppliedOpportunity {
     location: opportunity.location || 'Worldwide',
     image: opportunity.imageUrl || opportunity.image_url || opportunity.image || null,
     category: opportunity.category || 'Opportunity',
+    ...(autoApply ? { autoApply } : {}),
   };
 }
 
-/** Hard cap for the direct-Supabase fallback queries. React Native fetches
- * have no default timeout, so without an abort signal a flaky connection can
- * leave the promise pending forever (spinner never resolves). */
-const SUPABASE_FALLBACK_TIMEOUT_MS = 10000;
-
-function fallbackAbortSignal(): AbortSignal {
-  const controller = new AbortController();
-  setTimeout(() => controller.abort(), SUPABASE_FALLBACK_TIMEOUT_MS);
-  return controller.signal;
-}
-
-export async function fetchTrackedApplications(
-  supabase: SupabaseClient,
-  userId: string,
-  getAuthToken?: GetAuthToken,
-): Promise<AppliedOpportunity[]> {
-  const payload = await requestProductApi<any>('/me/applications', undefined, getAuthToken);
-  const apiRows = getApiRows(payload);
-  if (apiRows) {
-    return apiRows.map(normaliseApiApplication).filter((application) => application.opportunity_id);
-  }
-
-  const { data: rows, error } = await supabase
-    .from('opportunity_applications')
-    .select('id, opportunity_id, status, submitted_at, created_at')
-    .in('user_id', getUserLookupIds(userId))
-    .order('submitted_at', { ascending: false })
-    .abortSignal(fallbackAbortSignal());
-
-  if (error) throw error;
-
-  const uniqueRows = Array.from(
-    new Map((rows || []).map((row: any) => [row.opportunity_id, row])).values()
+export async function fetchTrackedApplications(getAuthToken: GetAuthToken): Promise<AppliedOpportunity[]> {
+  const payload = await requestProductApi<unknown>(
+    '/me/applications', undefined, getAuthToken, undefined, { throwOnError: true },
   );
-  const opportunityIds = uniqueRows.map((row: any) => row.opportunity_id);
-
-  if (opportunityIds.length === 0) {
-    return [];
-  }
-
-  const { data: opps, error: oppError } = await supabase
-    .from('opportunities')
-    .select('id, title, organization, deadline, close_date, location, image_url, category')
-    .in('id', opportunityIds)
-    .abortSignal(fallbackAbortSignal());
-
-  if (oppError) throw oppError;
-
-  return uniqueRows.map((row: any) => {
-    const opp = (opps || []).find((item: any) => item.id === row.opportunity_id);
-    return {
-      id: row.id,
-      opportunity_id: row.opportunity_id,
-      status: normalizeApplicationStatus(row.status),
-      submitted_at: row.submitted_at || row.created_at || null,
-      title: opp?.title || 'Opportunity',
-      organization: opp?.organization || 'Unknown organization',
-      deadline: opp?.deadline || opp?.close_date || null,
-      location: opp?.location || 'Worldwide',
-      image: opp?.image_url || null,
-      category: opp?.category || 'Opportunity',
-    };
-  });
+  const rows = getApiRows(payload);
+  if (!rows) throw new Error('Invalid application list response');
+  return rows.map(normaliseApiApplication).filter((application) => application.opportunity_id);
 }
 
 export async function updateTrackedApplicationStatus(
@@ -178,10 +157,14 @@ export async function updateTrackedApplicationStatus(
       }),
     },
     getAuthToken,
+    undefined,
+    status === 'submitted' ? { throwOnError: true } : undefined,
   );
   if (apiResult !== null) {
     return true;
   }
+
+  if (status === 'submitted') return false;
 
   const { error } = await supabase
     .from('opportunity_applications')
@@ -225,7 +208,7 @@ export async function trackOpportunityApplication(
       submitted_at: submittedAt,
       updated_at: new Date().toISOString(),
       metadata: input.metadata,
-    }, { onConflict: 'user_id,opportunity_id' });
+    }, { onConflict: 'user_id,opportunity_id', ignoreDuplicates: status === 'draft' });
 
   return !error;
 }
