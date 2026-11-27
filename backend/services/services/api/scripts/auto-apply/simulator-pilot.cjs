@@ -26,6 +26,9 @@ const opportunities = {
 const owner = 'user_auto_apply_simulator_fixture';
 const token = 'synthetic-local-provider-token';
 const fixtureCv = { id: '0f04871a-5e0b-4284-8f7d-b72958e70c82', name: 'Synthetic CV' };
+const researchCv = { id: '6a15b964-caf2-488a-9b8f-f24ca2b098cb', name: 'Synthetic Research CV' };
+const savedCvs = process.env.AUTO_APPLY_TEST_CV_SELECTION === '1' ? [fixtureCv, researchCv] : [fixtureCv];
+const cvPortalSubmissions = [];
 const cvRequiredOpportunity = 'c4d25057-893f-499c-8ffa-e6487bc3050f';
 const supportingPdfOpportunity = '28758c31-ee93-4516-acf8-81528ba75bc2';
 const educationOpportunity = 'bd049dfb-a668-49ba-a6a7-6e3b2b0eff51';
@@ -165,6 +168,9 @@ async function main() {
                 transcript.type !== 'application/pdf' || !Buffer.from(await transcript.arrayBuffer()).equals(fixtureTranscript.bytes)) {
               throw new Error();
             }
+          }
+          if (requiresCv && process.env.AUTO_APPLY_TEST_CV_SELECTION === '1') {
+            cvPortalSubmissions.push({ answer: body.get('answer'), statement: body.get('statement'), filename: pdf.name });
           }
         } catch {
           response.writeHead(422);
@@ -376,10 +382,11 @@ async function main() {
   const testCvRemoval = process.env.AUTO_APPLY_TEST_CV_REMOVAL === '1';
   let fixtureCvAvailable = true;
   const controller = new AutoApplyController(billing, {
-    listSummaries: async () => fixtureCvAvailable ? [fixtureCv] : [],
-    get: async () => {
-      if (!fixtureCvAvailable) throw new NotFoundException('CV not found');
-      return { ...fixtureCv, data: { summary: 'Synthetic applicant CV' } };
+    listSummaries: async () => fixtureCvAvailable ? savedCvs : [],
+    get: async (_owner, id) => {
+      const cv = savedCvs.find(item => item.id === id);
+      if (!fixtureCvAvailable || !cv) throw new NotFoundException('CV not found');
+      return { ...cv, data: { summary: cv.id === researchCv.id ? 'Synthetic research placement in optics' : 'Synthetic applicant CV' } };
     },
   }, worker, uploads);
   const admin = new AutoApplyAdminController();
@@ -423,6 +430,8 @@ async function main() {
         payload = await notifications.markRead(owner, pathname.split('/')[2], (await body(request)).read);
       } else if (pathname === '/billing/status') {
         payload = await billing.getStatus(owner);
+      } else if (process.env.AUTO_APPLY_TEST_CV_SELECTION === '1' && pathname === '/fixture/auto-apply/cv-submissions' && method === 'GET') {
+        payload = cvPortalSubmissions;
       } else if (testManualSubmission && pathname === '/fixture/auto-apply/manual-portal-submission' && method === 'POST') {
         const portalResponse = await fetch(portalOrigin + '/apply/' + educationOpportunity,
           { method: 'POST', body: new URLSearchParams({ major: 'engineering' }) });

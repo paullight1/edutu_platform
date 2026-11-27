@@ -814,7 +814,44 @@ async function checkApplications({ testUnconfirmed, removalGuard, rollbackReceip
   console.log('Three confirmed applications used the three monthly free attempts');
 }
 
-if (quotaCheck) await checkQuota();
+async function checkSelectedCv() {
+  const opportunityId = fixtures[1].id;
+  assert.equal((await api('/me/auto-apply/opportunities/' + opportunityId)).available, true);
+  const cvs = await api('/me/auto-apply/cvs');
+  assert.equal(cvs.length, 2);
+  const selected = cvs.find(cv => cv.name === 'Synthetic Research CV');
+  assert(selected);
+  const tracker = await api('/me/applications', 'POST', { opportunityId });
+  const attempt = await api('/me/auto-apply/applications/' + tracker.id, 'POST', { cvId: selected.id });
+  const path = '/me/auto-apply/attempts/' + attempt.id;
+  const question = await waitFor(path, value => value.state === 'needs_input');
+  assert.match(question.question, /study/i);
+  await waitFor('/notifications', items => items.some(item => item.metadata?.url === '/auto-apply/' + attempt.id));
+  await api(path + '/answer', 'POST', { version: question.version, answer: 'Physics' });
+  const review = await waitFor(path, value => value.state === 'needs_review');
+  const file = review.review.find(field => field.attachment?.sourceName === selected.name);
+  assert.match(file?.value ?? '', /optics/i);
+  const preview = await api(path + '/cv-preview', 'POST', { version: review.version, fieldIndex: review.review.indexOf(file) });
+  assert.equal(Buffer.from(preview.pdf, 'base64').subarray(0, 5).toString(), '%PDF-');
+  assert.equal(review.receipt, null);
+  assert(review.destinationHost);
+  const statement = 'I studied optics during my research placement.';
+  const values = review.review.map(field => field.label === 'Statement of purpose' ? statement : field.value);
+  const edited = await api(path + '/review', 'PUT', { version: review.version, values });
+  assert(edited.version > review.version);
+  await api(path + '/approve', 'POST', { version: review.version }, 409);
+  assert.deepEqual(await api('/fixture/auto-apply/cv-submissions'), []);
+  await api(path + '/approve', 'POST', { version: edited.version });
+  const completed = await waitFor(path, value => value.state === 'submitted');
+  assert.match(completed.receipt, fixtures[1].receipt);
+  assert.equal(completed.manuallySubmitted, false);
+  assert.deepEqual(await api('/fixture/auto-apply/cv-submissions'), [{ answer: 'Physics', statement, filename: 'edutu-cv.pdf' }]);
+  assert.equal((await api('/me/auto-apply/allowance')).used, 1);
+  console.log(`Selected ${selected.name} from two CVs, answered the notification, reviewed and edited the draft, rejected stale approval, approved once, and received ${completed.receipt}.`);
+}
+
+if (process.argv.includes('--selected-cv')) await checkSelectedCv();
+else if (quotaCheck) await checkQuota();
 else if (process.argv.includes('--submit-config')) await checkSubmitConfig();
 else if (checkPhoneReuse) await checkRememberPhone();
 else if (process.argv.includes('--android-updates')) await checkAndroidUpdates();

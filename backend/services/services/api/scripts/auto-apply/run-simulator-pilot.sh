@@ -12,7 +12,7 @@ cleanup() {
 }
 trap cleanup EXIT
 # A fresh fixture database only needs small WAL segments.
-initdb -D "$pilot_dir/db" -A trust --wal-segsize=1 >"$pilot_dir/initdb.log" || {
+initdb -D "$pilot_dir/db" --encoding=UTF8 -A trust --wal-segsize=1 >"$pilot_dir/initdb.log" || {
   tail -20 "$pilot_dir/initdb.log" >&2
   exit 1
 }
