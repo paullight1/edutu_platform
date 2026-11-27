@@ -86,6 +86,46 @@ describe("AiService — sampled content logging", () => {
     });
   });
 
+  it("keeps sensitive generations out of samples, error details, and the shared cache", async () => {
+    process.env.AI_CONTENT_SAMPLE_RATE = "1";
+    const generateText = jest
+      .fn()
+      .mockResolvedValueOnce({
+        text: '{"statement":"private draft"}',
+        provider: "deepseek",
+        model: "deepseek-chat",
+      })
+      .mockRejectedValueOnce(new Error("private provider error details"));
+    const service = buildService({ generateText });
+    const options = {
+      feature: "docs.sop",
+      prompt: "private applicant background",
+      temperature: 0,
+      responseMimeType: "application/json",
+      sensitiveContent: true,
+    };
+
+    await service.generateText(options);
+    await expect(service.generateText(options)).rejects.toThrow();
+
+    expect(generateText).toHaveBeenCalledTimes(2);
+    const logs = usageRows().filter((row) => "requestMetadata" in row);
+    expect(logs).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ status: "success", requestMetadata: {} }),
+        expect.objectContaining({
+          status: "error",
+          errorMessage: "Provider request failed",
+          requestMetadata: {},
+        }),
+      ]),
+    );
+    expect(usageRows()).toContainEqual(expect.objectContaining({
+      route: "docs.sop", success: false, error: "Provider request failed",
+    }));
+    expect(JSON.stringify(usageRows())).not.toContain("private");
+  });
+
   it("samples chat turns with their real messages, not the placeholder summary", async () => {
     process.env.AI_CONTENT_SAMPLE_RATE = "1";
     const service = buildService({

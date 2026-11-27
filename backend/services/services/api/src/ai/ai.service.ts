@@ -900,6 +900,7 @@ export class AiService {
     route: AiRouteConfig,
     options: AiGenerateOptions,
   ): string | null {
+    if (options.sensitiveContent) return null;
     const temperature =
       typeof options.temperature === "number"
         ? options.temperature
@@ -1114,11 +1115,9 @@ export class AiService {
       provider,
       model,
       apiKey,
-      systemPrompt:
-        storedRoute?.systemPrompt ||
-        fallback.systemPrompt ||
-        options.systemInstruction ||
-        null,
+      systemPrompt: options.systemInstructionMode === "replace"
+        ? options.systemInstruction || null
+        : storedRoute?.systemPrompt || fallback.systemPrompt || options.systemInstruction || null,
       temperature:
         typeof options.temperature === "number"
           ? options.temperature
@@ -1377,16 +1376,20 @@ export class AiService {
      */
     content?: { prompt?: string | (() => string); response?: string | null },
   ) {
-    const sample = this.shouldSampleContent()
-      ? this.sampledContent(
-          (typeof content?.prompt === "function"
-            ? content.prompt()
-            : content?.prompt) ??
-            options.prompt ??
-            "",
-          content?.response ?? result?.text ?? null,
-        )
+    const errorMessage = error instanceof Error
+      ? options.sensitiveContent ? "Provider request failed" : error.message.slice(0, 1000)
       : null;
+    const sample =
+      !options.sensitiveContent && this.shouldSampleContent()
+        ? this.sampledContent(
+            (typeof content?.prompt === "function"
+              ? content.prompt()
+              : content?.prompt) ??
+              options.prompt ??
+              "",
+            content?.response ?? result?.text ?? null,
+          )
+        : null;
     try {
       await db.insert(aiUsageLogs).values({
         feature: options.feature,
@@ -1398,8 +1401,7 @@ export class AiService {
         promptTokens: result?.usage?.promptTokens ?? null,
         completionTokens: result?.usage?.completionTokens ?? null,
         totalTokens: result?.usage?.totalTokens ?? null,
-        errorMessage:
-          error instanceof Error ? error.message.slice(0, 1000) : null,
+        errorMessage,
         requestMetadata: { ...(options.metadata || {}), ...(sample || {}) },
       });
     } catch (logError) {
@@ -1451,7 +1453,7 @@ export class AiService {
           estimatedCostUsd === null ? null : estimatedCostUsd.toFixed(8),
         latencyMs,
         success: !error,
-        error: error instanceof Error ? error.message.slice(0, 1000) : null,
+        error: errorMessage,
       });
     } catch (eventError) {
       this.logger.warn(

@@ -516,6 +516,7 @@ export class NotificationsService {
           lte(notificationQueue.scheduledFor, new Date()),
         ),
       )
+      .orderBy(notificationQueue.scheduledFor, notificationQueue.id)
       .limit(20);
 
     let processed = 0;
@@ -528,6 +529,7 @@ export class NotificationsService {
           and(
             eq(notificationQueue.id, item.id),
             eq(notificationQueue.status, "pending"),
+            lte(notificationQueue.scheduledFor, new Date()),
           ),
         )
         .returning();
@@ -756,9 +758,11 @@ export class NotificationsService {
   private async filterByPushBudget(
     recipients: BroadcastRecipient[],
     dto: BroadcastNotificationDto,
+    verifiedAutoApplyAction = false,
   ): Promise<{ allowed: BroadcastRecipient[]; suppressed: number }> {
     const unchanged = { allowed: recipients, suppressed: 0 };
-    if (!recipients.length) return unchanged;
+    // The caller verifies ownership, state and version before invoking delivery.
+    if (!recipients.length || verifiedAutoApplyAction) return unchanged;
     if (process.env.NOTIFICATION_BUDGET_ENABLED === "false") return unchanged;
 
     // Two classes of notification bypass fatigue accounting.
@@ -825,9 +829,16 @@ export class NotificationsService {
         /^[0-9a-f-]{36}$/i.test(applicationId)
       ) {
         const result = await db.execute(sql`
-          select id from public.opportunity_applications
-          where id = ${applicationId}::uuid and ${matchUserIdRef("user_id::text", toDatabaseUserId(owner))}
-            and status = 'draft' limit 1
+          select application.id from public.opportunity_applications application
+          where application.id = ${applicationId}::uuid
+            and ${matchUserIdRef("application.user_id::text", toDatabaseUserId(owner))}
+            and application.status = 'draft'
+            and not exists (
+              select 1 from private.auto_apply_attempts attempt
+              where attempt.application_id = application.id
+                and attempt.state not in ('failed', 'cancelled')
+            )
+          limit 1
         `);
         current = (Array.isArray(result) ? result : result.rows).length > 0;
       }
@@ -845,6 +856,41 @@ export class NotificationsService {
             skipped: "application no longer awaiting confirmation",
           },
         };
+    }
+    const isAutoApplyAction = dto.metadata?.source === "auto-apply-action";
+    if (isAutoApplyAction) {
+      const { attemptId, attemptVersion, state, reviewCorrection } = dto.metadata ?? {};
+      const owner =
+        dto.audience === "specific" && dto.targetUserIds?.length === 1
+          ? dto.targetUserIds[0]
+          : null;
+      if (
+        !owner ||
+        typeof attemptId !== "string" ||
+        !/^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/i.test(attemptId) ||
+        typeof attemptVersion !== "number" ||
+        !Number.isSafeInteger(attemptVersion) ||
+        typeof state !== "string" ||
+        !["needs_input", "needs_review", "unconfirmed", "failed"].includes(state)
+      ) {
+        return { queued: false, recipientCount: 0, insertedCount: 0 };
+      }
+      const result = await db.execute(sql`
+        select attempt.id from private.auto_apply_attempts attempt
+        join public.opportunity_applications application on application.id = attempt.application_id
+        where attempt.id = ${attemptId}::uuid
+          and (attempt.version = ${attemptVersion}
+            or (${state} = 'needs_review' and attempt.version > ${attemptVersion}))
+          and attempt.state = ${state}
+          and (attempt.state <> 'needs_review'
+            or ${typeof reviewCorrection !== "boolean"}
+            or coalesce(attempt.review @? '$[*].validationHint', false) = ${reviewCorrection === true})
+          and ${matchUserIdRef("application.user_id::text", toDatabaseUserId(owner))}
+        limit 1
+      `);
+      if (!(Array.isArray(result) ? result : result.rows).length) {
+        return { queued: false, recipientCount: 0, insertedCount: 0 };
+      }
     }
     const channels = { ...DEFAULT_CHANNELS, ...(dto.channels || {}) };
     const applicationPushKey = this.applicationPushKey(dto);
@@ -1023,7 +1069,7 @@ export class NotificationsService {
       // budget when it is redelivered, which is what we want — its window will
       // have moved by then.
       const { allowed, suppressed: budgetSuppressed } =
-        await this.filterByPushBudget(permitted, dto);
+        await this.filterByPushBudget(permitted, dto, isAutoApplyAction);
 
       // Callers that precompute `scheduledFor` (the alerts engine) already
       // cleared quiet hours, and a redelivery of an already-deferred item must
@@ -1251,8 +1297,13 @@ export class NotificationsService {
       // Dedicated Android channels (created by the app on launch) let
       // opportunity/deadline alerts pop as heads-up notifications.
       const defaultChannelByKind: Record<string, string> = {
+        "opportunity-highlight": "opportunities",
         "opportunity-alert": "opportunities",
         "deadline-reminder": "deadlines",
+        "goal-reminder": "goals",
+        "goal-weekly-digest": "goals",
+        "goal-progress": "achievements",
+        "application-status": "applications",
         "community-message": "community",
         "community-request": "community",
       };
@@ -1574,7 +1625,7 @@ export class NotificationsService {
   private applicationPushKey(
     dto: BroadcastNotificationDto,
   ): string | undefined {
-    return ["application-confirmation", "application-status"].includes(
+    return ["application-confirmation", "application-status", "auto-apply-action"].includes(
       String(dto.metadata?.source),
     )
       ? dto.dedupeKey

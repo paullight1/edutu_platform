@@ -7,7 +7,7 @@ import {
   Optional,
   UnsupportedMediaTypeException,
 } from "@nestjs/common";
-import { randomUUID } from "crypto";
+import { createHash, randomUUID } from "crypto";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { extractText, SUPPORTED_UPLOAD_MIME_TYPES } from "./extract-text";
 
@@ -22,6 +22,7 @@ export type UploadRow = {
   id: string;
   kind: string;
   fileName: string;
+  mimeType: string;
   parseStatus: string;
   createdAt: string;
 };
@@ -247,7 +248,7 @@ export class UploadsService {
   async list(userId: string): Promise<UploadRow[]> {
     const { data } = await this.supabase
       .from("user_uploads")
-      .select("id, kind, file_name, parse_status, created_at")
+      .select("id, kind, file_name, mime_type, parse_status, created_at")
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
       .limit(50);
@@ -255,9 +256,42 @@ export class UploadsService {
       id: String(row.id),
       kind: String(row.kind),
       fileName: String(row.file_name),
+      mimeType: String(row.mime_type),
       parseStatus: String(row.parse_status),
       createdAt: String(row.created_at),
     }));
+  }
+
+  async getApplicationPdf(userId: string, uploadId: string) {
+    const { data: row, error } = await this.supabase
+      .from("user_uploads")
+      .select("file_name,storage_path,mime_type")
+      .eq("id", uploadId)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (error || !row) throw new NotFoundException("Upload not found");
+    if (row.mime_type !== "application/pdf")
+      throw new UnsupportedMediaTypeException("Choose a PDF document");
+    const name = String(row.file_name);
+    if (!/^[a-zA-Z0-9._-]{1,120}$/.test(name))
+      throw new BadRequestException("Upload this PDF again with a valid file name");
+    const { data: blob, error: downloadError } = await this.supabase.storage
+      .from(BUCKET)
+      .download(row.storage_path);
+    if (downloadError || !blob) throw new NotFoundException("Upload not found");
+    if (blob.size > MAX_UPLOAD_BYTES)
+      throw new BadRequestException("Choose a PDF up to 10 MB");
+    const bytes = Buffer.from(await blob.arrayBuffer());
+    if (
+      bytes.length > MAX_UPLOAD_BYTES ||
+      bytes.subarray(0, 5).toString() !== "%PDF-"
+    )
+      throw new BadRequestException("Choose a valid PDF up to 10 MB");
+    return {
+      name,
+      bytes,
+      sha256: createHash("sha256").update(bytes).digest("hex"),
+    };
   }
 
   /**

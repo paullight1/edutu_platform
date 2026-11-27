@@ -155,8 +155,9 @@ export class MeController {
   deleteApplication(
     @CurrentUser("authId") userId: string,
     @Param("id", new ParseUUIDPipe({ version: "4" })) applicationId: string,
+    @Query("discardUnconfirmed") discardUnconfirmed?: string,
   ) {
-    return this.meService.deleteApplication(userId, applicationId);
+    return this.meService.deleteApplication(userId, applicationId, discardUnconfirmed === "true");
   }
 
   @Get("deadlines")

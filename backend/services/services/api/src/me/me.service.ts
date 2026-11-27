@@ -8,6 +8,7 @@ import {
 } from "@nestjs/common";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { toDatabaseUserId } from "../common/user-id";
+import { pool } from "../db";
 import type {
   CreateApplicationDto,
   SaveBookmarkDto,
@@ -134,9 +135,40 @@ export class MeService {
   }
 
   async listApplications(userId: string) {
-    const dbUserId = toDatabaseUserId(userId);
     const applications = await this.fetchApplicationRows(userId);
-    return this.hydrateApplications(applications);
+    if (!applications.length) return [];
+    const [hydrated, attempts] = await Promise.all([
+      this.hydrateApplications(applications),
+      this.loadAutoApplySummaries(userId, applications.map(({ id }) => this.asString(id))),
+    ]);
+    return hydrated.map((application) => {
+      const attempt = attempts.get(this.asString(application.id));
+      return attempt ? { ...application, auto_apply: attempt } : application;
+    });
+  }
+
+  private async loadAutoApplySummaries(userId: string, applicationIds: string[]) {
+    const attempts = new Map<string, { id: string; state: string }>();
+    if (!process.env.DATABASE_URL) return attempts;
+    try {
+      const { rows } = await pool.query<{
+        application_id: string;
+        id: string;
+        state: string;
+      }>(
+        `select application_id, id, state
+         from private.auto_apply_attempts
+         where application_id = any($1::uuid[]) and owner_id in ($2, $3)`,
+        [applicationIds, userId, toDatabaseUserId(userId)],
+      );
+      for (const { application_id, id, state } of rows) {
+        attempts.set(application_id, { id, state });
+      }
+    } catch (error) {
+      const code = (error as { code?: string }).code;
+      this.logger.warn(`Could not load Auto Apply summaries (${code ?? "unknown"})`);
+    }
+    return attempts;
   }
 
   async getApplication(userId: string, applicationId: string) {
@@ -286,6 +318,9 @@ export class MeService {
       update = update.eq("version", dto.expectedVersion);
     const { data, error } = await update.select("*").maybeSingle();
 
+    if (error?.code === "55P03") {
+      throw new ConflictException("Auto Apply is updating this application. Check its status before marking it submitted.");
+    }
     this.throwIfSupabaseError(error, "Could not update application");
     if (!data) {
       if (dto.expectedVersion !== undefined) {
@@ -386,17 +421,44 @@ export class MeService {
     }
   }
 
-  async deleteApplication(userId: string, applicationId: string) {
+  async deleteApplication(userId: string, applicationId: string, discardUnconfirmed = false) {
     this.assertUuid(applicationId, "Application id");
     const dbUserId = toDatabaseUserId(userId);
-    const { error } = await this.client
-      .from("opportunity_applications")
-      .delete()
-      .eq("id", applicationId)
-      .in("user_id", [userId, dbUserId]);
-
-    this.throwIfSupabaseError(error, "Could not delete application");
-    return { success: true };
+    const client = await pool.connect();
+    try {
+      await client.query("begin");
+      // Starting Auto Apply takes the tracker lock before creating an attempt.
+      const tracker = await client.query(
+        `select id from public.opportunity_applications
+         where id = $1 and user_id::text in ($2, $3) for update`,
+        [applicationId, userId, dbUserId],
+      );
+      if (tracker.rowCount) {
+        // The worker may already hold the attempt lock while updating the tracker.
+        const { rows: [attempt] } = await client.query<{ state: string }>(
+          `select state from private.auto_apply_attempts where application_id = $1 for update nowait`,
+          [applicationId],
+        );
+        if (attempt?.state === "submitting") {
+          throw new ConflictException("Auto Apply is submitting this application. Check its status before removing it.");
+        }
+        if (attempt?.state === "unconfirmed" && !discardUnconfirmed) {
+          throw new ConflictException({ code: "auto_apply_unconfirmed",
+            message: "The provider may have received this application. Check the provider first. Removing it will stop Edutu from checking for a receipt." });
+        }
+        await client.query("delete from public.opportunity_applications where id = $1", [applicationId]);
+      }
+      await client.query("commit");
+      return { success: true };
+    } catch (error) {
+      await client.query("rollback").catch(() => undefined);
+      if (typeof error === "object" && error && "code" in error && error.code === "55P03") {
+        throw new ConflictException("Auto Apply is updating this application. Refresh its status before removing it.");
+      }
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   async listDeadlines(userId: string) {
@@ -703,6 +765,7 @@ export class MeService {
 
     return {
       ...application,
+      id: application.id,
       opportunity_id: opportunityId,
       opportunity_title: this.asString(opportunity?.title) || "Opportunity",
       opportunity_category: this.asString(opportunity?.category) || "General",

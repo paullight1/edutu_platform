@@ -614,6 +614,30 @@ describe("NotificationsService global push budget", () => {
     expect(result.push.budgetSuppressed).toBeUndefined();
   });
 
+  it.each([
+    ["needs_input", true], ["needs_input", false], ["failed", true], ["failed", false],
+  ])("delivers only a current Auto Apply %s action despite the daily budget (%s)", async (state, current) => {
+    const { service, sendPush } = makeService({ day: 9, week: 9 });
+    execute.mockImplementationOnce(async () => ({
+      rows: current ? [{ id: "active-attempt" }] : [],
+      rowCount: current ? 1 : 0,
+    }) as never);
+
+    const result = await deliver(service, {
+      kind: "application-status",
+      metadata: {
+        source: "auto-apply-action",
+        state,
+        attemptId: "a0000000-0000-4000-8000-000000000001",
+        attemptVersion: 2,
+        quietHoursDeferred: true,
+      },
+    });
+
+    expect(sendPush).toHaveBeenCalledTimes(current ? 1 : 0);
+    if (current) expect(result.push?.budgetSuppressed).toBeUndefined();
+  });
+
   it("skips the budget when NOTIFICATION_BUDGET_ENABLED is 'false'", async () => {
     process.env.NOTIFICATION_BUDGET_ENABLED = "false";
     const { service, sendPush } = makeService({ day: 9, week: 9 });
