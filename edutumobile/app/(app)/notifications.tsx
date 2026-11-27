@@ -34,6 +34,7 @@ import { useNotifications } from '@edutu/core/src/hooks/useNotifications';
 import { AppNotification } from '@edutu/core/src/types/notification';
 import { useTheme } from '../../components/context/ThemeContext';
 import { notificationService } from '../../lib/notifications';
+import { autoApplyNotificationRoute } from "../../lib/autoApplyNotification";
 import { BrandedLoader } from '../../components/ui/BrandedLoader';
 import { useTranslation } from 'react-i18next';
 import { fetchNewsPosts, EDUTU_BLOG_BASE_URL, type NewsPost } from '../../lib/news';
@@ -138,7 +139,7 @@ export default function NotificationsScreen() {
 
         // Alert-style notifications deep-link to their target (opportunity
         // detail, saved searches) via metadata.url — same contract as push.
-        const url = item?.metadata?.url;
+        const url = autoApplyNotificationRoute(item?.metadata) ?? item?.metadata?.url;
         if (typeof url === 'string' && url.startsWith('/')) {
             router.push(url as never);
         }

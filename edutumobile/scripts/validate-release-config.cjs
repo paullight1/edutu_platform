@@ -1,9 +1,34 @@
-// Fail before uploading a store build if it would reconnect users to a retired server.
+const productionApi = 'https://backend.edutu.org';
+const productionSupabase = 'https://supabase.edutu.org';
+
+function stagingUrl(env, name, productionOrigin) {
+  let url;
+  try {
+    url = new URL(env[name]);
+  } catch {
+    throw new Error(`${name} must be set to an HTTPS staging URL for an Auto Apply staging build`);
+  }
+  if (url.protocol !== 'https:' || url.origin === productionOrigin ||
+      url.username || url.password || url.search || url.hash) {
+    throw new Error(`${name} must be set to a separate HTTPS staging URL for an Auto Apply staging build`);
+  }
+}
+
 function validateReleaseConfig(env) {
-  if (!['production', 'production-apk'].includes(env.EAS_BUILD_PROFILE)) return;
+  const productionBuild = ['production', 'production-apk'].includes(env.EAS_BUILD_PROFILE);
+  if (!productionBuild &&
+      (env.EDUTU_AUTO_APPLY_STAGING === 'true' || env.EAS_BUILD_PROFILE === 'auto-apply-staging')) {
+    stagingUrl(env, 'EXPO_PUBLIC_API_URL', productionApi);
+    stagingUrl(env, 'EXPO_PUBLIC_SUPABASE_URL', productionSupabase);
+    if (!env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY?.startsWith('pk_test_')) {
+      throw new Error('Auto Apply staging builds require a Clerk test publishable key');
+    }
+    return;
+  }
+  if (!productionBuild) return;
   for (const [name, expected] of [
-    ['EXPO_PUBLIC_API_URL', 'https://backend.edutu.org'],
-    ['EXPO_PUBLIC_SUPABASE_URL', 'https://supabase.edutu.org'],
+    ['EXPO_PUBLIC_API_URL', productionApi],
+    ['EXPO_PUBLIC_SUPABASE_URL', productionSupabase],
   ]) {
     if (env[name]?.replace(/\/$/, '') !== expected) {
       throw new Error(`${name} must point to ${expected} for an Edutu production build`);

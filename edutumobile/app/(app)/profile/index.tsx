@@ -217,6 +217,7 @@ export default function ProfileScreen() {
             title: t('view.menu.preferences'),
             items: [
                 { id: 'notifications', title: t('view.menu.notifications'), desc: t('view.menu.notificationsDesc'), icon: Bell, route: '/notifications', color: '#F59E0B', bg: 'rgba(245,158,11,0.15)' },
+                { id: 'application-profile', title: t('view.menu.applicationProfile', { defaultValue: 'Application profile' }), desc: t('view.menu.applicationProfileDesc', { defaultValue: 'Update the details Edutu uses when you apply' }), icon: FileText, route: '/profile/application', color: '#4331C9', bg: 'rgba(67,49,201,0.12)' },
                 { id: 'settings', title: t('view.menu.settings'), desc: t('view.menu.settingsDesc'), icon: Settings, route: '/profile/settings', color: '#64748B', bg: 'rgba(100,116,139,0.15)' },
             ]
         },
