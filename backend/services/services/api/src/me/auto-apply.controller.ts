@@ -47,6 +47,22 @@ import { autoApplyActivityActionSql } from "./auto-apply-activity-action";
 import { z } from "zod";
 import { ZodValidationPipe } from "../common/zod-validation.pipe";
 
+function knownManualApplication(primary: unknown, fallback: unknown) {
+  const url = providerHttpsUrl(primary) ?? providerHttpsUrl(fallback);
+  const path = url?.pathname.replace(/\/$/, "");
+  if (
+    url?.origin === "https://careers.chevron.com" &&
+    path ===
+      "/job/lekki/nma-undergraduate-internship-jan-2027/38138/103152674816"
+  ) {
+    return "workday_sign_in";
+  }
+  if (url?.origin === "https://forms.office.com" && path === "/e/QFZfqEZvWR") {
+    return "itu_provider_form";
+  }
+  return undefined;
+}
+
 const answerSchema = z
   .object({
     answer: z.string().trim().min(1).max(4000),
@@ -417,8 +433,18 @@ export class AutoApplyController {
         profileRequired: false,
         allowance: null,
       };
+    const manualApplication =
+      !attempt && rows[0]?.blockReason === null
+        ? knownManualApplication(rows[0].catalogUrl, rows[0].fallbackCatalogUrl)
+        : undefined;
     if (!available || attempt)
-      return { available, attempt, profileRequired: false, allowance: null };
+      return {
+        available,
+        attempt,
+        profileRequired: false,
+        allowance: null,
+        ...(manualApplication ? { manualApplication } : {}),
+      };
     if (
       !config?.submitEndpoint ||
       !(await this.worker.supportsOpportunity(
@@ -434,6 +460,7 @@ export class AutoApplyController {
         profileRequired: false,
         allowance: null,
         providerUnavailable: true,
+        ...(manualApplication ? { manualApplication } : {}),
       };
     }
     const [profile, allowance] = await Promise.all([

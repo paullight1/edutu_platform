@@ -499,6 +499,47 @@ it("reports an applicant-only portal without offering an Auto Apply attempt", as
 
 it.each([
   [
+    "https://careers.chevron.com/job/lekki/nma-undergraduate-internship-jan-2027/38138/103152674816",
+    "workday_sign_in",
+  ],
+  ["https://forms.office.com/e/QFZfqEZvWR", "itu_provider_form"],
+])(
+  "returns manual guidance for the verified provider listing %s",
+  async (catalogUrl, manualApplication) => {
+    const query = jest.spyOn(pool, "query");
+    const before = query.mock.calls.length;
+    query.mockResolvedValueOnce({
+      rows: [{ blockReason: null, attempt: null, catalogUrl }],
+    } as never);
+    await expect(
+      controller.opportunity("owner", "manual-listing"),
+    ).resolves.toMatchObject({
+      available: false,
+      attempt: null,
+      allowance: null,
+      manualApplication,
+    });
+    expect(query).toHaveBeenCalledTimes(before + 1);
+  },
+);
+
+it("does not show ITU guidance for a different Microsoft Forms listing", async () => {
+  jest.spyOn(pool, "query").mockResolvedValueOnce({
+    rows: [
+      {
+        blockReason: null,
+        attempt: null,
+        catalogUrl: "https://forms.office.com/e/different",
+      },
+    ],
+  } as never);
+  await expect(
+    controller.opportunity("owner", "manual-listing"),
+  ).resolves.not.toHaveProperty("manualApplication");
+});
+
+it.each([
+  [
     "https://provider.example/documents#references",
     "https://provider.example/documents#references",
     true,
