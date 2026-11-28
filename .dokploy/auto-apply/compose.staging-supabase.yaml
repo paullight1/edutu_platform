@@ -184,6 +184,12 @@ services:
         read_only: true
         bind:
           create_host_path: false
+      - type: bind
+        source: ../../supabase/migrations
+        target: /edutu-shared-migrations
+        read_only: true
+        bind:
+          create_host_path: false
     networks:
       - staging-data
 

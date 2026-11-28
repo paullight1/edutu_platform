@@ -34,6 +34,7 @@ done
 test -r supabase/migrations/20260812090000_api_production_contract.sql
 test -r supabase/migrations/20260813074140_api_credit_contract_upgrade_guard.sql
 test -r supabase/migrations/20261127083000_auto_apply_manual_review.sql
+cp /edutu-shared-migrations/20260803120000_community_groups.sql supabase/migrations/
 
 acl_applied=$(psql -X -At --set=ON_ERROR_STOP=1 "$target" -c \
   "select exists (select 1 from supabase_migrations.schema_migrations where version = '20260820220940');")
@@ -89,8 +90,26 @@ GRANT EXECUTE ON FUNCTION public.clerk_id_to_uuid(uuid) TO service_role;
 SQL
 fi
 
+legacy_tracker_owner=$(psql -X -At --set=ON_ERROR_STOP=1 "$target" -c \
+  "select atttypid = 'uuid'::regtype from pg_attribute where attrelid = 'public.opportunity_applications'::regclass and attname = 'user_id' and not attisdropped;")
+if [ "$legacy_tracker_owner" = t ]; then
+  psql -X --set=ON_ERROR_STOP=1 --single-transaction "$target" <<'SQL'
+-- The historical snapshot predates the text tracker identities and lifecycle.
+DROP POLICY "Users manage own opportunity applications" ON public.opportunity_applications;
+ALTER TABLE public.opportunity_applications
+  ALTER COLUMN user_id TYPE text USING user_id::text,
+  DROP CONSTRAINT opportunity_applications_status_check,
+  ADD CONSTRAINT opportunity_applications_status_check
+    CHECK (status IN ('draft','submitted','interview','offer','rejected','withdrawn','no_response'));
+CREATE POLICY "Users manage own opportunity applications"
+  ON public.opportunity_applications FOR ALL TO authenticated
+  USING (user_id IN ((SELECT public.current_app_user_id()), (SELECT public.current_app_user_uuid())))
+  WITH CHECK (user_id IN ((SELECT public.current_app_user_id()), (SELECT public.current_app_user_uuid())));
+SQL
+fi
+
 status=0
-supabase db push --remote="$target" --yes || status=$?
+supabase db push --remote="$target" --include-all --yes || status=$?
 
 proof=$(psql -X -At --set=ON_ERROR_STOP=1 "$target" <<'SQL'
 select count(*)
