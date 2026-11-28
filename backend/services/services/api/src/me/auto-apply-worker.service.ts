@@ -281,6 +281,7 @@ function restoreReviewValues(result: PreparedReview, job: Job) {
 export class AutoApplyWorker {
   private readonly logger = new Logger(AutoApplyWorker.name);
   private busy = false;
+  private batchRunning = false;
   private readonly capabilities = new Map<
     string,
     { expiresAt: number; result: Promise<{ catalogFingerprint?: string } | null> }
@@ -408,6 +409,19 @@ export class AutoApplyWorker {
   }
 
   @Cron("*/15 * * * * *")
+  async runScheduledBatch() {
+    if (this.batchRunning) return;
+    this.batchRunning = true;
+    try {
+      // Both operations use the same browser slot. Schedule them together so
+      // a submission tick cannot keep preparation from ever claiming work.
+      await this.submitApproved().catch(() => this.logger.warn("Auto Apply submission batch could not run"));
+      await this.process();
+    } finally {
+      this.batchRunning = false;
+    }
+  }
+
   async submitApproved() {
     const config = autoApplyProviderConfig();
     if (!config?.submitEndpoint || this.busy) return;
@@ -708,7 +722,6 @@ export class AutoApplyWorker {
     return rows.length > 0;
   }
 
-  @Cron("*/15 * * * * *")
   async process() {
     const config = autoApplyProviderConfig();
     if (!config || this.busy) return;

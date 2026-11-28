@@ -1,5 +1,5 @@
 // Local simulator QA against the production controller, worker and migrations.
-// The catalog is read-only and all learner records belong to a synthetic user.
+// The catalog is read-only and all learner records belong to synthetic users.
 require('ts-node/register/transpile-only');
 const { createServer } = require('node:http');
 const { BadRequestException, NotFoundException } = require('@nestjs/common');
@@ -7,6 +7,7 @@ const { createServer: createHttpsServer } = require('node:https');
 const { mkdirSync, readFileSync, writeFileSync } = require('node:fs');
 const { randomUUID, createHash, X509Certificate } = require('node:crypto');
 const { once } = require('node:events');
+const { setTimeout: delay } = require('node:timers/promises');
 const { join } = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { AutoApplyController } = require('../../src/me/auto-apply.controller.ts');
@@ -26,6 +27,8 @@ const opportunities = {
   'bd049dfb-a668-49ba-a6a7-6e3b2b0eff51': 'ITU advisory board simulator pilot',
 };
 const owner = 'user_auto_apply_simulator_fixture';
+const loadCount = Number(process.env.AUTO_APPLY_TEST_LOAD_LEARNERS || 0);
+const loadOwner = index => `user_auto_apply_load_${index}`;
 const token = 'synthetic-local-provider-token';
 const fixtureCv = { id: '0f04871a-5e0b-4284-8f7d-b72958e70c82', name: 'Synthetic CV' };
 const researchCv = { id: '6a15b964-caf2-488a-9b8f-f24ca2b098cb', name: 'Synthetic Research CV' };
@@ -77,6 +80,9 @@ const holdReceipt = testUnconfirmed && (testTrackerSync || process.env.AUTO_APPL
 const testCatalogLink = process.env.AUTO_APPLY_TEST_CATALOG_LINK === '1';
 const testSubmitConfig = process.env.AUTO_APPLY_TEST_SUBMIT_CONFIG === '1';
 const liveAiProvider = process.env.AUTO_APPLY_TEST_AI_PROVIDER;
+if (!Number.isInteger(loadCount) || loadCount < 0 || loadCount > 100 || (loadCount && liveAiProvider)) {
+  throw new Error('The local load fixture supports up to 100 learners and synthetic drafting only');
+}
 const liveAiRoutes = new Map([
   ['openai', { credential: 'OPENAI_API_KEY', model: 'gpt-4.1-mini' }],
   ['openrouter', { credential: 'OPENROUTER_API_KEY', model: 'openai/gpt-4.1-mini' }],
@@ -117,6 +123,9 @@ async function body(request) {
 }
 
 async function main() {
+  const loadPortalWrites = new Map();
+  const loadAdapterResponses = new Map();
+  let peakFixtureRssBytes = 0;
   const { chromium } = require(join(web, 'node_modules/playwright-core'));
   const { createBrowserProvider } = await import(pathToFileURL(join(web, 'scripts/auto-apply/browser-provider.mjs')).href);
   const tls = { key: readFileSync(join(dir, 'server.key')), cert: readFileSync(join(dir, 'server.crt')) };
@@ -136,10 +145,14 @@ async function main() {
     const publicKey = new X509Certificate(tls.cert).publicKey.export({ format: 'der', type: 'spki' });
     args.push('--ignore-certificate-errors-spki-list=' + createHash('sha256').update(publicKey).digest('base64'));
   }
-  const browser = await chromium.launch({ channel: 'chrome', chromiumSandbox: process.env.AUTO_APPLY_TEST_CHROMIUM_SANDBOX === '1', executablePath: process.env.CHROME_PATH, args });
+  const browser = await chromium.launch({
+    channel: 'chrome', executablePath: process.env.CHROME_PATH, args,
+    chromiumSandbox: loadCount > 0 || process.env.AUTO_APPLY_TEST_CHROMIUM_SANDBOX === '1',
+  });
   const handlePortal = async (request, response) => {
     response.setHeader('Content-Type', 'text/html');
     const requiresCv = request.url === '/apply/' + cvRequiredOpportunity;
+    if (loadCount && requiresCv) await delay(150);
     const requiresSupport = request.url === '/apply/' + supportingPdfOpportunity;
     const requiresEducation = request.url === '/apply/' + educationOpportunity;
     if (testMultiPage && request.url === '/start/' + educationOpportunity) {
@@ -193,6 +206,10 @@ async function main() {
                 transcript.type !== 'application/pdf' || !Buffer.from(await transcript.arrayBuffer()).equals(fixtureTranscript.bytes)) {
               throw new Error();
             }
+          }
+          if (requiresCv && loadCount) {
+            const email = body.get('email');
+            loadPortalWrites.set(email, (loadPortalWrites.get(email) ?? 0) + 1);
           }
           if (requiresCv && process.env.AUTO_APPLY_TEST_CV_SELECTION === '1') {
             cvPortalSubmissions.push({ answer: body.get('answer'), statement: body.get('statement'), filename: pdf.name });
@@ -320,6 +337,15 @@ async function main() {
   const receiptsDirectory = join(dir, 'receipts');
   mkdirSync(receiptsDirectory, { mode: 0o700 });
   const provider = createBrowserProvider({ browser, forms, token, receiptsDirectory, allowLocalFixture: true, tls });
+  if (loadCount) {
+    provider.on('request', (request, response) => {
+      const route = request.url.split('/')[1];
+      response.once('finish', () => {
+        const key = `${route}:${response.statusCode}`;
+        loadAdapterResponses.set(key, (loadAdapterResponses.get(key) ?? 0) + 1);
+      });
+    });
+  }
   const providerPort = await listen(provider);
   Object.assign(process.env, {
     AUTO_APPLY_PILOT_OPPORTUNITIES: Object.keys(opportunities).join(','),
@@ -340,6 +366,12 @@ async function main() {
   }
   await pool.query(`insert into profiles(user_id, full_name, email, school, degree, major, skills) values($1,$2,$3,$4,$5,$6,$7)`,
     [owner, 'Example Learner', 'learner@example.test', 'Example University', 'Bachelor of Science', 'Engineering', ['Research']]);
+  if (loadCount) {
+    await pool.query(`insert into profiles(user_id, full_name, email, school, degree, major, skills)
+      select $1 || cohort.id, 'Example Learner ' || cohort.id, 'learner-' || cohort.id || '@example.test',
+        'Example University', 'Bachelor of Science', 'Engineering', array['Research']
+      from generate_series(1, $2::integer) as cohort(id)`, [loadOwner(''), loadCount]);
+  }
   if (testUpgrades) {
     await pool.query(`insert into private.auto_apply_usage (user_id, month_start, attempts)
       values ($1, date_trunc('month', now() at time zone 'UTC')::date, $2)`, [owner, testQuota ? 2 : 3]);
@@ -458,10 +490,10 @@ async function main() {
       (public.clerk_id_to_uuid('user_another_fixture')::uuid, 'ExpoPushToken[android-other]', 'expo', '{"platform":"android"}')`, [owner]);
   }
   const tick = setInterval(async () => {
+    if (loadCount) peakFixtureRssBytes = Math.max(peakFixtureRssBytes, process.memoryUsage.rss());
     try {
       await worker.stopUnavailableAttempts();
-      await worker.submitApproved();
-      await worker.process();
+      await worker.runScheduledBatch();
       await worker.reconcileUnconfirmed();
       await notifications.processDueQueue();
     } catch (error) {
@@ -469,6 +501,12 @@ async function main() {
     }
   }, 1000);
   const api = createServer(async (request, response) => {
+    const index = Number(request.headers['x-fixture-learner']);
+    const requestOwner = loadCount && Number.isInteger(index) && index >= 1 && index <= loadCount
+      ? loadOwner(index) : owner;
+    return handleFixtureRequest(request, response, requestOwner);
+  });
+  async function handleFixtureRequest(request, response, owner) {
     const { pathname, searchParams } = new URL(request.url, 'http://localhost');
     const method = request.method;
     let status = 200;
@@ -477,7 +515,15 @@ async function main() {
       const match = pathname.match(/^\/me\/auto-apply\/(opportunities|applications|attempts)\/([a-f\d-]+)(?:\/(answer|attachment|cv|cv-preview|approve|review|previous-answers|retry-statement|control|check-receipt|activity|manual-review|manual-submission))?$/);
       const adminPlan = pathname.match(/^\/admin\/auto-apply\/plans\/(lite|pro|scholar)$/);
       const fixtureDetailId = pathname.match(/^\/opportunities\/([a-f\d-]+)$/)?.[1];
-      if (pathname === '/notifications' && method === 'GET') {
+      if (loadCount && pathname === '/fixture/auto-apply/load' && method === 'GET') {
+        const writes = [...loadPortalWrites.values()];
+        payload = {
+          learners: loadCount, browserConnected: browser.isConnected(), peakFixtureRssBytes,
+          adapterResponses: Object.fromEntries(loadAdapterResponses), portalApplicants: writes.length,
+          portalWrites: writes.reduce((total, count) => total + count, 0),
+          duplicateWrites: writes.reduce((total, count) => total + count - 1, 0),
+        };
+      } else if (pathname === '/notifications' && method === 'GET') {
         payload = await notifications.listForUser(owner, Number(searchParams.get('limit')));
       } else if (method === 'PATCH' && /^\/notifications\/[a-f\d-]+\/read$/.test(pathname)) {
         payload = await notifications.markRead(owner, pathname.split('/')[2], (await body(request)).read);
@@ -673,7 +719,7 @@ async function main() {
     }
     response.writeHead(status, { 'Content-Type': 'application/json' });
     response.end(JSON.stringify(payload));
-  });
+  }
   const port = await listen(api, apiPort);
   console.log(`Simulator pilot API ready at http://127.0.0.1:${port}`);
   process.once('SIGINT', async () => {

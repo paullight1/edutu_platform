@@ -558,12 +558,10 @@ export function createBrowserProvider({ browser, forms, token, receiptsDirectory
     if (!healthy || !browser.isConnected()) return send(503, { code: 'provider_unavailable' });
     if (busy) return send(503, { code: 'provider_busy' });
     busy = true;
-    let verificationReply;
-    if (verifyRoute) {
-      // A start can reverify immediately after the opportunity screen receives
-      // this response. Release the browser slot before replying.
-      send = (status, payload) => { verificationReply = [status, payload]; };
-    }
+    // The API can send its next operation as soon as it receives a response.
+    // Release the browser slot first, after closing the context and receipt file.
+    let respondAfterCleanup;
+    send = (status, payload) => { respondAfterCleanup = () => reply(status, payload); };
     let context;
     let reservation;
     let digest;
@@ -583,10 +581,12 @@ export function createBrowserProvider({ browser, forms, token, receiptsDirectory
         context = await browser.newContext({ serviceWorkers: 'block', acceptDownloads: false });
         const pdf = await cvPdf(context, preview.data.value);
         if (pdf.length > maxCvPreviewBytes) return send(413, {});
-        response.writeHead(200, {
-          'Content-Type': 'application/pdf', 'Content-Length': pdf.length, 'Cache-Control': 'no-store',
-        });
-        response.end(pdf);
+        respondAfterCleanup = () => {
+          response.writeHead(200, {
+            'Content-Type': 'application/pdf', 'Content-Length': pdf.length, 'Cache-Control': 'no-store',
+          });
+          response.end(pdf);
+        };
         return;
       }
       let job;
@@ -902,7 +902,7 @@ export function createBrowserProvider({ browser, forms, token, receiptsDirectory
       } finally {
         cleanupDeadline.abort();
         busy = false;
-        if (verificationReply) reply(...verificationReply);
+        respondAfterCleanup?.();
       }
     }
   };

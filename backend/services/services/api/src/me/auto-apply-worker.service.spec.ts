@@ -31,6 +31,27 @@ describe("AutoApplyWorker", () => {
     process.env = env;
   });
 
+  it("gives submission and preparation one sequential turn on each scheduler tick", async () => {
+    const service = worker();
+    let finishSubmission!: () => void;
+    const submission = new Promise<void>(resolve => { finishSubmission = resolve; });
+    const submit = jest.spyOn(service, "submitApproved").mockReturnValueOnce(submission).mockResolvedValue(undefined);
+    const prepare = jest.spyOn(service, "process").mockResolvedValue(undefined);
+
+    const active = service.runScheduledBatch();
+    await service.runScheduledBatch();
+    expect(submit).toHaveBeenCalledTimes(1);
+    expect(prepare).not.toHaveBeenCalled();
+    finishSubmission();
+    await active;
+    expect(prepare).toHaveBeenCalledTimes(1);
+
+    submit.mockRejectedValueOnce(new Error("Synthetic submission query failure"));
+    await service.runScheduledBatch();
+    expect(submit).toHaveBeenCalledTimes(2);
+    expect(prepare).toHaveBeenCalledTimes(2);
+  });
+
   it("caches the provider capability for browsing and rechecks before starting", async () => {
     process.env.AUTO_APPLY_PROVIDER_CAPABILITIES_URL =
       "https://provider.example/capabilities/";

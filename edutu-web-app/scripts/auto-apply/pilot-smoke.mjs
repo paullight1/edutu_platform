@@ -507,6 +507,43 @@ try {
   assert.equal(submitted.length, 2);
   assert.equal(unexpectedWrites, 0);
   if (!multiPage) {
+    const cleanupStarted = Promise.withResolvers();
+    const releaseCleanup = Promise.withResolvers();
+    const previewProvider = createBrowserProvider({
+      ...providerOptions,
+      browser: {
+        isConnected: () => true,
+        newContext: async () => ({
+          newPage: async () => ({
+            setContent: async () => {},
+            locator: () => ({ evaluate: async () => {} }),
+            pdf: async () => Buffer.from('%PDF-1.4'),
+            close: async () => {},
+          }),
+          close: async () => { cleanupStarted.resolve(); await releaseCleanup.promise; },
+        }),
+      },
+    });
+    try {
+      const previewOrigin = await address(previewProvider);
+      const preview = () => fetch(previewOrigin + '/preview-cv', {
+        method: 'POST', headers, body: JSON.stringify({ value: 'Synthetic CV' }),
+      });
+      let replied = false;
+      const first = preview().then(response => { replied = true; return response; });
+      await cleanupStarted.promise;
+      const competingPreview = await preview();
+      assert.equal(competingPreview.status, 503);
+      assert.deepEqual(await competingPreview.json(), { code: 'provider_busy' });
+      assert.equal(replied, false, 'CV preview must wait until its browser context closes');
+      releaseCleanup.resolve();
+      assert.equal(await (await first).text(), '%PDF-1.4');
+      assert.equal(await (await preview()).text(), '%PDF-1.4');
+    } finally {
+      releaseCleanup.resolve();
+      previewProvider.close();
+    }
+
     const disconnected = Promise.withResolvers();
     const stalledProvider = createBrowserProvider({
       ...providerOptions,
