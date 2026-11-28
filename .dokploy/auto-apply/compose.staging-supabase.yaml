@@ -18,6 +18,12 @@ services:
     volumes:
       - stage-db-data:/var/lib/postgresql/data
       - stage-db-config:/etc/postgresql-custom
+      - type: bind
+        source: ../../backend/services/services/api/supabase
+        target: /edutu-schema
+        read_only: true
+        bind:
+          create_host_path: false
     healthcheck:
       test: [CMD, pg_isready, -U, postgres, -h, 127.0.0.1]
       interval: 5s
