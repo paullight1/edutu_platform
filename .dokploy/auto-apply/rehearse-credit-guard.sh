@@ -74,6 +74,21 @@ ALTER TABLE public.analytics DROP CONSTRAINT IF EXISTS analytics_user_id_fkey;
 SQL
 fi
 
+marketplace_applied=$(psql -X -At --set=ON_ERROR_STOP=1 "$target" -c \
+  "select exists (select 1 from supabase_migrations.schema_migrations where version = '20260821065924');")
+if [ "$marketplace_applied" = f ]; then
+  psql -X --set=ON_ERROR_STOP=1 --single-transaction "$target" <<'SQL'
+-- The fresh legacy snapshot stores marketplace seller IDs as UUIDs. The
+-- backend migration also supports text Clerk IDs through its existing helper.
+CREATE OR REPLACE FUNCTION public.clerk_id_to_uuid(p_id uuid)
+RETURNS text LANGUAGE sql IMMUTABLE STRICT SET search_path = '' AS $$
+  SELECT p_id::text
+$$;
+REVOKE EXECUTE ON FUNCTION public.clerk_id_to_uuid(uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.clerk_id_to_uuid(uuid) TO service_role;
+SQL
+fi
+
 status=0
 supabase db push --remote="$target" --yes || status=$?
 
