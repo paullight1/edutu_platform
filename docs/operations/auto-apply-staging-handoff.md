@@ -4,11 +4,11 @@ Updated 28 November 2026. Local runs completed 100 synthetic applications. The l
 
 ## Deployment inventory
 
-The services below are in the [`auto-apply-staging` environment of the existing `edutu` Dokploy project](https://console.edutu.org/dashboard/project/r0MTR0iWP-ZKSfLuq7E7X/environment/pOTw_lb6cKU2OyCRTh67d). The latest dashboard check showed no deployments for either the staging API or the new staging adapter.
+The services below are in the [`auto-apply-staging` environment of the existing `edutu` Dokploy project](https://console.edutu.org/dashboard/project/r0MTR0iWP-ZKSfLuq7E7X/environment/pOTw_lb6cKU2OyCRTh67d).
 
 | Service | Purpose and last verified state |
 | --- | --- |
-| Auto Apply Staging API | Service ID `9gzzWzlxzP8BuU_Jqbrmv`. Dokploy showed no deployment IDs. The base runtime settings and six private adapter URLs are saved. The pilot lists are empty and staging credentials are pending. The private network attachment takes effect on deploy. |
+| Auto Apply Staging API | Service ID `9gzzWzlxzP8BuU_Jqbrmv`. The first manual build from the staging branch compiled successfully and was still running at the last check. Database and Supabase settings, both private network attachments, the Clerk development issuer, a runtime pepper, and the six private adapter URLs are saved. Both pilot lists are empty. OpenAI credentials and runtime readiness are pending. |
 | Auto Apply Staging Adapter | Service ID `5yRB9U6esp25gzeFFkBAO`. Dokploy showed no deployment IDs. Compose path is `.dokploy/auto-apply/compose.staging.yaml` and autodeploy is off. The adapter still needs its runtime settings and approved mapping. |
 | Auto Apply Synthetic Acceptance | Isolated, one-shot test with a synthetic learner, local PostgreSQL, and a test portal. The acceptance container exited successfully and its separate sandboxed worker showed healthy in Docker. |
 | Auto Apply Staging Worker | Earlier standalone service. Its container exited with a Chromium sandbox error. Use the staging Compose adapter for the hosted test. |
@@ -17,6 +17,7 @@ The services below are in the [`auto-apply-staging` environment of the existing 
 - **API and adapter source** is [`paul/auto-apply-dokploy-staging`](https://github.com/paullight1/edutu_platform/tree/paul/auto-apply-dokploy-staging). The earlier hosted candidate was `7f945ec3`. The branch also carries the synthetic load test and worker fixes documented below.
 - **Mobile source** is [`paul/auto-apply-device-staging` at `c84ec677`](https://github.com/paullight1/edutu_platform/commit/c84ec677b9f74baa8d9b1a190a1a68c2742b8d71). It has the `auto-apply-staging` internal device and `auto-apply-staging:simulator` EAS profiles. The published tree matches the locally tested mobile tree.
 - **Private API–adapter network** is `edutu-auto-apply-staging-api`. Dokploy verified that it is an internal, attachable overlay. It is saved on the API and configured on the adapter as `AUTO_APPLY_STAGING_API_NETWORK`. The API's six private adapter endpoints are set, and both pilot lists are empty. The adapter still needs a separate filtered provider-egress network, mounted files, and shared token.
+- **Private API–data network** is `edutu-auto-apply-staging-data`, an internal, attachable overlay. Dokploy deployed `dbf6f5dc` with PostgreSQL at `edutu-postgres-staging.internal:5432` and the Supabase gateway at `supabase-staging.internal:8000`. Both attachments, all five container health states, and persistence of the Edutu schema and private CV bucket were verified after redeploy. The API has the network saved and is configured with the staging database URL and Supabase service key. The adapter stays on its separate network.
 
 ## Verified behavior
 
