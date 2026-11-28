@@ -130,6 +130,10 @@ Use each Dokploy service's configuration for build settings, runtime
 variables, deploy status, and rollback. Mobile releases use EAS Build,
 TestFlight, and Play Store.
 
+## Auto Apply staging
+
+The [Auto Apply deployment handoff](operations/auto-apply-staging-handoff.md) records the deployed and verified state, the staging services and credentials needed, the release checks, and a task for the next Codex chat.
+
 ## Environment Checklist
 
 Backend:
