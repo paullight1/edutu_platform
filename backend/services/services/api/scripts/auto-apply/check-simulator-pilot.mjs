@@ -87,13 +87,17 @@ async function checkQuota() {
   for (const [index, result] of starts.entries()) {
     if (index !== winner) {
       assert.equal(result.status, 'rejected');
-      assert.match(result.reason.message, /returned 429.*Monthly Auto Apply limit reached/);
+      // A browser check may already be in flight when the winning request consumes the last run.
+      assert.match(result.reason.message, /returned (429.*Monthly Auto Apply limit reached|503.*temporarily unavailable)/);
     }
   }
 
   const original = await api(starters[winner], 'POST', {});
   assert.equal(original.id, starts[winner].value.id);
   await expectAllowance(3, 3);
+  for (const path of rejected) {
+    assert.match((await api(path, 'POST', {}, 429)).message, /Monthly Auto Apply limit reached/);
+  }
 
   await api('/admin/auto-apply/plans/lite', 'PUT', { monthlyLimit: 4 });
   await api(grantPath, 'POST', { environment: 'sandbox', expired: false });
@@ -165,7 +169,9 @@ async function checkFormPreflight() {
   const tracker = await api('/me/applications', 'POST', { opportunityId });
   const start = '/me/auto-apply/applications/' + tracker.id;
   const availability = '/me/auto-apply/opportunities/' + opportunityId;
-  assert.equal((await api(availability)).available, true);
+  const blocked = await api(availability);
+  assert.equal(blocked.available, false);
+  assert.equal(blocked.providerUnavailable, true);
   await api(start, 'POST', {}, 503);
   assert.equal((await api('/me/auto-apply/allowance')).used, 0);
   assert.equal((await api(availability)).attempt, null);
@@ -219,10 +225,44 @@ async function checkManualSubmission() {
   assert.equal(recorded.metadata.submission_source, 'manual');
   assert.deepEqual(recorded.auto_apply, { id, state: 'submitted' });
   await waitFor('/notifications', items => items.some(item => item.metadata?.applicationId === tracker.id &&
-    item.metadata.source === 'application-status' && item.metadata.status === 'submitted'));
+    item.metadata.source === 'application-status' && item.metadata.status === 'submitted' &&
+    item.title === 'Submission recorded' && item.metadata.submissionVerified !== true));
   assert.deepEqual(await api('/fixture/auto-apply/portal-posts'), { posts: 1 });
   assert.equal((await api('/me/auto-apply/allowance')).used, 1);
   console.log('A learner-recorded submission completed the original attempt and tracker without a second portal write.');
+}
+
+async function checkManualReview() {
+  const tracker = await api('/me/applications', 'POST', { opportunityId: fixtures[0].id });
+  const { id } = await api('/me/auto-apply/applications/' + tracker.id, 'POST', {});
+  const path = '/me/auto-apply/attempts/' + id;
+  const question = await waitFor(path, value => value.state === 'needs_input');
+  await api(path + '/answer', 'POST', { version: question.version, answer: 'Digital access for students in rural communities' });
+  const review = await waitFor(path, value => value.state === 'needs_review');
+  assert.equal(review.canStartManualSubmission, true);
+  await api(path + '/manual-submission', 'POST', { version: review.version }, 409);
+  const switchMode = (version, enabled) => api(path + '/manual-review', 'POST', { version, enabled });
+  const manual = await switchMode(review.version, true);
+  assert.equal(manual.reviewingOnProvider, true);
+  assert.equal(manual.canSubmit, false);
+  assert.equal(manual.canRecordManualSubmission, true);
+  assert.deepEqual(manual.review, review.review);
+  await api(path + '/approve', 'POST', { version: review.version }, 409);
+  await api(path + '/approve', 'POST', { version: manual.version }, 409);
+  await api(path + '/control', 'POST', { version: manual.version, action: 'cancel' }, 409);
+  const edutu = await switchMode(manual.version, false);
+  assert.equal(edutu.canSubmit, true);
+  assert.equal(edutu.canRecordManualSubmission, false);
+  assert.deepEqual(await api('/fixture/auto-apply/portal-posts'), { posts: 0 });
+  const resumed = await switchMode(edutu.version, true);
+  assert.deepEqual(await api('/fixture/auto-apply/manual-portal-submission', 'POST'), { posts: 1 });
+  const recorded = await api(path + '/manual-submission', 'POST', { version: resumed.version });
+  assert.equal(recorded.manuallySubmitted, true);
+  assert.equal(recorded.receipt, null);
+  await api(path + '/approve', 'POST', { version: resumed.version }, 409);
+  assert.deepEqual(await api('/fixture/auto-apply/portal-posts'), { posts: 1 });
+  assert.equal((await api('/me/auto-apply/allowance')).used, 1);
+  console.log('Provider-site submission kept the reviewed draft and blocked Edutu approval until the learner switched back.');
 }
 
 async function checkTrackerSync() {
@@ -303,7 +343,7 @@ async function checkStatementRetry() {
   console.log('The original attempt resumed statement drafting once and reached review without another monthly attempt.');
 }
 
-async function checkMultiPageReview() {
+async function checkMultiPageReview(interrupted = false) {
   const tracker = await api('/me/applications', 'POST', { opportunityId: fixtures[0].id });
   const { id } = await api('/me/auto-apply/applications/' + tracker.id, 'POST', {});
   const path = '/me/auto-apply/attempts/' + id;
@@ -319,6 +359,21 @@ async function checkMultiPageReview() {
   assert.deepEqual(updated.review[0].providerPage, review.review[0].providerPage);
   assert.deepEqual(await api('/fixture/auto-apply/page-posts'), { backgrounds: [], finalPosts: 0 });
   await api(path + '/approve', 'POST', { version: updated.version });
+  if (interrupted) {
+    const partial = await waitFor(path, value => value.state === 'unconfirmed', { allowUnconfirmed: true });
+    assert.equal(partial.receipt, null);
+    assert.equal(partial.canSubmit, false);
+    assert.equal(partial.canRetry, false);
+    assert.equal(partial.canCheckReceipt, true);
+    await api(path + '/approve', 'POST', { version: partial.version }, 409);
+    await api(path + '/control', 'POST', { action: 'retry', version: partial.version }, 409);
+    const checked = await api(path + '/check-receipt', 'POST');
+    assert.equal(checked.state, 'unconfirmed');
+    assert.deepEqual(await api('/fixture/auto-apply/page-posts'), { backgrounds: [background], finalPosts: 0 });
+    assert.equal((await api('/me/auto-apply/allowance')).used, 1);
+    console.log('An interruption after the first provider POST preserved uncertainty and blocked a duplicate submission.');
+    return;
+  }
   assert.match((await waitFor(path, value => value.state === 'submitted')).receipt, /^SIMULATOR-ITU-/);
   assert.deepEqual(await api('/fixture/auto-apply/page-posts'), { backgrounds: [background], finalPosts: 1 });
   console.log('The grouped review edited page one and sent both provider pages exactly once after approval.');
@@ -420,6 +475,12 @@ async function checkAndroidUpdates() {
   assert.deepEqual(await api(path + '/activity', 'PUT', { ...activity, token: 'ExpoPushToken[android-pilot]' }), { updated: true });
   const drain = () => api('/fixture/auto-apply/android-progress', 'POST');
   const question = await waitFor(path, value => value.state === 'needs_input');
+  const preference = enabled => api('/fixture/auto-apply/push-preference', 'PUT', { enabled });
+  await preference(false);
+  assert.deepEqual(await drain(), []);
+  await waitFor('/notifications', items => items.some(item => item.metadata?.url === '/auto-apply/' + id &&
+    item.metadata.attemptVersion === question.version));
+  await preference(true);
   assert.deepEqual(await drain(), [{ source: 'auto-apply-progress', attemptId: id, version: question.version, state: 'needs_input' }]);
   const cancelled = await api(path + '/control', 'POST', { action: 'cancel', version: question.version });
   assert.deepEqual(await drain(), [{ source: 'auto-apply-progress', attemptId: id, version: cancelled.version, state: 'cancelled' }]);
@@ -434,10 +495,12 @@ async function checkAndroidUpdates() {
     source: 'auto-apply-progress', attemptId: id, version: attachment.version, state: 'needs_input', activityAction: 'pdf',
   }]);
   assert.equal((await api('/me/auto-apply/allowance')).used, 1);
-  console.log('Android binding delivered the restarted attempt and PDF request without registering the token again');
+  console.log('Android progress respected the push preference, kept the in-app prompt, and delivered the resumed PDF request without rebinding');
 }
 
-async function checkApplications({ testUnconfirmed, removalGuard, rollbackReceipt, manualStatement, catalogLink, securityCheck, changedHandoffForm, boundHandoff, multipleDocuments, liveAiProvider }) {
+async function checkApplications({ testUnconfirmed, removalGuard, rollbackReceipt, manualStatement, catalogLink, securityCheck, expiredSession, changedHandoffForm, boundHandoff, multipleDocuments, liveAiProvider }) {
+  const providerPrompt = expiredSession ? 'Sign in on the provider’s website to continue.'
+    : 'Complete the security check on the provider’s website.';
   for (const fixture of fixtures) {
     const tracker = await api('/me/applications', 'POST', { opportunityId: fixture.id });
     const startPath = '/me/auto-apply/applications/' + tracker.id;
@@ -462,7 +525,7 @@ async function checkApplications({ testUnconfirmed, removalGuard, rollbackReceip
     if (securityCheck && fixture.name === 'ITU') {
       const handoff = await waitFor(path, value => value.state === 'needs_input' && value.handoffRequired);
       assert.equal(handoff.activityAction, 'provider_step');
-      assert.equal(handoff.question, 'Complete the security check on the provider’s website.');
+      assert.equal(handoff.question, providerPrompt);
       if (boundHandoff) {
         assert.equal(handoff.exactHandoff, true);
         assert.match(handoff.handoffUrl, new RegExp('^https://127\\.0\\.0\\.1:\\d+/apply/' + fixture.id + '#documents$'));
@@ -480,7 +543,7 @@ async function checkApplications({ testUnconfirmed, removalGuard, rollbackReceip
       assert.deepEqual(await api('/fixture/auto-apply/security-check', 'PUT', { enabled: false }), { posts: 0 });
       assert.equal((await api(path + '/control', 'POST', { version: handoff.version, action: 'retry' })).id, id);
       assert.equal((await api('/me/auto-apply/allowance')).used, 1);
-      console.log('ITU fixture: security check paused without a portal write, notified the learner, and resumed the same attempt');
+      console.log(`ITU fixture: ${expiredSession ? 'expired session' : 'security check'} paused without a portal write, notified the learner, and resumed the same attempt`);
     }
     if (fixture.attachment) {
       const { flag, route, ...selection } = fixture.attachment;
@@ -672,7 +735,7 @@ async function checkApplications({ testUnconfirmed, removalGuard, rollbackReceip
       assert.equal(paused.canSubmit, false);
       assert.equal(paused.canRetry, true);
       assert.equal(paused.review, null);
-      assert.equal(paused.question, 'Complete the security check on the provider’s website.');
+      assert.equal(paused.question, providerPrompt);
       if (boundHandoff) {
         assert.equal(paused.exactHandoff, true);
         assert.match(paused.handoffUrl, new RegExp('#documents$'));
@@ -815,6 +878,7 @@ async function checkApplications({ testUnconfirmed, removalGuard, rollbackReceip
 }
 
 async function checkSelectedCv() {
+  const liveAiProvider = process.env.AUTO_APPLY_TEST_AI_PROVIDER;
   const opportunityId = fixtures[1].id;
   assert.equal((await api('/me/auto-apply/opportunities/' + opportunityId)).available, true);
   const cvs = await api('/me/auto-apply/cvs');
@@ -826,9 +890,19 @@ async function checkSelectedCv() {
   const path = '/me/auto-apply/attempts/' + attempt.id;
   const question = await waitFor(path, value => value.state === 'needs_input');
   assert.match(question.question, /study/i);
-  await waitFor('/notifications', items => items.some(item => item.metadata?.url === '/auto-apply/' + attempt.id));
+  await waitFor('/notifications', items => items.some(item => item.metadata?.url === '/auto-apply/' + attempt.id &&
+    item.body?.includes('needs your intended field of study to continue.')));
   await api(path + '/answer', 'POST', { version: question.version, answer: 'Physics' });
-  const review = await waitFor(path, value => value.state === 'needs_review');
+  const review = await waitFor(path, value => value.state === 'needs_review' || (liveAiProvider && value.statementRequested));
+  if (liveAiProvider) {
+    assert.equal(review.state, 'needs_review', 'The live AI provider did not produce a usable statement.');
+    const draft = review.review.find(field => field.label === 'Statement of purpose');
+    assert.equal(draft?.generatedByAi, true);
+    assert(draft.value.trim());
+    const usage = await api('/fixture/auto-apply/ai-usage');
+    assert.deepEqual(usage, [{ provider: liveAiProvider, status: 'success', sampled: false }]);
+    console.log(`${liveAiProvider} drafted a statement for the fictional learner through Edutu.`);
+  }
   const file = review.review.find(field => field.attachment?.sourceName === selected.name);
   assert.match(file?.value ?? '', /optics/i);
   const preview = await api(path + '/cv-preview', 'POST', { version: review.version, fieldIndex: review.review.indexOf(file) });
@@ -857,10 +931,12 @@ else if (checkPhoneReuse) await checkRememberPhone();
 else if (process.argv.includes('--android-updates')) await checkAndroidUpdates();
 else if (process.argv.includes('--form-preflight')) await checkFormPreflight();
 else if (process.argv.includes('--manual-submission')) await checkManualSubmission();
+else if (process.argv.includes('--manual-review')) await checkManualReview();
 else if (process.argv.includes('--tracker-sync')) await checkTrackerSync();
 else if (process.argv.includes('--statement-provenance')) await checkStatementProvenance();
 else if (process.argv.includes('--statement-retry')) await checkStatementRetry();
 else if (process.argv.includes('--multi-page')) await checkMultiPageReview();
+else if (process.argv.includes('--multi-page-interruption')) await checkMultiPageReview(true);
 else if (process.argv.includes('--native-validation')) await checkNativeValidation();
 else await checkApplications({
   testUnconfirmed: process.argv.some(arg => ['--unconfirmed', '--remove-guard', '--rollback-receipt'].includes(arg)),
@@ -868,7 +944,8 @@ else await checkApplications({
   rollbackReceipt: process.argv.includes('--rollback-receipt'),
   manualStatement: process.argv.includes('--manual-statement'),
   catalogLink: process.argv.includes('--catalog-link'),
-  securityCheck: ['--security-check', '--changed-handoff-form', '--bound-handoff'].some(arg => process.argv.includes(arg)),
+  securityCheck: ['--security-check', '--changed-handoff-form', '--bound-handoff', '--expired-session'].some(arg => process.argv.includes(arg)),
+  expiredSession: process.argv.includes('--expired-session'),
   boundHandoff: process.argv.includes('--bound-handoff'),
   multipleDocuments: process.argv.includes('--multiple-documents'),
   changedHandoffForm: process.argv.includes('--changed-handoff-form'),

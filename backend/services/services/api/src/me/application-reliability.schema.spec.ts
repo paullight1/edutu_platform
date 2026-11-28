@@ -162,9 +162,10 @@ it("reclaims submissions interrupted before dispatch and preserves uncertainty a
         payload.metadata.opportunityId === manuallyRecorded.opportunity_id,
     )?.payload;
     expect(manualNotice).toMatchObject({
-      title: "Application submitted",
+      title: "Submission recorded",
       metadata: { url: "/applied" },
     });
+    expect(manualNotice?.metadata).not.toHaveProperty("submissionVerified");
     expect(manualNotice?.metadata).not.toHaveProperty("attemptId");
   } finally {
     process.env = env;

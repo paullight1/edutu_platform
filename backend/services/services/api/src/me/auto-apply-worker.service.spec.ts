@@ -106,8 +106,26 @@ describe("AutoApplyWorker", () => {
     jest.spyOn(global, "fetch").mockResolvedValue(Response.json({
       status: "verified", opportunityId: "pilot", mappingRevision,
     }));
-    await expect(service.verifyOpportunityForm("pilot", "https://catalog.example/apply", null)).resolves.toBe(true);
+    await expect(service.verifyOpportunityForm("pilot", "https://catalog.example/apply", null)).resolves.toBe(false);
     await expect(service.verifyOpportunityForm("pilot", "https://catalog.example/apply", null, true)).resolves.toBe(false);
+  });
+
+  it("shares an in-flight bound check between discovery and start without caching a provider outage", async () => {
+    process.env.AUTO_APPLY_PROVIDER_VERIFY_URL = "https://provider.example/verify";
+    const catalogUrl = "https://catalog.example/apply";
+    const catalogFingerprint = createHash("sha256").update(catalogUrl).digest("hex");
+    let finish!: (response: Response) => void;
+    const pending = new Promise<Response>(resolve => { finish = resolve; });
+    const fetchMock = jest.spyOn(global, "fetch").mockReturnValueOnce(pending)
+      .mockResolvedValueOnce(Response.json({ status: "verified", opportunityId: "pilot", mappingRevision, catalogFingerprint }));
+    const service = worker();
+    const discovery = service.verifyOpportunityForm("pilot", catalogUrl, null);
+    const start = service.verifyOpportunityForm("pilot", catalogUrl, null, true);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    finish(Response.json({ code: "provider_busy" }, { status: 503 }));
+    await expect(Promise.all([discovery, start])).resolves.toEqual([false, false]);
+    await expect(service.verifyOpportunityForm("pilot", catalogUrl, null)).resolves.toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it("resumes with stored answers and saves the new review using the claimed version", async () => {

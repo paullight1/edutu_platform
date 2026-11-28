@@ -288,7 +288,7 @@ export class AutoApplyWorker {
   /** Short-lived read-only checks used by the opportunity screen. */
   private readonly verifications = new Map<
     string,
-    { expiresAt: number; result: Promise<boolean> }
+    { expiresAt: number | null; result: Promise<boolean> }
   >();
 
   constructor(
@@ -350,36 +350,39 @@ export class AutoApplyWorker {
     // A new attempt must have a read-only provider verification. Existing
     // attempts never call this method, so preserving them remains possible
     // while an unconfigured provider fails closed for new work.
-    if (config?.verifyEndpoint === undefined) return false;
-    if (config.verifyEndpoint === null) return false;
+    if (!config?.verifyEndpoint) return false;
+    const fingerprint = catalogFingerprint(catalogUrl, fallbackCatalogUrl);
+    if (!fingerprint) return false;
     const endpoint = config.verifyEndpoint + "/" + encodeURIComponent(opportunityId);
-    const fingerprint = catalogFingerprint(catalogUrl, fallbackCatalogUrl) ?? "none";
     const cacheKey = `${endpoint}:${fingerprint}`;
     const cached = this.verifications.get(cacheKey);
-    if (!force && cached && cached.expiresAt > Date.now()) return cached.result;
+    // A fresh start still bypasses completed checks. Share an ongoing check
+    // for the same form so it doesn't compete with discovery for Chromium.
+    if (cached && (cached.expiresAt === null || (!force && cached.expiresAt > Date.now()))) {
+      return cached.result;
+    }
     if (!cached && this.verifications.size >= 100) {
       const oldest = this.verifications.keys().next().value;
       if (oldest) this.verifications.delete(oldest);
     }
-    const result = this.fetchOpportunityVerification(
-      endpoint,
-      opportunityId,
-      catalogUrl,
-      fallbackCatalogUrl,
-      config.token,
-      force,
-    );
-    this.verifications.set(cacheKey, { expiresAt: Date.now() + 10_000, result });
-    return result;
+    const entry: { expiresAt: number | null; result: Promise<boolean> } = {
+      expiresAt: null,
+      result: this.fetchOpportunityVerification(endpoint, opportunityId, fingerprint, config.token),
+    };
+    this.verifications.set(cacheKey, entry);
+    const verified = await entry.result;
+    if (this.verifications.get(cacheKey) === entry) {
+      if (verified) entry.expiresAt = Date.now() + 10_000;
+      else this.verifications.delete(cacheKey);
+    }
+    return verified;
   }
 
   private async fetchOpportunityVerification(
     endpoint: string,
     opportunityId: string,
-    catalogUrl: string | null,
-    fallbackCatalogUrl: string | null,
+    fingerprint: string,
     token: string,
-    force: boolean,
   ) {
     try {
       const response = await fetch(endpoint, {
@@ -390,16 +393,12 @@ export class AutoApplyWorker {
       if (!response.ok && response.status !== 409) return false;
       const result = z.object({
         opportunityId: z.literal(opportunityId),
-        catalogFingerprint: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+        catalogFingerprint: z.literal(fingerprint),
         status: z.literal("verified").optional(),
         code: z.literal("provider_handoff").optional(),
         mappingRevision: z.string().regex(/^[a-f0-9]{64}$/).optional(),
       }).safeParse(await response.json());
-      if (!result.success || (result.data.catalogFingerprint &&
-          result.data.catalogFingerprint !== catalogFingerprint(catalogUrl, fallbackCatalogUrl))) return false;
-      const expectedFingerprint = catalogFingerprint(catalogUrl, fallbackCatalogUrl);
-      if (force && (!expectedFingerprint || !result.data.catalogFingerprint ||
-          result.data.catalogFingerprint !== expectedFingerprint)) return false;
+      if (!result.success) return false;
       return response.ok
         ? result.data.status === "verified" && Boolean(result.data.mappingRevision)
         : result.data.code === "provider_handoff";
@@ -611,8 +610,9 @@ export class AutoApplyWorker {
        from public.opportunity_applications application
        join public.opportunities opportunity on opportunity.id = application.opportunity_id
        where attempt.application_id = application.id and application.status = 'draft'
+         and not attempt.reviewing_on_provider
          and application.opportunity_id::text = any($1::text[]) and private.auto_apply_block_reason(opportunity) is not null
-         and (attempt.state in ('queued','needs_input','needs_review')
+         and (attempt.state in ('queued','paused','needs_input','needs_review')
            or (attempt.state = 'running' and (attempt.lease_until is null or attempt.lease_until <= now()))
            or (attempt.state = 'submitting' and attempt.lease_until is null))`,
       [config.pilotIds],

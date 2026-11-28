@@ -238,6 +238,42 @@ it("returns the older profile shape even after contact details are saved", async
 });
 
 const listing = "https://provider.example/apply?listing=2027";
+
+it("rejects an exhausted new start before opening the provider form", async () => {
+  const originalEnv = process.env;
+  process.env = {
+    ...originalEnv,
+    AUTO_APPLY_PROVIDER_PREPARE_URL: "https://provider.example/prepare",
+    AUTO_APPLY_PROVIDER_SUBMIT_URL: "https://provider.example/submit",
+    AUTO_APPLY_PROVIDER_VERIFY_URL: "https://provider.example/verify",
+    AUTO_APPLY_PROVIDER_TOKEN: "fixture",
+    AUTO_APPLY_PILOT_OPPORTUNITIES: "listing",
+    AUTO_APPLY_PILOT_LEARNERS: "user_enrolled",
+  };
+  const query = jest.mocked(pool.query);
+  const supportsOpportunity = jest.fn();
+  const verifyOpportunityForm = jest.fn();
+  const service = new AutoApplyController(
+    { getStatus: jest.fn().mockResolvedValue({ planTier: "lite" }) } as unknown as BillingService,
+    {} as CvEditorService, { supportsOpportunity, verifyOpportunityForm } as unknown as AutoApplyWorker,
+    {} as UploadsService,
+  );
+  try {
+    query.mockResolvedValueOnce({ rows: [{
+      opportunityId: "listing", catalogUrl: listing, fallbackCatalogUrl: null, allowanceExhausted: true,
+    }] } as never);
+    await expect(service.start("user_enrolled", "draft", {})).rejects.toMatchObject({ status: 429 });
+    expect(query).toHaveBeenLastCalledWith(
+      expect.stringContaining("private.auto_apply_limit($2,$5)"),
+      ["draft", "user_enrolled", toDatabaseUserId("user_enrolled"), ["listing"], "lite"],
+    );
+    expect(supportsOpportunity).not.toHaveBeenCalled();
+    expect(verifyOpportunityForm).not.toHaveBeenCalled();
+  } finally {
+    process.env = originalEnv;
+  }
+});
+
 it("blocks a non-enrolled learner's new start without closing an existing attempt", async () => {
   const originalEnv = process.env;
   process.env = {

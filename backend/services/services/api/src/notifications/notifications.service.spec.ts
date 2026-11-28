@@ -647,6 +647,29 @@ describe("NotificationsService global push budget", () => {
     },
   );
 
+  it.each([
+    ["What do you plan to study?", "Scholarship needs your intended field of study to continue."],
+    ["When do you expect to graduate?", "Scholarship needs your expected graduation date to continue."],
+    ["Provider prompt about learner@example.test", "Scholarship needs an answer to continue."],
+  ])("uses fixed notification wording for the current provider question %s", async (question, expectedBody) => {
+    const { service, sendPush } = makeService({ day: 0, week: 0 });
+    execute.mockResolvedValueOnce({ rows: [{ question }], rowCount: 1 } as never);
+    await deliver(service, {
+      title: "Auto Apply needs your help",
+      body: "Scholarship needs an answer to continue.",
+      kind: "application-status",
+      metadata: {
+        source: "auto-apply-action",
+        state: "needs_input",
+        attemptId: "a0000000-0000-4000-8000-000000000001",
+        attemptVersion: 2,
+        quietHoursDeferred: true,
+      },
+    });
+    expect(sendPush).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ body: expectedBody }),
+      expect.anything(), expect.anything());
+  });
+
   it("skips the budget when NOTIFICATION_BUDGET_ENABLED is 'false'", async () => {
     process.env.NOTIFICATION_BUDGET_ENABLED = "false";
     const { service, sendPush } = makeService({ day: 9, week: 9 });

@@ -2,6 +2,7 @@ import { createHash, timingSafeEqual } from 'node:crypto';
 import { constants } from 'node:fs';
 import { access, mkdir, open, readFile, realpath } from 'node:fs/promises';
 import { createServer } from 'node:http';
+import { createServer as createSecureServer } from 'node:https';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -457,7 +458,7 @@ async function fillApprovedStep(context, step, fields, inspected, supportingPdfs
   }
 }
 
-export function createBrowserProvider({ browser, forms, token, receiptsDirectory, allowLocalFixture = false }) {
+export function createBrowserProvider({ browser, forms, token, receiptsDirectory, allowLocalFixture = false, tls }) {
   if (!token || !receiptsDirectory) throw new Error('Set the provider token and receipt directory');
   const configuration = formConfig.parse(forms);
   const catalogFingerprints = new Map();
@@ -515,7 +516,8 @@ export function createBrowserProvider({ browser, forms, token, receiptsDirectory
   }
 
   let busy = false;
-  return createServer({ requestTimeout: 15_000, headersTimeout: 10_000, connectionsCheckingInterval: 5000 }, async (request, response) => {
+  const serverOptions = { requestTimeout: 15_000, headersTimeout: 10_000, connectionsCheckingInterval: 5000 };
+  const handleRequest = async (request, response) => {
     const reply = (status, payload) => {
       response.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
       response.end(JSON.stringify(payload));
@@ -745,6 +747,7 @@ export function createBrowserProvider({ browser, forms, token, receiptsDirectory
         if (step.handoffSelector && await page.locator(step.handoffSelector).filter({ visible: true }).first().isVisible()) {
           throw new NeedPortalHandoff(step.handoffQuestion);
         }
+        if (status === 401) throw new NeedPortalHandoff('Sign in on the provider’s website to continue.');
         if (status >= 500 || status === 408 || status === 429) throw new Error('The portal is temporarily unavailable');
         if (status >= 400 || page.url() !== stepUrl || await receipt.isVisible()) throw new FormChanged();
         return inspectStep(page, step, values, expected.origin);
@@ -902,7 +905,10 @@ export function createBrowserProvider({ browser, forms, token, receiptsDirectory
         if (verificationReply) reply(...verificationReply);
       }
     }
-  });
+  };
+  return tls
+    ? createSecureServer({ ...serverOptions, ...tls, minVersion: 'TLSv1.2', handshakeTimeout: 10_000 }, handleRequest)
+    : createServer(serverOptions, handleRequest);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
@@ -911,10 +917,17 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     AUTO_APPLY_RECEIPTS_DIR: receiptsDirectory, AUTO_APPLY_PROVIDER_PORT: port = '7718',
     AUTO_APPLY_PROVIDER_BIND_HOST: host = '127.0.0.1', CHROME_PATH: chromePath,
     AUTO_APPLY_BUNDLED_CHROMIUM: bundledChromium,
+    AUTO_APPLY_PROVIDER_TLS_CERT_FILE: tlsCertFile, AUTO_APPLY_PROVIDER_TLS_KEY_FILE: tlsKeyFile,
   } = process.env;
   if (!formsFile || !token || !receiptsDirectory || !/^\d+$/.test(port) || Number(port) < 1 || Number(port) > 65535) {
     throw new Error('Set the provider mappings, token, receipt directory, and a valid port');
   }
+  if (Boolean(tlsCertFile) !== Boolean(tlsKeyFile)) {
+    throw new Error('Set both provider TLS certificate and key files to enable HTTPS');
+  }
+  const [cert, key] = tlsCertFile
+    ? await Promise.all([readFile(tlsCertFile), readFile(tlsKeyFile)])
+    : [];
   const forms = JSON.parse(await readFile(formsFile, 'utf8'));
   if (process.env.AUTO_APPLY_REQUIRE_RECEIPT_MOUNT === 'true') {
     const directory = await realpath(receiptsDirectory);
@@ -936,7 +949,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   });
   let server;
   try {
-    server = createBrowserProvider({ browser, forms, token, receiptsDirectory });
+    server = createBrowserProvider({ browser, forms, token, receiptsDirectory, tls: cert && { cert, key } });
   } catch (error) {
     await browser.close();
     throw error;

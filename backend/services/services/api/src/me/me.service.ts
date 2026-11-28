@@ -150,31 +150,38 @@ export class MeService {
     });
   }
 
-  private async loadAutoApplySummaries(
-    userId: string,
-    applicationIds: string[],
-  ) {
-    const attempts = new Map<string, { id: string; state: string }>();
+  private async loadAutoApplySummaries(userId: string, applicationIds: string[]) {
+    const attempts = new Map<string, {
+      id: string;
+      state: string;
+      receipt: string | null;
+      receiptStatus: "confirmed" | "self_reported" | "pending" | "sending" | null;
+    }>();
     if (!process.env.DATABASE_URL) return attempts;
     try {
       const { rows } = await pool.query<{
         application_id: string;
         id: string;
         state: string;
+        receipt: string | null;
+        receiptStatus: "confirmed" | "self_reported" | "pending" | "sending" | null;
       }>(
-        `select application_id, id, state
+        `select application_id, id, state, provider_receipt as receipt,
+           case when state = 'submitted' and provider_receipt is not null then 'confirmed'
+             when state = 'submitted' then 'self_reported'
+             when state = 'unconfirmed' then 'pending'
+             when state = 'submitting' then 'sending'
+             else null end as "receiptStatus"
          from private.auto_apply_attempts
          where application_id = any($1::uuid[]) and owner_id in ($2, $3)`,
         [applicationIds, userId, toDatabaseUserId(userId)],
       );
-      for (const { application_id, id, state } of rows) {
-        attempts.set(application_id, { id, state });
+      for (const { application_id, id, state, receipt, receiptStatus } of rows) {
+        attempts.set(application_id, { id, state, receipt, receiptStatus });
       }
     } catch (error) {
       const code = (error as { code?: string }).code;
-      this.logger.warn(
-        `Could not load Auto Apply summaries (${code ?? "unknown"})`,
-      );
+      this.logger.warn(`Could not load Auto Apply summaries (${code ?? "unknown"})`);
     }
     return attempts;
   }

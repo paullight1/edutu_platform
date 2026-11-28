@@ -2,7 +2,7 @@
 // The catalog is read-only and all learner records belong to a synthetic user.
 require('ts-node/register/transpile-only');
 const { createServer } = require('node:http');
-const { NotFoundException } = require('@nestjs/common');
+const { BadRequestException, NotFoundException } = require('@nestjs/common');
 const { createServer: createHttpsServer } = require('node:https');
 const { mkdirSync, readFileSync, writeFileSync } = require('node:fs');
 const { randomUUID, createHash, X509Certificate } = require('node:crypto');
@@ -16,6 +16,8 @@ const { AutoApplyWorker } = require('../../src/me/auto-apply-worker.service.ts')
 const { BillingService } = require('../../src/billing/billing.service.ts');
 const { NotificationsService } = require('../../src/notifications/notifications.service.ts');
 const { MeService } = require('../../src/me/me.service.ts');
+const { UploadsService } = require('../../src/uploads/uploads.service.ts');
+const { toDatabaseUserId } = require('../../src/common/user-id.ts');
 const { pool } = require('../../src/db/index.ts');
 
 const opportunities = {
@@ -35,6 +37,7 @@ const educationOpportunity = 'bd049dfb-a668-49ba-a6a7-6e3b2b0eff51';
 const educationCatalogUrl = 'https://provider.example/application';
 const fixtureDocument = { id: '6eb71807-562e-42cf-a45b-c5dcd0136596', name: 'institution-letter.pdf' };
 const fixturePdf = Buffer.from('%PDF-1.4\n% Synthetic institutional letter fixture\n%%EOF\n');
+const testDeviceUpload = process.env.AUTO_APPLY_TEST_DEVICE_UPLOAD === '1';
 const testMultipleDocuments = process.env.AUTO_APPLY_TEST_MULTIPLE_DOCUMENTS === '1';
 const testCheckboxes = process.env.AUTO_APPLY_TEST_CHECKBOXES === '1';
 const testStatementPrompts = process.env.AUTO_APPLY_TEST_STATEMENT_PROMPTS === '1';
@@ -44,7 +47,8 @@ const testAndroidUpdates = process.env.AUTO_APPLY_TEST_ANDROID_UPDATES === '1';
 const testFormPreflight = process.env.AUTO_APPLY_TEST_FORM_PREFLIGHT === '1';
 const testMultipleChoices = process.env.AUTO_APPLY_TEST_MULTIPLE_CHOICES === '1';
 const testRememberPhone = process.env.AUTO_APPLY_TEST_REMEMBER_PHONE === '1';
-const testMultiPage = process.env.AUTO_APPLY_TEST_MULTI_PAGE === '1';
+const testMultiPageInterruption = process.env.AUTO_APPLY_TEST_MULTI_PAGE_INTERRUPTION === '1';
+const testMultiPage = testMultiPageInterruption || process.env.AUTO_APPLY_TEST_MULTI_PAGE === '1';
 const testNativeValidation = process.env.AUTO_APPLY_TEST_NATIVE_VALIDATION === '1';
 const phoneFormatHint = 'Enter + followed by 11 digits, without spaces.';
 let addUnmappedRequirement = testFormPreflight;
@@ -80,7 +84,9 @@ const liveAiRoutes = new Map([
 ]);
 const testBoundHandoff = process.env.AUTO_APPLY_TEST_BOUND_HANDOFF === '1';
 const testManualSubmission = process.env.AUTO_APPLY_TEST_MANUAL_SUBMISSION === '1';
-const testSecurityCheck = testBoundHandoff || testManualSubmission || process.env.AUTO_APPLY_TEST_SECURITY_CHECK === '1';
+const testManualReview = process.env.AUTO_APPLY_TEST_MANUAL_REVIEW === '1';
+const testExpiredSession = process.env.AUTO_APPLY_TEST_EXPIRED_SESSION === '1';
+const testSecurityCheck = testBoundHandoff || testManualSubmission || testExpiredSession || process.env.AUTO_APPLY_TEST_SECURITY_CHECK === '1';
 let showSecurityCheck = testSecurityCheck;
 let changeFormAfterSecurityCheck = false;
 let educationPortalPosts = 0;
@@ -114,6 +120,17 @@ async function main() {
   const { chromium } = require(join(web, 'node_modules/playwright-core'));
   const { createBrowserProvider } = await import(pathToFileURL(join(web, 'scripts/auto-apply/browser-provider.mjs')).href);
   const tls = { key: readFileSync(join(dir, 'server.key')), cert: readFileSync(join(dir, 'server.crt')) };
+  const institutionLetter = testDeviceUpload ? await new Promise((resolve, reject) => {
+    const Pdf = require('pdfkit');
+    const document = new Pdf();
+    const buffers = [];
+    document.on('data', buffer => buffers.push(buffer));
+    document.on('error', reject);
+    document.on('end', () => resolve(Buffer.concat(buffers)));
+    document.fontSize(20).text('Fictional institution letter');
+    document.fontSize(12).text('Example University. This PDF contains test data for the Edutu simulator.');
+    document.end();
+  }) : fixturePdf;
   const args = [];
   if (testBoundHandoff) {
     const publicKey = new X509Certificate(tls.cert).publicKey.export({ format: 'der', type: 'spki' });
@@ -140,7 +157,15 @@ async function main() {
       response.writeHead(503);
       return response.end('Synthetic portal temporarily unavailable.');
     }
+    if (request.method === 'GET' && requiresEducation && testMultiPageInterruption && educationPageOnePosts.length) {
+      response.writeHead(401);
+      return response.end('Sign in to continue to the second page of the synthetic portal.');
+    }
     if (request.method === 'GET' && requiresEducation && showSecurityCheck) {
+      if (testExpiredSession) {
+        response.writeHead(401);
+        return response.end('Sign in to the synthetic portal.');
+      }
       response.writeHead(429);
       return response.end('<h1 id="security-check">Security Check</h1>');
     }
@@ -161,7 +186,7 @@ async function main() {
           const pdf = body.get(requiresSupport ? 'support' : 'cv');
           if (!(pdf instanceof File) || pdf.name !== (requiresSupport ? fixtureDocument.name : 'edutu-cv.pdf') || pdf.type !== 'application/pdf' ||
               Buffer.from(await pdf.slice(0, 4).arrayBuffer()).toString() !== '%PDF') throw new Error();
-          if (requiresSupport && !Buffer.from(await pdf.arrayBuffer()).equals(fixturePdf)) throw new Error();
+          if (requiresSupport && !Buffer.from(await pdf.arrayBuffer()).equals(institutionLetter)) throw new Error();
           if (requiresSupport && testMultipleDocuments) {
             const transcript = body.get('transcript');
             if (!(transcript instanceof File) || transcript.name !== fixtureTranscript.name ||
@@ -294,9 +319,8 @@ async function main() {
   if (process.env.AUTO_APPLY_TEST_UNMAPPED === '1') delete forms[cvRequiredOpportunity];
   const receiptsDirectory = join(dir, 'receipts');
   mkdirSync(receiptsDirectory, { mode: 0o700 });
-  const provider = createBrowserProvider({ browser, forms, token, receiptsDirectory, allowLocalFixture: true });
-  const https = createHttpsServer(tls, (req, res) => provider.emit('request', req, res));
-  const providerPort = await listen(https);
+  const provider = createBrowserProvider({ browser, forms, token, receiptsDirectory, allowLocalFixture: true, tls });
+  const providerPort = await listen(provider);
   Object.assign(process.env, {
     AUTO_APPLY_PILOT_OPPORTUNITIES: Object.keys(opportunities).join(','),
     AUTO_APPLY_PROVIDER_TOKEN: token,
@@ -322,7 +346,36 @@ async function main() {
   }
   const billing = new BillingService();
   billing.getSupabase = () => null; // Keep QA on the isolated database, even with production environment variables.
-  const uploads = { getApplicationPdf: async (_ownerId, uploadId) => {
+  const uploadedRows = new Map();
+  const objects = new Map();
+  const multer = require('multer');
+  const receiveUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024, files: 1 } }).single('file');
+  const deviceUploads = new UploadsService({
+    storage: { from: () => ({
+      upload: async (key, bytes) => { objects.set(key, Buffer.from(bytes)); return { error: null }; },
+      download: async key => ({ data: objects.has(key) ? new Blob([objects.get(key)]) : null, error: null }),
+      remove: async keys => { keys.forEach(key => objects.delete(key)); return { error: null }; },
+    }) },
+    from: () => ({
+      insert: row => ({ select: () => ({ single: async () => {
+        const id = randomUUID();
+        uploadedRows.set(id, row);
+        return { data: { id }, error: null };
+      } }) }),
+      select: () => {
+        const filters = {};
+        const selection = {
+          eq: (column, value) => { filters[column] = value; return selection; },
+          maybeSingle: async () => {
+            const row = uploadedRows.get(filters.id);
+            return { data: row?.user_id === filters.user_id ? row : null, error: null };
+          },
+        };
+        return selection;
+      },
+    }),
+  });
+  const uploads = testDeviceUpload ? deviceUploads : { getApplicationPdf: async (_ownerId, uploadId) => {
     const document = fixtureDocuments.find(item => item.id === uploadId);
     if (!document) throw new Error('Unknown fixture document');
     return { name: document.name, bytes: document.bytes, sha256: createHash('sha256').update(document.bytes).digest('hex') };
@@ -421,7 +474,7 @@ async function main() {
     let status = 200;
     let payload;
     try {
-      const match = pathname.match(/^\/me\/auto-apply\/(opportunities|applications|attempts)\/([a-f\d-]+)(?:\/(answer|attachment|cv|cv-preview|approve|review|previous-answers|retry-statement|control|check-receipt|activity|manual-submission))?$/);
+      const match = pathname.match(/^\/me\/auto-apply\/(opportunities|applications|attempts)\/([a-f\d-]+)(?:\/(answer|attachment|cv|cv-preview|approve|review|previous-answers|retry-statement|control|check-receipt|activity|manual-review|manual-submission))?$/);
       const adminPlan = pathname.match(/^\/admin\/auto-apply\/plans\/(lite|pro|scholar)$/);
       const fixtureDetailId = pathname.match(/^\/opportunities\/([a-f\d-]+)$/)?.[1];
       if (pathname === '/notifications' && method === 'GET') {
@@ -432,7 +485,7 @@ async function main() {
         payload = await billing.getStatus(owner);
       } else if (process.env.AUTO_APPLY_TEST_CV_SELECTION === '1' && pathname === '/fixture/auto-apply/cv-submissions' && method === 'GET') {
         payload = cvPortalSubmissions;
-      } else if (testManualSubmission && pathname === '/fixture/auto-apply/manual-portal-submission' && method === 'POST') {
+      } else if ((testManualSubmission || testManualReview) && pathname === '/fixture/auto-apply/manual-portal-submission' && method === 'POST') {
         const portalResponse = await fetch(portalOrigin + '/apply/' + educationOpportunity,
           { method: 'POST', body: new URLSearchParams({ major: 'engineering' }) });
         if (!portalResponse.ok) throw new Error('Synthetic provider rejected the manual submission');
@@ -446,6 +499,13 @@ async function main() {
       } else if (androidUpdates && pathname === '/fixture/auto-apply/android-progress' && method === 'POST') {
         await androidUpdates.sendAndroidUpdates();
         payload = progressMessages.splice(0);
+      } else if (androidUpdates && pathname === '/fixture/auto-apply/push-preference' && method === 'PUT') {
+        const { enabled } = await body(request);
+        if (typeof enabled !== 'boolean') throw new Error('Expected a boolean push preference');
+        await pool.query(`insert into public.notification_preferences (user_id, push_notifications)
+          values (public.clerk_id_to_uuid($1)::uuid, $2)
+          on conflict (user_id) do update set push_notifications = excluded.push_notifications`, [owner, enabled]);
+        payload = { enabled };
       } else if (liveAiProvider && pathname === '/fixture/auto-apply/ai-usage' && method === 'GET') {
         const { rows } = await pool.query(`select provider, status, request_metadata ? 'sampledContent' as sampled
           from public.ai_usage_logs where feature = 'docs.sop' order by created_at`);
@@ -455,7 +515,7 @@ async function main() {
         payload = { available: fixtureCvAvailable };
       } else if (testMultiPage && pathname === '/fixture/auto-apply/page-posts' && method === 'GET') {
         payload = { backgrounds: educationPageOnePosts, finalPosts: educationPortalPosts };
-      } else if ((testUnconfirmed || testCatalogLink || testCheckboxes || testManualSubmission || testNativeValidation || testMultipleChoices) &&
+      } else if ((testUnconfirmed || testCatalogLink || testCheckboxes || testManualSubmission || testManualReview || testNativeValidation || testMultipleChoices) &&
           pathname === '/fixture/auto-apply/portal-posts' && method === 'GET') {
         payload = { posts: educationPortalPosts };
       } else if (holdReceipt && pathname === '/fixture/auto-apply/release-receipt' && method === 'POST') {
@@ -514,7 +574,8 @@ async function main() {
         })) };
       } else if (pathname === '/me/auto-apply/profile') {
         payload = method === 'PUT' ? await controller.saveProfile(owner, await body(request))
-          : await controller.profile(owner, searchParams.get('includeSavedDetails') ?? undefined);
+          : method === 'DELETE' ? await controller.clearProfile(owner, await body(request))
+            : await controller.profile(owner, searchParams.get('includeSavedDetails') ?? undefined);
       } else if (pathname === '/me/auto-apply/allowance') {
         payload = await controller.allowance(owner);
       } else if (pathname === '/me/auto-apply/cvs') {
@@ -525,6 +586,7 @@ async function main() {
         else if (collection === 'applications') payload = await controller.start(owner, id, await body(request));
         else if (action === 'check-receipt') payload = await controller.checkReceipt(owner, id);
         else if (action === 'manual-submission') payload = await controller.recordManualSubmission(owner, id, await body(request));
+        else if (action === 'manual-review') payload = await controller.setManualReview(owner, id, await body(request));
         else if (action === 'control') payload = await controller.controlAttempt(owner, id, await body(request));
         else if (androidUpdates && action === 'activity') payload = await controller.registerActivity(owner, id, await body(request));
         else if (action === 'retry-statement') payload = await controller.retryStatement(owner, id, await body(request));
@@ -567,23 +629,40 @@ async function main() {
         payload = rows[0];
       } else if (method === 'DELETE' && /^\/me\/applications\/[a-f\d-]+$/.test(pathname)) {
         payload = await applications.deleteApplication(owner, pathname.split('/')[3], searchParams.get('discardUnconfirmed') === 'true');
-      } else if (method === 'GET' && fixtureDetailId && Object.hasOwn(opportunities, fixtureDetailId)) {
-        const id = fixtureDetailId;
-        payload = {
-          id, title: opportunities[id], organization: 'Example Programs',
-          category: id === supportingPdfOpportunity ? 'Internships' : id === cvRequiredOpportunity ? 'Scholarships' : 'Fellowships',
-          location: 'Remote', status: 'active',
+      } else if ((method === 'GET' && (fixtureDetailId || ['/opportunities', '/opportunities/search',
+        '/opportunities/featured'].includes(pathname))) || (method === 'POST' &&
+        ['/opportunities/recommendations', '/opportunities/recommendations/query'].includes(pathname))) {
+        const { rows } = await pool.query(
+          'select id, title, organization, application_url, status from public.opportunities order by title',
+        );
+        const listings = rows.map(row => ({
+          ...row,
+          category: row.id === supportingPdfOpportunity ? 'Internships' : row.id === cvRequiredOpportunity ? 'Scholarships' : 'Fellowships',
+          location: 'Remote',
           description: 'A synthetic listing for testing application preparation, review, and receipts.',
           requirements: ['Review your details before you approve the application.'],
-          application_url: educationCatalogUrl,
           source: 'manual',
-        };
-      } else if (method === 'GET' && /^\/opportunities(?:\/|$)/.test(pathname)) {
-        const result = await fetch('https://backend.edutu.org' + request.url, { redirect: 'error', signal: AbortSignal.timeout(5000) });
-        status = result.status;
-        payload = await result.json();
+        }));
+        if (fixtureDetailId) {
+          payload = listings.find(listing => listing.id === fixtureDetailId);
+          if (!payload) throw new NotFoundException('Fixture opportunity not found');
+        } else {
+          const q = searchParams.get('q')?.trim().toLowerCase();
+          payload = { opportunities: listings.filter(listing => !q || listing.title.toLowerCase().includes(q)) };
+        }
+      } else if (testDeviceUpload && pathname === '/fixture/auto-apply/institution-letter.pdf' && method === 'GET') {
+        response.writeHead(200, { 'Content-Type': 'application/pdf',
+          'Content-Disposition': 'attachment; filename="institution-letter.pdf"', 'Cache-Control': 'no-store' });
+        return response.end(institutionLetter);
+      } else if (testDeviceUpload && pathname === '/uploads/file' && method === 'POST') {
+        await new Promise((resolve, reject) => receiveUpload(request, response,
+          error => error ? reject(new BadRequestException('Select one PDF up to 10 MB.')) : resolve()));
+        payload = await deviceUploads.uploadFile(toDatabaseUserId(owner), request.file, request.body?.kind);
+        status = 201;
       } else if (pathname === '/uploads' && method === 'GET') {
-        payload = fixtureDocuments.map(({ id, name }) => ({ id, fileName: name, mimeType: 'application/pdf' }));
+        payload = testDeviceUpload
+          ? [...uploadedRows].map(([id, row]) => ({ id, fileName: row.file_name, mimeType: row.mime_type }))
+          : fixtureDocuments.map(({ id, name }) => ({ id, fileName: name, mimeType: 'application/pdf' }));
       } else {
         payload = [];
       }
@@ -601,7 +680,7 @@ async function main() {
     clearInterval(tick);
     holdReceipt?.resolve();
     api.close();
-    https.close();
+    provider.close();
     portal.close();
     await browser.close();
     await pool.end();

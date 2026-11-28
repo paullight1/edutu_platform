@@ -1,0 +1,68 @@
+services:
+  worker:
+    build:
+      context: ../../edutu-web-app/scripts/auto-apply
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 65s
+    shm_size: 128m
+    mem_limit: 768m
+    security_opt:
+      - no-new-privileges:true
+      - seccomp:./seccomp_profile.json
+    environment:
+      AUTO_APPLY_PROVIDER_TOKEN: ${AUTO_APPLY_PROVIDER_TOKEN:?Set the staging adapter token}
+      AUTO_APPLY_PROVIDER_TLS_CERT_FILE: /config/adapter.crt
+      AUTO_APPLY_PROVIDER_TLS_KEY_FILE: /config/adapter.key
+      NODE_EXTRA_CA_CERTS: /config/adapter-ca.crt
+    volumes:
+      - type: bind
+        source: ${AUTO_APPLY_STAGING_MAPPING_FILE:?Set the approved staging mapping path}
+        target: /config/forms.json
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${AUTO_APPLY_STAGING_CERT_FILE:?Set the staging TLS certificate path}
+        target: /config/adapter.crt
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${AUTO_APPLY_STAGING_KEY_FILE:?Set the staging TLS key path}
+        target: /config/adapter.key
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${AUTO_APPLY_STAGING_CA_FILE:?Set the staging TLS CA path}
+        target: /config/adapter-ca.crt
+        read_only: true
+        bind:
+          create_host_path: false
+      - staging-receipts:/var/lib/edutu-auto-apply
+    networks:
+      staging-api:
+        aliases:
+          - auto-apply-adapter.staging.internal
+      staging-egress: {}
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - 'fetch("https://auto-apply-adapter.staging.internal:7718/healthz", {signal: AbortSignal.timeout(2500)}).then(response => { if (!response.ok) process.exit(1) }).catch(() => process.exit(1))'
+      interval: 15s
+      timeout: 3s
+      start_period: 20s
+
+networks:
+  staging-api:
+    name: ${AUTO_APPLY_STAGING_API_NETWORK:?Set the dedicated staging API network}
+    external: true
+  staging-egress:
+    name: ${AUTO_APPLY_STAGING_EGRESS_NETWORK:?Set the filtered browser egress network}
+    external: true
+
+volumes:
+  staging-receipts:

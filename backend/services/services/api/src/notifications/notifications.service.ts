@@ -50,6 +50,17 @@ const DEFAULT_CHANNELS = {
 
 const BROADCAST_BATCH_SIZE = 500;
 
+// Emit fixed descriptions for known questions. Provider text can contain
+// applicant details and should not appear on a lock screen.
+const autoApplyQuestionLabels = new Map([
+  ["what year are you in", "your current year of study"],
+  ["what do you plan to study", "your intended field of study"],
+  ["what is your field of study", "your field of study"],
+  ["what is your expected graduation date", "your expected graduation date"],
+  ["when do you expect to graduate", "your expected graduation date"],
+  ["what is your expected graduation year", "your expected graduation year"],
+]);
+
 /**
  * Global per-user push budget.
  *
@@ -859,8 +870,7 @@ export class NotificationsService {
     }
     const isAutoApplyAction = dto.metadata?.source === "auto-apply-action";
     if (isAutoApplyAction) {
-      const { attemptId, attemptVersion, state, reviewCorrection } =
-        dto.metadata ?? {};
+      const { attemptId, attemptVersion, state, reviewCorrection } = dto.metadata ?? {};
       const owner =
         dto.audience === "specific" && dto.targetUserIds?.length === 1
           ? dto.targetUserIds[0]
@@ -872,14 +882,13 @@ export class NotificationsService {
         typeof attemptVersion !== "number" ||
         !Number.isSafeInteger(attemptVersion) ||
         typeof state !== "string" ||
-        !["needs_input", "needs_review", "unconfirmed", "failed"].includes(
-          state,
-        )
+        !["needs_input", "needs_review", "unconfirmed", "failed"].includes(state)
       ) {
         return { queued: false, recipientCount: 0, insertedCount: 0 };
       }
-      const result = await db.execute(sql`
-        select attempt.id from private.auto_apply_attempts attempt
+      const result = await db.execute<{ question: string | null }>(sql`
+        select case when attempt.state = 'needs_input' then attempt.question end as question
+        from private.auto_apply_attempts attempt
         join public.opportunity_applications application on application.id = attempt.application_id
         where attempt.id = ${attemptId}::uuid
           and (attempt.version = ${attemptVersion}
@@ -891,8 +900,13 @@ export class NotificationsService {
           and ${matchUserIdRef("application.user_id::text", toDatabaseUserId(owner))}
         limit 1
       `);
-      if (!(Array.isArray(result) ? result : result.rows).length) {
+      const current = (Array.isArray(result) ? result : result.rows)[0];
+      if (!current) {
         return { queued: false, recipientCount: 0, insertedCount: 0 };
+      }
+      const field = autoApplyQuestionLabels.get(current.question?.trim().toLowerCase().replace(/[?]+$/, "") ?? "");
+      if (field && dto.title === "Auto Apply needs your help" && dto.body.endsWith(" needs an answer to continue.")) {
+        dto = { ...dto, body: dto.body.replace(/ needs an answer to continue\.$/, ` needs ${field} to continue.`) };
       }
     }
     const channels = { ...DEFAULT_CHANNELS, ...(dto.channels || {}) };

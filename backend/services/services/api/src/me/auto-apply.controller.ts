@@ -4,6 +4,7 @@ import {
   Put,
   ConflictException,
   Controller,
+  Delete,
   Get,
   Header,
   HttpCode,
@@ -89,7 +90,7 @@ const maxCvPreviewBytes = 512 * 1024;
 
 const controlSchema = z
   .object({
-    action: z.enum(["cancel", "retry", "reset_documents"]),
+    action: z.enum(["cancel", "retry", "reset_documents", "pause", "resume"]),
     version: z.number().int().positive(),
   })
   .strict();
@@ -317,6 +318,27 @@ export class AutoApplyController {
     return rows[0];
   }
 
+  @Delete("profile")
+  @HttpCode(200)
+  @Header("Cache-Control", "no-store")
+  async clearProfile(
+    @CurrentUser("authId") owner: string,
+    @Body(new ZodValidationPipe(z.object({ version: z.number().int().positive() }).strict()))
+    body: { version: number },
+  ) {
+    // Keep the version increasing so a stale edit cannot recreate cleared details.
+    // An attempt already holds its own snapshot of the details reviewed for that run.
+    const { rows } = await pool.query<{ version: number }>(
+      `update private.auto_apply_profiles
+       set background = '', statement = '', contact_name = '', contact_email = '', contact_phone = '',
+         education = '{}'::jsonb, version = version + 1
+       where user_id = $1 and version = $2 returning version`,
+      [owner, body.version],
+    );
+    if (!rows.length) throw new ConflictException("Your application profile changed on another device");
+    return rows[0];
+  }
+
   @Get("allowance")
   async allowance(@CurrentUser("authId") owner: string) {
     const { planTier } = await this.billing.getStatus(owner);
@@ -442,6 +464,10 @@ export class AutoApplyController {
     const { rows } = await pool.query(
       `select attempt.id, attempt.state, attempt.version,
         application.id as "applicationId", application.opportunity_id as "opportunityId",
+        (attempt.state in ('queued','running') and
+          coalesce(attempt.provider_retry_after > now(), false)) as "waitingForProvider",
+        (attempt.state = 'failed' and not attempt.has_usable_progress and
+          attempt.allowance_month is null) as "allowanceRestored",
         ${autoApplyActivityActionSql} as "activityAction",
         case when attempt.state = 'needs_input' then attempt.question end as question,
         case when attempt.state = 'needs_input' then attempt.question_max_length end as "answerMaxLength",
@@ -461,6 +487,7 @@ export class AutoApplyController {
         (attempt.supporting_documents is not null or attempt.supporting_document is not null) as "hasDocuments",
         attempt.question_cv as "cvRequested",
         case when attempt.state = 'needs_review' then attempt.review end as review,
+        (attempt.state = 'needs_review' and attempt.reviewing_on_provider) as "reviewingOnProvider",
         (application.status = 'draft' and attempt.previous_answers is not null
           and (attempt.state = 'needs_review' or (attempt.state = 'failed' and attempt.failure_reason = 'mapping_changed')))
           as "hasPreviousAnswers",
@@ -510,8 +537,9 @@ export class AutoApplyController {
       applicationIsDraft &&
       attempt.state === "failed" &&
       attempt.failureReason === "mapping_changed";
+    const readyReview = applicationIsDraft && blockReason === null && hasMapping && attempt.state === "needs_review";
     const listing =
-      awaitingReceipt || needsProvider || applicantOnly || changedForm
+      awaitingReceipt || needsProvider || applicantOnly || changedForm || readyReview || attempt.reviewingOnProvider
         ? (providerHttpsUrl(providerUrl) ??
           providerHttpsUrl(fallbackProviderUrl))
         : null;
@@ -528,7 +556,6 @@ export class AutoApplyController {
       step.href !== listing.href
         ? step
         : null;
-    const readyReview = applicationIsDraft && blockReason === null && hasMapping && attempt.state === "needs_review";
     const submissionConfigured = Boolean(config?.submitEndpoint && config.pilotIds.includes(attempt.opportunityId));
     return {
       ...attempt,
@@ -548,23 +575,27 @@ export class AutoApplyController {
         Boolean(config?.cvPreviewEndpoint && config.pilotIds.includes(attempt.opportunityId)),
       canCheckReceipt:
         awaitingReceipt && Boolean(autoApplyReceiptConfig()),
+      canStartManualSubmission: readyReview && Boolean(listing) && !attempt.reviewingOnProvider,
       canRecordManualSubmission: applicationIsDraft &&
-        (awaitingReceipt || needsProvider ||
+        (awaitingReceipt || needsProvider || attempt.reviewingOnProvider ||
           (attempt.state === "failed" && (attempt.failureReason === "mapping_changed" || applicantOnly))),
       canCancel:
-        applicationIsDraft &&
-        (["queued", "running", "needs_input", "needs_review"].includes(
+        applicationIsDraft && !attempt.reviewingOnProvider &&
+        (["queued", "running", "paused", "needs_input", "needs_review"].includes(
           attempt.state,
         ) ||
           (attempt.state === "submitting" && submissionNotClaimed)),
+      canPause: applicationIsDraft && ["queued", "running"].includes(attempt.state),
+      canResume: applicationIsDraft && blockReason === null && attempt.state === "paused" &&
+        submissionConfigured,
       canRetry:
         applicationIsDraft &&
         blockReason === null &&
         (["failed", "cancelled"].includes(attempt.state) || needsProvider) &&
         Boolean(config?.pilotIds.includes(attempt.opportunityId)),
-      canSubmit: readyReview && submissionConfigured &&
+      canSubmit: readyReview && submissionConfigured && !attempt.reviewingOnProvider &&
         !attempt.review?.some((field: { validationHint?: string }) => field.validationHint),
-      submissionUnavailable: readyReview && !submissionConfigured,
+      submissionUnavailable: readyReview && !submissionConfigured && !attempt.reviewingOnProvider,
     };
   }
 
@@ -666,6 +697,35 @@ export class AutoApplyController {
     return this.attempt(owner, id);
   }
 
+  @Post("attempts/:id/manual-review")
+  @HttpCode(200)
+  async setManualReview(
+    @CurrentUser("authId") owner: string,
+    @Param("id", new ParseUUIDPipe()) id: string,
+    @Body(new ZodValidationPipe(z.object({ version: z.number().int().positive(), enabled: z.boolean() }).strict()))
+    body: { version: number; enabled: boolean },
+  ) {
+    const current = await this.attempt(owner, id);
+    if (current.version !== body.version ||
+        !(body.enabled ? current.canStartManualSubmission : current.reviewingOnProvider)) {
+      throw new ConflictException("Refresh the draft before switching how to submit.");
+    }
+    const { rows } = await pool.query(
+      `update private.auto_apply_attempts attempt
+       set reviewing_on_provider = $5, version = attempt.version + 1
+       from public.opportunity_applications application
+       join public.opportunities opportunity on opportunity.id = application.opportunity_id
+       where attempt.id = $1 and application.id = attempt.application_id
+         and application.user_id in ($2,$3) and application.status = 'draft'
+         and attempt.state = 'needs_review' and attempt.version = $4
+         and (not $5::boolean or private.auto_apply_block_reason(opportunity) is null)
+       returning attempt.id`,
+      [id, owner, toDatabaseUserId(owner), body.version, body.enabled],
+    );
+    if (!rows.length) throw new ConflictException("Refresh the draft before switching how to submit.");
+    return this.attempt(owner, id);
+  }
+
   @Post("attempts/:id/manual-submission")
   async recordManualSubmission(
     @CurrentUser("authId") owner: string,
@@ -689,6 +749,7 @@ export class AutoApplyController {
            join public.opportunities opportunity on opportunity.id = application.opportunity_id
            where attempt.version = $4 and (
              attempt.state = 'unconfirmed'
+             or (attempt.state = 'needs_review' and attempt.reviewing_on_provider)
              or (attempt.state = 'needs_input' and attempt.handoff_required)
              or (attempt.state = 'failed' and (
                attempt.failure_reason = 'mapping_changed'
@@ -718,6 +779,31 @@ export class AutoApplyController {
     @Body(new ZodValidationPipe(controlSchema))
     body: z.infer<typeof controlSchema>,
   ) {
+    if (body.action === "pause" || body.action === "resume") {
+      const pause = body.action === "pause";
+      const config = autoApplyProviderConfig();
+      const { rows } = await pool.query(
+        `update private.auto_apply_attempts attempt
+         set state = case when $5::boolean then 'paused' else 'queued' end,
+           lease_until = null, version = attempt.version + 1
+         from public.opportunity_applications application
+         join public.opportunities opportunity on opportunity.id = application.opportunity_id
+         where attempt.id = $1 and application.id = attempt.application_id
+           and application.user_id in ($2,$3) and application.status = 'draft'
+           and attempt.version = $4
+           and (
+             ($5::boolean and attempt.state in ('queued','running'))
+             or (not $5::boolean and attempt.state = 'paused'
+               and application.opportunity_id::text = any($6::text[])
+               and private.auto_apply_block_reason(opportunity) is null)
+           )
+         returning attempt.id, attempt.state, attempt.version`,
+        [id, owner, toDatabaseUserId(owner), body.version, pause, config?.submitEndpoint ? config.pilotIds : []],
+      );
+      if (rows.length) return rows[0];
+      await this.attempt(owner, id);
+      throw new ConflictException("The attempt changed. Refresh to see whether it can still be changed.");
+    }
     const resetDocuments = body.action === "reset_documents";
     const retry = body.action !== "cancel";
     const { rows } = await pool.query(
@@ -736,15 +822,19 @@ export class AutoApplyController {
        where attempt.id = $1 and application.id = attempt.application_id
          and application.user_id in ($2,$3) and application.status = 'draft'
          and attempt.version = $4
+         and not attempt.reviewing_on_provider
          and (
            ($5::boolean and (
-             (not $7::boolean and (attempt.state in ('failed','cancelled') or (attempt.state = 'needs_input' and attempt.handoff_required)))
+             (not $7::boolean and (
+               (attempt.state = 'failed' and (attempt.has_usable_progress or attempt.allowance_month is not null))
+               or attempt.state = 'cancelled'
+               or (attempt.state = 'needs_input' and attempt.handoff_required)))
              or ($7::boolean and attempt.state = 'needs_input' and attempt.question_attachment
                and (attempt.supporting_documents is not null or attempt.supporting_document is not null))
            )
              and application.opportunity_id::text = any($6::text[]) and private.auto_apply_block_reason(opportunity) is null)
            or (not $5::boolean and (
-             attempt.state in ('queued','running','needs_input','needs_review')
+             attempt.state in ('queued','running','paused','needs_input','needs_review')
              or (attempt.state = 'submitting' and attempt.lease_until is null)
            ))
          )
@@ -760,7 +850,28 @@ export class AutoApplyController {
       ],
     );
     if (rows.length) return rows[0];
-    await this.attempt(owner, id);
+    const current = await this.attempt(owner, id);
+    if (body.action === "retry" && current.version === body.version && current.canRetry && current.allowanceRestored) {
+      const config = autoApplyProviderConfig();
+      if (config?.submitEndpoint) {
+        const { planTier } = await this.billing.getStatus(owner);
+        try {
+          const retried = await pool.query(
+            "select * from private.retry_refunded_auto_apply($1,$2,$3,$4,$5,$6)",
+            [id, body.version, owner, toDatabaseUserId(owner), config.pilotIds, planTier],
+          );
+          if (retried.rows[0]) return retried.rows[0];
+        } catch (error) {
+          if (error instanceof Error && error.message === "auto_apply_monthly_limit") {
+            throw new HttpException(
+              { code: "limit", message: "Monthly Auto Apply limit reached" },
+              HttpStatus.TOO_MANY_REQUESTS,
+            );
+          }
+          throw error;
+        }
+      }
+    }
     throw new ConflictException(
       "The attempt changed. Refresh to see whether it can still be changed.",
     );
@@ -917,7 +1028,7 @@ export class AutoApplyController {
          and application.user_id in ($2,$3) and application.status = 'draft'
          and application.opportunity_id::text = any($5::text[])
          and attempt.state = 'needs_review' and attempt.version = $4 and attempt.review is not null
-         and attempt.mapping_revision is not null
+         and attempt.mapping_revision is not null and not attempt.reviewing_on_provider
          and not exists (
            select from jsonb_array_elements(attempt.review) field
            where field ? 'validationHint' or not private.auto_apply_review_value_fits(field, field->>'value')
@@ -932,6 +1043,8 @@ export class AutoApplyController {
     const current = await this.attempt(owner, id);
     if (current.state === "submitting" && current.version === body.version + 1)
       return { id };
+    if (current.reviewingOnProvider)
+      throw new ConflictException("This draft is set for submission on the provider site.");
     if (current.state === "needs_review" && current.version === body.version &&
         current.review?.some((field: { validationHint?: string }) => field.validationHint)) {
       throw new UnprocessableEntityException("Correct the highlighted field before approving.");
@@ -1224,18 +1337,33 @@ export class AutoApplyController {
     const config = autoApplyProviderConfig();
     const eligibleConfig = canJoinAutoApplyPilot(owner) ? config : null;
     const verifyForm = eligibleConfig?.verifyEndpoint !== undefined;
+    const canStart = Boolean(eligibleConfig?.submitEndpoint);
+    const planTier = canStart ? (await this.billing.getStatus(owner)).planTier : "none";
     if (eligibleConfig?.submitEndpoint) {
-      const { rows } = await pool.query<{ opportunityId: string; catalogUrl: string | null; fallbackCatalogUrl: string | null }>(
+      const { rows } = await pool.query<{
+        opportunityId: string;
+        catalogUrl: string | null;
+        fallbackCatalogUrl: string | null;
+        allowanceExhausted: boolean;
+      }>(
         `select application.opportunity_id as "opportunityId",
-           opportunity.application_url as "catalogUrl", opportunity.apply_url as "fallbackCatalogUrl"
+           opportunity.application_url as "catalogUrl", opportunity.apply_url as "fallbackCatalogUrl",
+           coalesce(usage.attempts, 0) >= private.auto_apply_limit($2,$5) as "allowanceExhausted"
          from public.opportunity_applications application
          join public.opportunities opportunity on opportunity.id = application.opportunity_id
+         left join private.auto_apply_usage usage
+           on usage.user_id = $2 and usage.month_start = date_trunc('month', now() at time zone 'UTC')::date
          where application.id = $1 and application.user_id in ($2,$3) and application.status = 'draft'
            and application.opportunity_id::text = any($4::text[])
            and private.auto_apply_block_reason(opportunity) is null
            and not exists (select 1 from private.auto_apply_attempts attempt where attempt.application_id = application.id)`,
-        [id, owner, toDatabaseUserId(owner), eligibleConfig.pilotIds],
+        [id, owner, toDatabaseUserId(owner), eligibleConfig.pilotIds, planTier],
       );
+      // Avoid calling the browser for a new attempt when the learner has no runs left.
+      // The start transaction below still owns the charge and checks concurrent starts.
+      if (rows[0]?.allowanceExhausted) {
+        throw new HttpException("Monthly Auto Apply limit reached", HttpStatus.TOO_MANY_REQUESTS);
+      }
       if (
         rows[0] && (
           !verifyForm ||
@@ -1253,9 +1381,7 @@ export class AutoApplyController {
         );
       }
     }
-    const canStart = Boolean(eligibleConfig?.submitEndpoint);
     const cv = canStart && body.cvId ? await this.applicationCvSnapshot(owner, body.cvId) : null;
-    const planTier = canStart ? (await this.billing.getStatus(owner)).planTier : "none";
     try {
       const { rows } = await pool.query<{ id: string }>(
         "select private.start_auto_apply($1,$2,$3,$4,$5,$6::jsonb) as id",
