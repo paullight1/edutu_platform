@@ -126,6 +126,17 @@ The acceptance image now uses the same Playwright-pinned headless Chromium insta
 
 The 100-learner replay with the pinned browser deployed `381d982d` to isolated acceptance container `bffe0fabe991`. It reached the cutoff at 721 seconds and exited with code 1. It admitted all 100 learners, recorded 64 unique receipts and zero duplicate writes, and measured about 589 MiB peak cgroup memory with zero out-of-memory kills. Chromium remained connected. There were 169 start retries and 5,448 status reads. Admission p95 was 17.61 seconds. First-question p95 was 10 minutes 55 seconds among 68 learners who reached a question. Approval-to-receipt p95 was 27.07 seconds among the 64 completed learners. Linux reported 3,140 throttled CPU periods out of 7,227 at the 1.5 CPU quota. The fixture used eight-second phone status polling and its one-second scheduler. This run measured the isolated fixture and the full capacity gate remains open.
 
+For the next hosted replay, set these values only on **Auto Apply Synthetic Acceptance** and keep its network isolation and CPU/memory limits. The 90-minute observation window allows for 100 learners to queue through multiple preparation steps at the API's 15-second cadence. The harness reports actual timings and requires all 100 unique receipts, one allowance charge each, and zero duplicate portal writes to pass.
+
+```dotenv
+AUTO_APPLY_TEST_LOAD_LEARNERS=100
+AUTO_APPLY_TEST_LOAD_POLL_MS=8000
+AUTO_APPLY_TEST_LOAD_WORKER_TICK_MS=15000
+AUTO_APPLY_TEST_LOAD_TIMEOUT_SECONDS=5400
+```
+
+The local two-learner smoke at the 15-second worker cadence and eight-second status polling completed in 83 seconds. It returned two unique receipts, one allowance charge per learner, and zero duplicate writes. Six preparation calls and two submission calls completed with Chromium connected. This verifies the cadence and receipt assertions locally. The 100-learner Dokploy replay is still pending.
+
 ### Staging environment provisioning
 
 - The user confirmed `my-edutu's Org` for the isolated `edutu-auto-apply-staging` project. Creation in `eu-west-1` returned `PaymentRequiredException` because the organization has overdue invoices. A follow-up project listing confirmed creation did not leave a project behind. The organization owner needs to settle the invoices under **Billing → Invoices** before project creation can be retried.

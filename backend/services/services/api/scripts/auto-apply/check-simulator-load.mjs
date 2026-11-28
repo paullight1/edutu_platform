@@ -8,7 +8,9 @@ const opportunityId = 'c4d25057-893f-499c-8ffa-e6487bc3050f';
 const cvId = '0f04871a-5e0b-4284-8f7d-b72958e70c82';
 const statsPath = '/fixture/auto-apply/load';
 const attemptPath = '/me/auto-apply/attempts/';
-const deadline = Date.now() + 12 * 60_000;
+const timeoutSeconds = Number(process.env.AUTO_APPLY_TEST_LOAD_TIMEOUT_SECONDS || 720);
+assert(Number.isInteger(timeoutSeconds) && timeoutSeconds >= 60 && timeoutSeconds <= 5400,
+  'Use a load timeout between 60 and 5400 seconds');
 const statusPollMs = Number(process.env.AUTO_APPLY_TEST_LOAD_POLL_MS || 8000);
 assert(Number.isInteger(statusPollMs) && statusPollMs >= 1000 && statusPollMs <= 30_000,
   'Use a status polling interval between 1000 and 30000 milliseconds');
@@ -35,6 +37,7 @@ const { data: initial } = await api(statsPath);
 assert(Number.isInteger(initial.learners) && initial.learners > 0 && initial.learners <= 100);
 assert.equal(initial.portalWrites, 0, 'Start a fresh loopback fixture for each load check');
 const started = Date.now();
+const deadline = started + timeoutSeconds * 1000;
 const learners = Array.from({ length: initial.learners }, (_, index) => ({
   index: index + 1, admitAt: started + Math.floor(index / 10) * 6000, phase: 'setup', startRetries: 0, nextStart: 0,
 }));
@@ -120,6 +123,7 @@ try {
   console.log(JSON.stringify({
     elapsedSeconds: Math.round((Date.now() - started) / 1000),
     statusPollMs,
+    timeoutSeconds,
     statusReads,
     states: learners.reduce((counts, learner) => ({ ...counts, [learner.phase]: (counts[learner.phase] ?? 0) + 1 }), {}),
     startRetries: learners.reduce((sum, learner) => sum + learner.startRetries, 0),
@@ -130,7 +134,8 @@ try {
   }));
 }
 if (testError) throw testError;
-assert.equal(learners.filter(learner => learner.phase === 'submitted').length, initial.learners);
+assert.equal(learners.filter(learner => learner.phase === 'submitted').length, initial.learners,
+  'Every learner must receive a confirmed receipt before the load deadline');
 assert.equal(new Set(learners.map(learner => learner.receipt)).size, initial.learners);
 assert.equal(stats.portalWrites, initial.learners);
 assert.equal(stats.portalApplicants, initial.learners);

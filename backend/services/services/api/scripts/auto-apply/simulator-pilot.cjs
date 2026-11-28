@@ -28,6 +28,10 @@ const opportunities = {
 };
 const owner = 'user_auto_apply_simulator_fixture';
 const loadCount = Number(process.env.AUTO_APPLY_TEST_LOAD_LEARNERS || 0);
+const loadWorkerTickMs = Number(process.env.AUTO_APPLY_TEST_LOAD_WORKER_TICK_MS || 1000);
+if (loadCount && ![1000, 15_000].includes(loadWorkerTickMs)) {
+  throw new Error('Use a 1000 or 15000 millisecond synthetic load worker interval');
+}
 const loadOwner = index => `user_auto_apply_load_${index}`;
 const token = 'synthetic-local-provider-token';
 const fixtureCv = { id: '0f04871a-5e0b-4284-8f7d-b72958e70c82', name: 'Synthetic CV' };
@@ -519,7 +523,7 @@ async function main() {
     } catch (error) {
       console.error(error.message);
     }
-  }, 1000);
+  }, loadCount ? loadWorkerTickMs : 1000);
   const api = createServer(async (request, response) => {
     const index = Number(request.headers['x-fixture-learner']);
     const requestOwner = loadCount && Number.isInteger(index) && index >= 1 && index <= loadCount
@@ -538,7 +542,8 @@ async function main() {
       if (loadCount && pathname === '/fixture/auto-apply/load' && method === 'GET') {
         const writes = [...loadPortalWrites.values()];
         payload = {
-          learners: loadCount, browserConnected: browser.isConnected(), peakFixtureRssBytes,
+          learners: loadCount, workerTickMs: loadWorkerTickMs,
+          browserConnected: browser.isConnected(), peakFixtureRssBytes,
           browserVersion: browser.version(), cgroup: fixtureCgroupMetrics(),
           adapterResponses: Object.fromEntries(loadAdapterResponses), portalApplicants: writes.length,
           portalWrites: writes.reduce((total, count) => total + count, 0),
