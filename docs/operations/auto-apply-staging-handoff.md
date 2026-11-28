@@ -67,7 +67,19 @@ Suggested staging listing title after approval: **Auto Apply sandbox · Lever** 
 | Mobile build and tests | 132 tests passed across seven focused mobile suites, three release configuration tests passed separately, and mobile TypeScript passed. EAS returned no iOS builds for profile `auto-apply-staging`, and the device listing returned no Apple teams for account `edutu`. Shared EAS preview still uses a live Clerk publishable key. Xcode listed the paired iPhone 14 Pro Max as unavailable. |
 | Hosted load and receipt | Pending. The approved provider form, hosted application receipt, and Dokploy load evidence are still required. See the local rehearsal below. |
 
-The published API defaults `docs.sop` drafting to DeepSeek. In the staging database, set the `docs.sop` row in `public.ai_routes` to OpenAI and a model the staging project can use. Verify a successful `docs.sop` request logs OpenAI as the provider and leaves sensitive content unsampled.
+The API defaults `docs.sop` drafting to DeepSeek. Configure `docs.sop` in the staging AI routes to use `openai` and a model available to the staging project. To test `OPENAI_API_KEY` from Dokploy, leave the route's provider key unset and confirm there is no active OpenAI key in the staging AI key store. The admin-only `POST /ai/test` can verify the route and model with a synthetic prompt before running the full flow.
+
+Run the fictional Auto Apply journey until its generated draft reaches review. Then run this read-only query in the staging database. Match the timestamp to the test window and confirm `provider = 'openai'`, `status = 'success'`, and `content_sampled = false`. The source marker identifies the Auto Apply worker request and excludes the admin route test. The query returns no learner content or credentials.
+
+```sql
+select created_at, provider, model, status,
+       coalesce(request_metadata ? 'sampledContent', false) as content_sampled
+from public.ai_usage_logs
+where feature = 'docs.sop'
+  and request_metadata ->> 'source' = 'auto-apply'
+order by created_at desc
+limit 5;
+```
 
 The sandbox owner needs to supply the exact approved form URL, approval reference for one fictional submission, and the matching Edutu staging listing ID or enough information to create it. Install the stage-only `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `CLERK_SECRET_KEY`, and funded `OPENAI_API_KEY` under **Auto Apply Staging API → Environment → Environment Settings**, or identify existing staging secrets by reference. Confirm the test Clerk issuer and learner. The connected Edutu Supabase account showed no active staging project. Keep keys and database passwords in the staging secret stores.
 

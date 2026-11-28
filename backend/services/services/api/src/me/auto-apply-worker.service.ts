@@ -805,6 +805,7 @@ export class AutoApplyWorker {
                 feature: "docs.sop",
                 userId: job.ownerId,
                 sensitiveContent: true,
+                metadata: { source: "auto-apply" },
                 systemInstructionMode: "replace",
                 responseJsonSchema: {
                   type: "object",

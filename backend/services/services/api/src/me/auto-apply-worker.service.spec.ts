@@ -624,6 +624,7 @@ describe("AutoApplyWorker", () => {
         feature: "docs.sop",
         userId: "learner",
         sensitiveContent: true,
+        metadata: { source: "auto-apply" },
         systemInstructionMode: "replace",
         systemInstruction: expect.stringContaining("180 characters"),
         prompt: expect.stringContaining(job.education.school),
