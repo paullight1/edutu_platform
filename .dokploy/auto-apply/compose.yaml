@@ -14,3 +14,29 @@ services:
       - seccomp:./seccomp_profile.json
     environment:
       AUTO_APPLY_TEST_CHROMIUM_SANDBOX: "1"
+    depends_on:
+      worker:
+        condition: service_healthy
+  worker:
+    image: edutu-auto-apply-staging-worker-hlam8x:latest
+    pull_policy: never
+    init: true
+    network_mode: none
+    restart: "no"
+    stop_grace_period: 65s
+    shm_size: 128m
+    mem_limit: 768m
+    security_opt:
+      - no-new-privileges:true
+      - seccomp:./seccomp_profile.json
+    volumes:
+      - synthetic-worker-receipts:/var/lib/edutu-auto-apply
+      - ./standby-forms.json:/config/forms.json:ro
+    command:
+      - sh
+      - -ec
+      - |
+        export AUTO_APPLY_PROVIDER_TOKEN="$$(node -p 'require("node:crypto").randomBytes(32).toString("hex")')"
+        exec node browser-provider.mjs
+volumes:
+  synthetic-worker-receipts:

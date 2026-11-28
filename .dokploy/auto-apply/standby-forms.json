@@ -1,0 +1,9 @@
+{
+  "38bdfc2f-5770-47aa-80d0-6c40f41cdf37": {
+    "url": "https://edutu-fixture.invalid/apply",
+    "catalogUrl": "https://edutu-fixture.invalid/apply",
+    "submitSelector": "button[type=submit]",
+    "receiptSelector": "#receipt",
+    "fields": [{"label": "Fictional applicant", "selector": "#name", "source": "name"}]
+  }
+}
