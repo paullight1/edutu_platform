@@ -4,7 +4,7 @@ Updated 28 November 2026. Local runs completed 100 synthetic applications. The l
 
 ## Deployment inventory
 
-The four services below are in the [`auto-apply-staging` environment of the existing `edutu` Dokploy project](https://console.edutu.org/dashboard/project/r0MTR0iWP-ZKSfLuq7E7X/environment/pOTw_lb6cKU2OyCRTh67d). The latest dashboard check showed no deployments for either the staging API or the new staging adapter.
+The services below are in the [`auto-apply-staging` environment of the existing `edutu` Dokploy project](https://console.edutu.org/dashboard/project/r0MTR0iWP-ZKSfLuq7E7X/environment/pOTw_lb6cKU2OyCRTh67d). The latest dashboard check showed no deployments for either the staging API or the new staging adapter.
 
 | Service | Purpose and last verified state |
 | --- | --- |
@@ -12,6 +12,7 @@ The four services below are in the [`auto-apply-staging` environment of the exis
 | Auto Apply Staging Adapter | Service ID `5yRB9U6esp25gzeFFkBAO`. Dokploy showed no deployment IDs. Compose path is `.dokploy/auto-apply/compose.staging.yaml` and autodeploy is off. The adapter still needs its runtime settings and approved mapping. |
 | Auto Apply Synthetic Acceptance | Isolated, one-shot test with a synthetic learner, local PostgreSQL, and a test portal. The acceptance container exited successfully and its separate sandboxed worker showed healthy in Docker. |
 | Auto Apply Staging Worker | Earlier standalone service. Its container exited with a Chromium sandbox error. Use the staging Compose adapter for the hosted test. |
+| Auto Apply Staging Supabase | Service ID `IfvUKo6mvnVeSSVKm6BId`. First PostgreSQL deployment is healthy in `cade860c54bf`. It uses PostgreSQL 17.6 with the vector extension available, a new named data volume, a private network, and no published ports or domains. Auth and Storage still need to be provisioned and the Edutu schema is empty. |
 
 - **API and adapter source** is [`paul/auto-apply-dokploy-staging`](https://github.com/paullight1/edutu_platform/tree/paul/auto-apply-dokploy-staging). The earlier hosted candidate was `7f945ec3`. The branch also carries the synthetic load test and worker fixes documented below.
 - **Mobile source** is [`paul/auto-apply-device-staging` at `c84ec677`](https://github.com/paullight1/edutu_platform/commit/c84ec677b9f74baa8d9b1a190a1a68c2742b8d71). It has the `auto-apply-staging` internal device and `auto-apply-staging:simulator` EAS profiles. The published tree matches the locally tested mobile tree.
@@ -127,6 +128,7 @@ The 100-learner replay with the pinned browser deployed `381d982d` to isolated a
 ### Staging environment provisioning
 
 - The user confirmed `my-edutu's Org` for the isolated `edutu-auto-apply-staging` project. Creation in `eu-west-1` returned `PaymentRequiredException` because the organization has overdue invoices. A follow-up project listing confirmed creation did not leave a project behind. The organization owner needs to settle the invoices under **Billing → Invoices** before project creation can be retried.
+- A self-hosted staging database now runs in Dokploy, independently of the managed Supabase organization. Its source is [compose.staging-supabase.yaml](../../.dokploy/auto-apply/compose.staging-supabase.yaml). The staging PostgreSQL password and JWT secret are saved under **Auto Apply Staging Supabase → Environment**. Do not change them while reusing its named database volume. The runtime probe confirmed an empty Edutu schema and that `auth.jwt()` was not yet installed. Add the isolated Supabase Auth and Storage services and validate a complete schema baseline there before connecting the API.
 - Clerk Dashboard opened at its sign-in page. Once signed in to the Edutu workspace, create the separate `Edutu Auto Apply Staging` application and use its Development instance. Use test credentials for the fixture learner and staging clients.
 - A fresh local PostgreSQL probe confirmed that `20251028081031_cv_storage_status.sql` expects `public.cv_records` to exist. A second replay loaded the checked-in `schema.sql` with local Auth and Storage metadata stubs, then stopped at `20260505000000_performance_indexes.sql` because `public.flashcard_reviews` was absent. Use a validated schema-only baseline and its migration history before applying release migrations to the new Supabase project. The local simulator's fixture schema was built for the acceptance harness.
 - A follow-up local replay generated the flashcard tables and constraints from the checked-in Drizzle model. Both the performance-index migration and `20260505100000_roadmaps_system.sql` then applied. With a local stand-in for Supabase `auth.jwt()`, `20260513000000_rls_hardening.sql` exposed two further gaps in the checked-in snapshot, `profiles.role` and `public.creator_applications`. These probes used local PostgreSQL only. The checked-in SQL snapshot still needs a complete baseline before staging can run the migration sequence.

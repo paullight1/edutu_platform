@@ -1,0 +1,36 @@
+services:
+  db:
+    image: supabase/postgres:17.6.1.136
+    init: true
+    restart: unless-stopped
+    mem_limit: 768m
+    cpus: 1.0
+    shm_size: 128m
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set the staging database password}
+      JWT_SECRET: ${JWT_SECRET:?Set the staging Supabase JWT secret}
+      JWT_EXP: "3600"
+    command:
+      - postgres
+      - -c
+      - config_file=/etc/postgresql/postgresql.conf
+    volumes:
+      - stage-db-data:/var/lib/postgresql/data
+      - stage-db-config:/etc/postgresql-custom
+    healthcheck:
+      test: [CMD, pg_isready, -U, postgres, -h, 127.0.0.1]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+      start_period: 60s
+    networks:
+      - staging-data
+
+networks:
+  staging-data:
+    internal: true
+
+volumes:
+  stage-db-data:
+  stage-db-config:
