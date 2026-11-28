@@ -1,6 +1,6 @@
 # Edutu Auto Apply staging handoff
 
-Updated 28 November 2026. The local synthetic journey and a 100-learner loopback rehearsal passed. The hosted provider journey, live OpenAI drafting, physical iPhone push delivery, and hosted load test remain open.
+Updated 28 November 2026. Local runs completed 100 synthetic applications. The first hosted stress run admitted 100 but returned 28 receipts before the cutoff. The hosted provider journey, live OpenAI drafting, physical iPhone push delivery, and hosted test at the mobile polling cadence remain open.
 
 ## Deployment inventory
 
@@ -94,6 +94,15 @@ The repeatable load fixture used the same loopback sandbox, one Chromium instanc
 | Memory | Peak Node fixture RSS of 337 MiB. A separate host sample observed up to 771 MiB summed Chromium process RSS and 195 MiB summed PostgreSQL process RSS. Summed RSS can count shared memory more than once. |
 
 The trial used a one-second local tick and did not measure hosted container memory. The production scheduler change was tested separately and makes preparation and submission share one 15-second schedule so both get a turn. To rerun the synthetic load test, set `AUTO_APPLY_TEST_LOAD_LEARNERS=100` on the isolated **Auto Apply Synthetic Acceptance** Compose job, or follow the local command in the [adapter runbook](../../edutu-web-app/scripts/auto-apply/README.md). Measure the real staging cadence separately before inviting learners.
+
+### Hosted stress run and mobile-cadence replay
+
+In Dokploy, **Auto Apply Synthetic Acceptance** was repointed to `paul/auto-apply-dokploy-staging`, with automatic deploys off and `AUTO_APPLY_TEST_LOAD_LEARNERS=100`. The build used the isolated Compose job with network mode `none`. The hosted one-second polling run at `d36ee152` ran in acceptance container `6c78f653832e` and exited with code 1 after the 12-minute cutoff. It admitted all 100 learners and completed **28 receipts**. There were 28 successful portal writes and zero duplicates. Chromium was still connected at the final sample.
+
+- The hosted run logged 112 learner-start retries. The adapter returned 21 verification, 37 preparation, and two submission HTTP 503 responses.
+- Admission p95 was 32.88 seconds for all 100 learners. First-question p95 was 11 minutes 1 second among the 29 learners who reached the question. Approval-to-receipt p95 was 36.58 seconds among the 28 completed learners. The latter two measurements describe completed steps only.
+- The combined fixture had a 1.5 CPU quota and a 1.5 GiB memory limit. Dokploy observed about 151% CPU and 982 MiB memory in one sample. Peak Node-only RSS was about 366 MiB.
+- The test now defaults to the mobile app's eight-second status interval. Locally, that driver completed 100 learners in **4 minutes 44 seconds**, with 100 unique receipts, one allowance charge per learner, 1,560 status reads, and zero duplicate writes. Its first-question p95 was 3 minutes 7 seconds. The hosted run with this polling cadence is still pending.
 
 ### Staging environment provisioning
 
