@@ -119,7 +119,7 @@ async function main() {
     const publicKey = new X509Certificate(tls.cert).publicKey.export({ format: 'der', type: 'spki' });
     args.push('--ignore-certificate-errors-spki-list=' + createHash('sha256').update(publicKey).digest('base64'));
   }
-  const browser = await chromium.launch({ channel: 'chrome', executablePath: process.env.CHROME_PATH, args });
+  const browser = await chromium.launch({ channel: 'chrome', chromiumSandbox: process.env.AUTO_APPLY_TEST_CHROMIUM_SANDBOX === '1', executablePath: process.env.CHROME_PATH, args });
   const handlePortal = async (request, response) => {
     response.setHeader('Content-Type', 'text/html');
     const requiresCv = request.url === '/apply/' + cvRequiredOpportunity;

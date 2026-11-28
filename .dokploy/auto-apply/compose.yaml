@@ -1,0 +1,16 @@
+services:
+  acceptance:
+    build:
+      context: ../..
+      dockerfile: backend/services/services/api/scripts/auto-apply/Dockerfile.acceptance
+    init: true
+    network_mode: none
+    restart: "no"
+    shm_size: 128m
+    mem_limit: 1536m
+    cpus: 1.5
+    security_opt:
+      - no-new-privileges:true
+      - seccomp:./seccomp_profile.json
+    environment:
+      AUTO_APPLY_TEST_CHROMIUM_SANDBOX: "1"
