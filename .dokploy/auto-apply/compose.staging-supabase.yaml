@@ -178,6 +178,12 @@ services:
         read_only: true
         bind:
           create_host_path: false
+      - type: bind
+        source: ../../edutu-web-app/supabase/migrations
+        target: /edutu-web-migrations
+        read_only: true
+        bind:
+          create_host_path: false
     networks:
       - staging-data
 

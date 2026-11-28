@@ -47,6 +47,33 @@ if [ "$acl_applied" = f ]; then
     -f roadmap.sql -f /usr/local/share/staging-analytics-overloads.sql
 fi
 
+billing_acl_applied=$(psql -X -At --set=ON_ERROR_STOP=1 "$target" -c \
+  "select exists (select 1 from supabase_migrations.schema_migrations where version = '20260821002500');")
+if [ "$billing_acl_applied" = f ]; then
+  awk '/^CREATE OR REPLACE FUNCTION public\.admin_grant_credits\(/ { emit=1 }
+       emit { print }
+       emit && /^\$\$ LANGUAGE/ { exit }' \
+    /edutu-mobile-migrations/023_reconcile_credit_ledger.sql > admin-grant.sql
+  awk '/^CREATE OR REPLACE FUNCTION public\.admin_set_pro_status\(/ { emit=1 }
+       emit { print }
+       emit && /^\$\$ LANGUAGE/ { exit }' \
+    /edutu-web-migrations/20260705000000_secure_credit_functions.sql > admin-pro.sql
+  test -s admin-grant.sql
+  test -s admin-pro.sql
+
+  psql -X --set=ON_ERROR_STOP=1 --single-transaction "$target" \
+    -f admin-grant.sql -f admin-pro.sql -f /dev/stdin <<'SQL'
+REVOKE EXECUTE ON FUNCTION public.admin_grant_credits(text,integer,text,text,text),
+  public.admin_set_pro_status(text,boolean,timestamptz) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.admin_grant_credits(text,integer,text,text,text),
+  public.admin_set_pro_status(text,boolean,timestamptz) TO service_role;
+
+-- Mobile migration 005 drops this legacy Supabase Auth foreign key for Clerk users.
+-- The rehearsal keeps UUID analytics keys and uses the existing Clerk-to-UUID mapping.
+ALTER TABLE public.analytics DROP CONSTRAINT IF EXISTS analytics_user_id_fkey;
+SQL
+fi
+
 status=0
 supabase db push --remote="$target" --yes || status=$?
 
