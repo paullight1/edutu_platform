@@ -140,6 +140,7 @@ select 'rehearsal-backend-files=' || (
     select version || '_' || name || '.sql'
     from supabase_migrations.schema_migrations
     where version > '20260813074140'
+      and version <> '20260828153000'
   ) as files
 );
 select 'latest-native-migration=' || max(version)
