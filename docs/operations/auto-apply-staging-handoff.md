@@ -1,6 +1,6 @@
 # Edutu Auto Apply staging handoff
 
-Updated 28 November 2026. Local runs completed 100 synthetic applications. The first hosted stress run admitted 100 but returned 28 receipts before the cutoff. The hosted provider journey, live OpenAI drafting, physical iPhone push delivery, and hosted capacity verification remain open.
+Updated 28 November 2026. Local runs completed 100 synthetic applications. Hosted runs admitted 100 and returned 28 receipts at one-second status polling and 29 at eight-second polling before their cutoffs. The hosted provider journey, live OpenAI drafting, physical iPhone push delivery, and hosted capacity verification remain open.
 
 ## Deployment inventory
 
@@ -8,7 +8,7 @@ The four services below are in the [`auto-apply-staging` environment of the exis
 
 | Service | Purpose and last verified state |
 | --- | --- |
-| Auto Apply Staging API | Service ID `9gzzWzlxzP8BuU_Jqbrmv`. Dokploy showed no deployment IDs. Environment Settings contained only `NODE_ENV` and `PORT`. The private network attachment is saved and takes effect on deploy. |
+| Auto Apply Staging API | Service ID `9gzzWzlxzP8BuU_Jqbrmv`. Dokploy showed no deployment IDs. The base runtime settings and six private adapter URLs are saved. The pilot lists are empty and staging credentials are pending. The private network attachment takes effect on deploy. |
 | Auto Apply Staging Adapter | Service ID `5yRB9U6esp25gzeFFkBAO`. Dokploy showed no deployment IDs. Compose path is `.dokploy/auto-apply/compose.staging.yaml` and autodeploy is off. The adapter still needs its runtime settings and approved mapping. |
 | Auto Apply Synthetic Acceptance | Isolated, one-shot test with a synthetic learner, local PostgreSQL, and a test portal. The acceptance container exited successfully and its separate sandboxed worker showed healthy in Docker. |
 | Auto Apply Staging Worker | Earlier standalone service. Its container exited with a Chromium sandbox error. Use the staging Compose adapter for the hosted test. |
@@ -104,7 +104,7 @@ In Dokploy, **Auto Apply Synthetic Acceptance** was repointed to `paul/auto-appl
 - The combined fixture had a 1.5 CPU quota and a 1.5 GiB memory limit. Dokploy observed about 151% CPU and 982 MiB memory in one sample. Peak Node-only RSS was about 366 MiB.
 - The test now defaults to the mobile app's eight-second status interval. Locally, that driver completed 100 learners in **4 minutes 44 seconds**, with 100 unique receipts, one allowance charge per learner, 1,560 status reads, and zero duplicate writes. Its first-question p95 was 3 minutes 7 seconds.
 
-The hosted mobile-cadence rerun started from `cba87352` in acceptance container `c9f0fb549267`. At the 384-second sample it had admitted 100 learners, recorded 3,540 status reads, and received 14 receipts with zero duplicate writes. A live Linux cgroup sample earlier in the run showed 1,097 of 1,465 CPU periods throttled, a memory peak of about 1,001 MiB, and zero out-of-memory kills. Chromium processes led the CPU sample.
+The hosted mobile-cadence rerun started from `cba87352` in acceptance container `c9f0fb549267`. It reached the 720-second cutoff and exited with code 1. All 100 learners were admitted. It completed 29 unique receipts with zero duplicate writes and recorded 6,584 status reads and 288 start retries. Chromium stayed connected. Admission p95 was 43.72 seconds. First-question p95 was 10 minutes 15 seconds among the 31 learners who reached a question. Approval-to-receipt p95 was 50.27 seconds among the 29 completed learners. A live Linux cgroup sample showed 1,097 of 1,465 CPU periods throttled, a memory peak of about 1,001 MiB, and zero out-of-memory kills. Chromium processes led the CPU sample.
 
 The next acceptance image uses the same Playwright-pinned headless Chromium installation as the staging adapter. The load report now includes the browser version and, on Linux cgroup v2, quota, throttle, and memory measurements. The desktop fallback smoke completed two fictional applications in 26 seconds with zero duplicate writes and recorded the browser version. The Linux image and bundled browser still need a hosted smoke test. The available samples do not establish how much of the hosted slowdown is attributable to the browser build.
 
