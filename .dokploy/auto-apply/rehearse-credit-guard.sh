@@ -23,13 +23,20 @@ test "$check" = t
 
 mkdir -p supabase/migrations
 printf 'project_id = "edutu-stage-rehearsal"\n' >supabase/config.toml
-for migration in \
-    20260812090000_api_production_contract.sql \
-    20260813074140_api_credit_contract_upgrade_guard.sql; do
-  cp "/edutu-migrations/$migration" supabase/migrations/
+for migration_path in /edutu-migrations/*.sql; do
+  migration=${migration_path##*/}
+  version=${migration%%_*}
+  if [ "$version" = 20260812090000 ] || [ "$version" -ge 20260813074140 ]; then
+    cp "$migration_path" supabase/migrations/
+  fi
 done
 
-supabase db push --remote="$target" --yes
+test -r supabase/migrations/20260812090000_api_production_contract.sql
+test -r supabase/migrations/20260813074140_api_credit_contract_upgrade_guard.sql
+test -r supabase/migrations/20261127083000_auto_apply_manual_review.sql
+
+status=0
+supabase db push --remote="$target" --yes || status=$?
 
 proof=$(psql -X -At --set=ON_ERROR_STOP=1 "$target" <<'SQL'
 select count(*)
@@ -39,3 +46,20 @@ SQL
 )
 test "$proof" = 2
 printf '%s\n' 'Staging credit contract and upgrade guard passed with native migration history.'
+
+psql -X -At --set=ON_ERROR_STOP=1 "$target" <<'SQL'
+select 'rehearsal-backend-files=' || (
+  select count(distinct filename)
+  from (
+    select filename from private.staging_rehearsal_files
+    union all
+    select version || '_' || name || '.sql'
+    from supabase_migrations.schema_migrations
+    where version > '20260813074140'
+  ) as files
+);
+select 'latest-native-migration=' || max(version)
+from supabase_migrations.schema_migrations;
+SQL
+
+exit "$status"
