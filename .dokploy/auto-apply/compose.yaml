@@ -15,6 +15,7 @@ services:
     environment:
       AUTO_APPLY_TEST_CHROMIUM_SANDBOX: "1"
       AUTO_APPLY_TEST_LOAD_LEARNERS: "${AUTO_APPLY_TEST_LOAD_LEARNERS:-0}"
+      AUTO_APPLY_TEST_LOAD_POLL_MS: "${AUTO_APPLY_TEST_LOAD_POLL_MS:-8000}"
     depends_on:
       worker:
         condition: service_healthy

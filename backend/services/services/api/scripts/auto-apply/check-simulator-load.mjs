@@ -9,6 +9,10 @@ const cvId = '0f04871a-5e0b-4284-8f7d-b72958e70c82';
 const statsPath = '/fixture/auto-apply/load';
 const attemptPath = '/me/auto-apply/attempts/';
 const deadline = Date.now() + 12 * 60_000;
+const statusPollMs = Number(process.env.AUTO_APPLY_TEST_LOAD_POLL_MS || 8000);
+assert(Number.isInteger(statusPollMs) && statusPollMs >= 1000 && statusPollMs <= 30_000,
+  'Use a status polling interval between 1000 and 30000 milliseconds');
+let statusReads = 0;
 
 async function api(path, learner, method = 'GET', body, allowed = [200]) {
   const headers = { ...(learner && { 'x-fixture-learner': String(learner) }) };
@@ -60,8 +64,11 @@ async function advance(learner) {
     learner.admitted = Date.now();
     learner.phase = 'progress';
   }
+  if (Date.now() < (learner.nextStatusPoll ?? 0)) return;
   const path = attemptPath + learner.id;
   const { data } = await api(path, index);
+  statusReads++;
+  learner.nextStatusPoll = Date.now() + statusPollMs;
   if (data.state === 'needs_input') {
     assert.match(data.question, /study/i);
     assert(!learner.answered, 'The fixture repeated an answered question');
@@ -100,7 +107,7 @@ try {
     if (Date.now() >= nextSample) {
       ({ data: stats } = await api(statsPath));
       console.log(JSON.stringify({ elapsedSeconds: Math.round((Date.now() - started) / 1000),
-        admitted: learners.filter(learner => learner.admitted).length, ...stats }));
+        admitted: learners.filter(learner => learner.admitted).length, statusPollMs, statusReads, ...stats }));
       nextSample = Date.now() + 15_000;
       assert(stats.browserConnected, 'Chromium disconnected during the synthetic load run');
     }
@@ -112,6 +119,8 @@ try {
   try { ({ data: stats } = await api(statsPath)); } catch { /* Retain the last recorded sample if the fixture exited. */ }
   console.log(JSON.stringify({
     elapsedSeconds: Math.round((Date.now() - started) / 1000),
+    statusPollMs,
+    statusReads,
     states: learners.reduce((counts, learner) => ({ ...counts, [learner.phase]: (counts[learner.phase] ?? 0) + 1 }), {}),
     startRetries: learners.reduce((sum, learner) => sum + learner.startRetries, 0),
     admissionMs: timings(learners.filter(learner => learner.admitted).map(learner => learner.admitted - learner.admitAt)),

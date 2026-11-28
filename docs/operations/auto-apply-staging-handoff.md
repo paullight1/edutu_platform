@@ -15,7 +15,7 @@ The four services below are in the [`auto-apply-staging` environment of the exis
 
 - **API and adapter source** is [`paul/auto-apply-dokploy-staging`](https://github.com/paullight1/edutu_platform/tree/paul/auto-apply-dokploy-staging). The earlier hosted candidate was `7f945ec3`. The branch also carries the synthetic load test and worker fixes documented below.
 - **Mobile source** is [`paul/auto-apply-device-staging` at `c84ec677`](https://github.com/paullight1/edutu_platform/commit/c84ec677b9f74baa8d9b1a190a1a68c2742b8d71). It has the `auto-apply-staging` internal device and `auto-apply-staging:simulator` EAS profiles. The published tree matches the locally tested mobile tree.
-- **Private API–adapter network** is `edutu-auto-apply-staging-api`. Dokploy verified that it is an internal, attachable overlay. It is saved on the API. The adapter still needs `AUTO_APPLY_STAGING_API_NETWORK` set to that name and a separate filtered provider-egress network.
+- **Private API–adapter network** is `edutu-auto-apply-staging-api`. Dokploy verified that it is an internal, attachable overlay. It is saved on the API and configured on the adapter as `AUTO_APPLY_STAGING_API_NETWORK`. The API's six private adapter endpoints are set, and both pilot lists are empty. The adapter still needs a separate filtered provider-egress network, mounted files, and shared token.
 
 ## Verified behavior
 
@@ -25,6 +25,27 @@ The four services below are in the [`auto-apply-staging` environment of the exis
 - The adapter supports explicitly mapped forms. Google Forms support and a provider-approved live sandbox run remain unverified. Earlier staging checks found the API runtime still lacked staging database, Clerk, and OpenAI settings. A local live OpenAI attempt returned a quota or credit error. Check the actual OpenAI project and route during staging.
 
 ## Deploy and verify in staging
+
+### Provider approval
+
+Lever provides sandbox accounts through its partner review. Ask through the [Lever Partnership Interest form](https://www.lever.co/partnershipinterest). If Edutu already has a partner with Greenhouse Recruiting Pro, a Greenhouse sandbox admin can arrange a mock posting and confirm the sandbox-only job board URL. Neither provider's sandbox has been approved or mapped for Edutu yet. Verify the exact form read-only against the adapter before claiming compatibility. [Lever sandbox process](https://hire.lever.co/developer/partner), [Greenhouse sandbox guidance](https://support.greenhouse.io/hc/en-us/articles/17053185557787-Use-a-sandbox)
+
+Suggested staging listing title after approval: **Auto Apply sandbox · Lever** (or the approved provider's name).
+
+> **Subject:** Request for one fictional application in a Lever sandbox
+>
+> Hello Lever Partnerships team,
+>
+> Edutu is testing a learner-controlled application assistant. The learner reviews the completed form and explicitly approves submission. Could you authorize one automated browser submission on a sandbox-only test posting, or direct us to the appropriate tenant administrator or testing program?
+>
+> We would use a fictional applicant and a synthetic résumé. We would submit once, confirm that the sandbox received the application, and stop. We will run our load tests against our own isolated fixture.
+>
+> If this test is permitted, please share the exact candidate-facing sandbox application URL, any restrictions on browser-based testing, and a ticket or written approval reference we can retain. We can follow a different supported test method if a hosted sandbox form is unavailable.
+>
+> Thank you,
+> Edutu
+
+### Deployment steps
 
 1. **Confirm the sandbox and staging credentials.** Obtain an authorized provider sandbox form and the corresponding Edutu staging listing. Use a fictional profile and CV. Provision a separate staging database and storage, a Clerk test instance, a staging learner, and an OpenAI project key with available quota. Keep values in the relevant secrets stores.
 2. **Apply the database migrations and deploy the API.** Verify the staging database and its migration baseline before applying the candidate's ordered migrations from `backend/services/services/api/supabase/migrations/`, including Auto Apply through `20261127083000_auto_apply_manual_review.sql`. In **Auto Apply Staging API → Environment → Environment Settings**, configure the staging database, Supabase, Clerk, and `OPENAI_API_KEY`. Verify the Auto Apply drafting route selects OpenAI and record a successful request using only synthetic data. Add the intended HTTPS staging API domain so the test build can reach it.
