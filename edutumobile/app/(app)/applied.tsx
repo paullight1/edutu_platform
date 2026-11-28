@@ -1,9 +1,11 @@
-import { useLocalSearchParams as usePlanParams , useRouter } from 'expo-router';
-import { PlanWorkspaceHeader } from '../../components/opportunity-path/PlanWorkspaceHeader';
-import { Alert, View, Text, TextInput, FlatList, TouchableOpacity, StyleSheet, RefreshControl, ScrollView } from "react-native";
+import { PlanWorkspaceHeader } from "../../components/opportunity-path/PlanWorkspaceHeader";
+import { useFocusEffect, useLocalSearchParams as usePlanParams, useRouter } from 'expo-router';
+import { addNotificationReceivedListener } from 'expo-notifications';
+import { PlanRefresh } from '../../components/opportunity-path/PlanRefresh';
+import { Alert, AppState, Modal, View, Text, TextInput, FlatList, TouchableOpacity, StyleSheet, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Calendar, ChevronRight, Clock, ArrowRight, Heart, Target, Check, Wand2 } from "lucide-react-native";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { haptics } from "../../lib/haptics";
 import { useTheme } from "../../components/context/ThemeContext";
@@ -33,6 +35,10 @@ import { setVoiceModeThread as setPendingChatThread } from "../../lib/voiceModeS
 import { useTranslation } from "react-i18next";
 import i18n from "../../lib/i18n";
 import { usePromptProUpgrade } from "../../lib/upsell";
+import { autoApplyStatus } from "../../components/opportunity/autoApplyStatus";
+import { ProductApiRequestError, requestProductApi } from "../../packages/core/src/services/productApi";
+import { autoApplyNotificationAttemptId } from '../../lib/autoApplyNotification';
+import { syncAutoApplyActivity } from "../../lib/autoApplyActivity";
 
 const STATUS_OPTIONS: ApplicationStatus[] = ['draft', 'submitted', 'interview', 'offer', 'rejected', 'withdrawn', 'no_response'];
 
@@ -43,20 +49,19 @@ const REJECTION_REFLECTIONS_KEY = 'edutu_rejection_reflections';
 // instantly on revisit and still shows content if the network stalls.
 const APPLICATIONS_CACHE_KEY = 'edutu_applications_cache_v1';
 
-// Absolute ceiling on a load attempt — whatever happens underneath, the
-// spinner must resolve to content, cache, or the empty state.
-const LOAD_TIMEOUT_MS = 20000;
-
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<T>((_, reject) => setTimeout(() => reject(new Error('applications load timed out')), ms)),
-  ]);
-}
-
 // Stat-board / filter keys: the forward stages plus "all" and a combined
 // terminal bucket ("closed" = rejected + withdrawn).
-type StatFilter = 'all' | ApplicationStatus | 'closed';
+type StatFilter = 'all' | ApplicationStatus | 'closed' | 'attention';
+
+const attentionStates = {
+  needs_input: 'Continue application',
+  needs_review: 'Review your draft',
+  unconfirmed: 'Check the submission receipt',
+};
+
+function needsAutoApplyAttention(item: AppliedOpportunity) {
+  return item.status === 'draft' && !!item.autoApply && Object.hasOwn(attentionStates, item.autoApply.state);
+}
 
 function formatStatus(value: ApplicationStatus) {
   return i18n.t(`home:applied.status.${value}`);
@@ -91,7 +96,10 @@ function formatDate(value?: string | null) {
 }
 
 function formatDeadline(value?: string | null) {
-  return getDeadlineBadge(value).label;
+  const badge = getDeadlineBadge(value);
+  return badge.level === 'expired'
+    ? i18n.t('home:applied.deadlinePassed', { defaultValue: 'Deadline passed' })
+    : badge.label;
 }
 
 // Compact 4-segment stepper mirroring the forward pipeline
@@ -249,13 +257,37 @@ function RejectionSupportCard({
 }
 
 export default function AppliedPage() {
-    const { planNav } = usePlanParams<{ planNav?: string }>();
+  const { planNav } = usePlanParams<{ planNav?: string }>();
+  return <ApplicationsPanel planNavigation={planNav === '1'} />;
+}
+
+export function ApplicationsPanel({ workspace = false, active = true, planNavigation = false }: { workspace?: boolean; active?: boolean; planNavigation?: boolean }) {
   const { t } = useTranslation('home');
   const { isDark, colors } = useTheme();
   const router = useRouter();
   const { user } = useUser();
   const { getToken } = useAuth();
   const userId = user?.id;
+  const activeUser = useRef(userId);
+  const tokenGetter = useRef(getToken);
+  const pendingLoad = useRef<Promise<void> | null>(null);
+  useLayoutEffect(() => {
+    tokenGetter.current = getToken;
+  }, [getToken]);
+  const getCurrentToken = useCallback(() => tokenGetter.current(), []);
+  const statusWrites = useRef(new Set<string>());
+  const [statusPicker, setStatusPicker] = useState<{
+    owner?: string;
+    application: AppliedOpportunity;
+    confirmSubmission?: boolean;
+  } | null>(null);
+  useLayoutEffect(() => {
+    activeUser.current = userId;
+    return () => {
+      activeUser.current = undefined;
+      pendingLoad.current = null;
+    };
+  }, [userId]);
   // Win-coach across all tracked applications — the agent uses list_applications
   // to find the most urgent gaps.
   const runWinCoach = useAiAction({ surface: "application_tracker" });
@@ -281,12 +313,16 @@ export default function AppliedPage() {
   // flipping loading off inside the load effect.
   const loading = userId ? rawLoading : false;
   const [refreshing, setRefreshing] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
 
   // Adjust-during-render: drop any stale list if the user signs out.
   const [prevListUserId, setPrevListUserId] = useState(userId);
   if (prevListUserId !== userId) {
     setPrevListUserId(userId);
-    if (!userId) setApplications([]);
+    setApplications([]);
+    setLoading(true);
+    setRefreshing(false);
+    setLoadFailed(false);
   }
   const [activeFilter, setActiveFilter] = useState<StatFilter>('all');
   // Post-rejection support: the application just marked rejected this session,
@@ -304,7 +340,7 @@ export default function AppliedPage() {
   useEffect(() => {
     if (!rejectionCardId) return;
     let cancelled = false;
-    fetchAnswerBankCount(getToken)
+    fetchAnswerBankCount(getCurrentToken)
       .then((count) => {
         if (!cancelled) setAnswerBankCount(count);
       })
@@ -312,7 +348,7 @@ export default function AppliedPage() {
     return () => {
       cancelled = true;
     };
-  }, [rejectionCardId, getToken]);
+  }, [rejectionCardId, getCurrentToken]);
 
   useEffect(() => {
     AsyncStorage.getItem(REJECTION_REFLECTIONS_KEY)
@@ -325,7 +361,7 @@ export default function AppliedPage() {
   useEffect(() => {
     if (!userId) return;
     let cancelled = false;
-    void fetchApplicationKits(getToken)
+    void fetchApplicationKits(getCurrentToken)
       .then((kits) => {
         if (cancelled) return;
         setKitOpportunityIds(
@@ -336,7 +372,7 @@ export default function AppliedPage() {
     return () => {
       cancelled = true;
     };
-  }, [userId, getToken]);
+  }, [userId, getCurrentToken]);
 
   const saveReflection = useCallback((applicationId: string, text: string) => {
     setReflections((current) => {
@@ -352,12 +388,11 @@ export default function AppliedPage() {
     }
   }, [getToken, userId]);
 
-  // Feed used to surface "your next best shot" after a rejection — only
-  // consulted when the rejection card is visible.
+  // Feed used to surface "your next best shot" after a rejection.
   const { data: feedOpportunities } = useOpportunities({
     supabase,
-    userId: user?.id,
-    getAuthToken: getToken,
+    userId,
+    getAuthToken: getCurrentToken,
   });
 
   const textPrimary = colors.foreground;
@@ -367,64 +402,108 @@ export default function AppliedPage() {
   const accentColor = colors.accent;
   const stepInactiveColor = isDark ? 'rgba(255,255,255,0.10)' : '#E2E8F0';
 
-  // Promise-chain style (not async/await) so every setState lives in an async
-  // callback — the set-state-in-effect rule treats awaited sets in a named
-  // async callee as synchronous.
-  const loadApplications = useCallback(() => {
-    // No user → nothing to load; the render-derived `loading` and the
-    // adjust-during-render reset above cover the signed-out state.
-    if (!userId) return Promise.resolve();
+  const loadApplications = useCallback((readCache: boolean) => {
+    if (!userId || activeUser.current !== userId) return;
+    if (pendingLoad.current) return pendingLoad.current;
 
     const cacheKey = `${APPLICATIONS_CACHE_KEY}:${userId}`;
+    const cachedLoad = readCache
+      ? AsyncStorage.getItem(cacheKey)
+          .then((cached) => {
+            if (!cached || pendingLoad.current !== request) return;
+            const parsed = JSON.parse(cached) as AppliedOpportunity[];
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              setApplications(parsed);
+              setLoading(false);
+            }
+          })
+          .catch(() => undefined)
+      : Promise.resolve();
 
-    // Paint from the last successful fetch immediately; the network refresh
-    // below replaces it when it lands. Cache is best-effort only.
-    return AsyncStorage.getItem(cacheKey)
-      .then((cached) => {
-        if (!cached) return;
-        const parsed = JSON.parse(cached) as AppliedOpportunity[];
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setApplications(parsed);
-          setLoading(false);
-        }
+    const request: Promise<void> = cachedLoad
+      .then(() => {
+        if (pendingLoad.current === request) return fetchTrackedApplications(getCurrentToken);
       })
-      .catch(() => undefined)
-      .then(() => withTimeout(
-        fetchTrackedApplications(supabase, userId, getToken),
-        LOAD_TIMEOUT_MS,
-      ))
       .then((fresh) => {
+        if (!fresh || pendingLoad.current !== request) return;
         setApplications(fresh);
+        setLoadFailed(false);
         void AsyncStorage.setItem(cacheKey, JSON.stringify(fresh)).catch(() => undefined);
       })
-      .catch((error) => {
-        console.error('Failed to load applied opportunities:', error);
+      .catch(() => {
+        if (pendingLoad.current === request) setLoadFailed(true);
       })
       .finally(() => {
+        if (pendingLoad.current !== request) return;
+        pendingLoad.current = null;
         setLoading(false);
         setRefreshing(false);
       });
-  }, [getToken, userId]);
 
-  useEffect(() => {
-    loadApplications();
-  }, [loadApplications]);
+    pendingLoad.current = request;
+    return request;
+  }, [getCurrentToken, userId]);
+
+  useFocusEffect(useCallback(() => {
+    if (!active || !userId) return;
+    let focused = true;
+    let queued = false;
+    async function refreshWhenIdle() {
+      if (queued) return;
+      queued = true;
+      await pendingLoad.current;
+      queued = false;
+      if (focused && AppState.currentState === 'active') await loadApplications(false);
+    }
+    void loadApplications(true);
+    const appState = AppState.addEventListener('change', state => {
+      if (state === 'active') void refreshWhenIdle();
+    });
+    const notifications = addNotificationReceivedListener(notification => {
+      const data = notification.request.content.data;
+      if (data?.source !== 'auto-apply-progress' && autoApplyNotificationAttemptId(data)) void refreshWhenIdle();
+    });
+    return () => {
+      focused = false;
+      appState.remove();
+      notifications.remove();
+    };
+  }, [active, loadApplications, userId]));
 
   const onRefresh = useCallback(() => {
-    if (!userId) return;
+    if (!userId || pendingLoad.current) return;
     setRefreshing(true);
-    loadApplications();
+    void loadApplications(false);
   }, [userId, loadApplications]);
 
-  const updateStatus = useCallback(async (applicationId: string, status: ApplicationStatus) => {
-    if (!userId) return;
+  const updateStatus = useCallback(async (applicationId: string, status: ApplicationStatus, attemptId?: string) => {
+    if (!userId || activeUser.current !== userId || statusWrites.current.has(applicationId)) return;
+    statusWrites.current.add(applicationId);
 
     try {
-      const updated = await updateTrackedApplicationStatus(supabase, userId, applicationId, status, getToken);
+      const auth = async () => {
+        const token = await getToken();
+        return activeUser.current === userId ? token : null;
+      };
+      const updated = await updateTrackedApplicationStatus(supabase, userId, applicationId, status, auth);
+      if (activeUser.current !== userId) return;
       if (!updated) throw new Error('Unable to update status');
       setApplications((current) => current.map((item) => (
-        item.id === applicationId ? { ...item, status } : item
+        item.id === applicationId ? { ...item, status,
+          ...(status === 'submitted' && item.autoApply?.state !== 'submitted' && item.autoApply
+            ? { autoApply: { ...item.autoApply, state: 'submitted', receipt: null, receiptStatus: 'self_reported' as const } }
+            : {}) } : item
       )));
+      if (status === 'submitted' && attemptId) {
+        void requestProductApi<{ id: string; state: 'submitted'; version: number; title?: string }>(
+          '/me/auto-apply/attempts/' + encodeURIComponent(attemptId), {}, auth,
+        ).then(progress => {
+          if (activeUser.current === userId && progress?.id === attemptId && progress.state === 'submitted' &&
+              Number.isSafeInteger(progress.version) && progress.version > 0) {
+            void syncAutoApplyActivity(progress, { owner: userId });
+          }
+        }).catch(() => undefined);
+      }
       if (status === 'rejected' || status === 'no_response') {
         // Closure should never dead-end: surface the next best shot card.
         setRejectionCardId(applicationId);
@@ -432,16 +511,33 @@ export default function AppliedPage() {
         setRejectionCardId((current) => (current === applicationId ? null : current));
       }
     } catch (error) {
+      if (activeUser.current !== userId) return;
+      if (status === 'submitted' && error instanceof ProductApiRequestError && error.status === 409) {
+        void loadApplications(false);
+        Alert.alert('Check application status', 'Edutu is updating this application. Check Auto Apply before marking it submitted.');
+        return;
+      }
       console.error('Failed to update application status:', error);
       Alert.alert(t('applied.statusNotUpdatedTitle'), t('applied.statusNotUpdatedMessage'));
+    } finally {
+      statusWrites.current.delete(applicationId);
     }
-  }, [getToken, userId, t]);
+  }, [getToken, loadApplications, userId, t]);
+
+  const chooseStatus = useCallback((application: AppliedOpportunity, status: ApplicationStatus) => {
+    if (application.status === status) return;
+    if (status !== 'submitted') {
+      void updateStatus(application.id, status);
+      return;
+    }
+    setStatusPicker({ owner: userId, application, confirmSubmission: true });
+  }, [userId, updateStatus]);
 
   const advanceStatus = useCallback((application: AppliedOpportunity) => {
     const next = getNextApplicationStage(application.status);
     if (!next) return;
-    updateStatus(application.id, next);
-  }, [updateStatus]);
+    chooseStatus(application, next);
+  }, [chooseStatus]);
 
   const stats = useMemo(() => {
     const counts: Record<ApplicationStatus, number> = {
@@ -468,31 +564,23 @@ export default function AppliedPage() {
     { key: 'closed' as StatFilter, label: t('applied.filters.closed'), count: stats.rejected + stats.withdrawn + stats.no_response, color: '#EF4444' },
   ]), [applications.length, stats, accentColor, t]);
 
+  const attentionApplications = useMemo(() => applications.filter(needsAutoApplyAttention), [applications]);
   const filteredApplications = useMemo(() => {
     if (activeFilter === 'all') return applications;
+    if (activeFilter === 'attention') return attentionApplications;
     if (activeFilter === 'closed') {
       return applications.filter((item) => item.status === 'rejected' || item.status === 'withdrawn' || item.status === 'no_response');
     }
     return applications.filter((item) => item.status === activeFilter);
-  }, [applications, activeFilter]);
+  }, [applications, activeFilter, attentionApplications]);
 
   const handleTilePress = useCallback((key: StatFilter) => {
     setActiveFilter((current) => (key === 'all' || current === key ? 'all' : key));
   }, []);
 
   const openStatusPicker = useCallback((application: AppliedOpportunity) => {
-    Alert.alert(
-      t('applied.updateStatusTitle'),
-      application.title,
-      [
-        ...STATUS_OPTIONS.map((status) => ({
-          text: formatStatus(status),
-          onPress: () => updateStatus(application.id, status),
-        })),
-        { text: t('common:actions.cancel'), style: 'cancel' as const },
-      ],
-    );
-  }, [updateStatus, t]);
+    setStatusPicker({ owner: userId, application });
+  }, [userId]);
 
   const trackedOpportunityIds = useMemo(
     () => new Set(applications.map((item) => item.opportunity_id)),
@@ -511,13 +599,36 @@ export default function AppliedPage() {
   }, [router]);
 
   const headerSubtitle = useMemo(() => {
+    if (loadFailed && !applications.length) return undefined;
     if (loading) return t('common:states.loading');
     return t('applied.appliedCount', { count: applications.length });
-  }, [applications.length, loading, t]);
+  }, [applications.length, loadFailed, loading, t]);
 
-  const renderApplication = useCallback(({ item }: { item: AppliedOpportunity }) => (
+  const openAutoApply = useCallback((id: string) => {
+    router.push({ pathname: '/(app)/auto-apply/[id]', params: { id } });
+  }, [router]);
+
+  const renderApplication = useCallback(({ item }: { item: AppliedOpportunity }) => {
+    const attempt = item.autoApply;
+    const recorded = attempt?.state === 'submitted' && attempt.receiptStatus !== 'confirmed';
+    const attemptStatus = recorded ? 'Submission recorded' :
+      attempt && Object.prototype.hasOwnProperty.call(autoApplyStatus, attempt.state)
+        ? autoApplyStatus[attempt.state as keyof typeof autoApplyStatus]
+        : undefined;
+    const receiptStatus = attempt?.receiptStatus === 'confirmed'
+      ? 'Provider receipt confirmed'
+      : attempt?.receiptStatus === 'self_reported'
+        ? 'Marked submitted by you'
+        : attempt?.receiptStatus === 'pending'
+          ? 'Provider receipt pending'
+          : attempt?.receiptStatus === 'sending'
+            ? 'Provider submission in progress'
+            : undefined;
+    const autoApplyInProgress = attempt && !['submitted', 'cancelled', 'failed'].includes(attempt.state);
+    const nextStage = autoApplyInProgress ? null : getNextApplicationStage(item.status);
+    return (
     <View>
-    <View style={[styles.card, { backgroundColor: cardBg, borderColor }]}>
+    <View style={[styles.card, workspace && styles.workspaceCard, { backgroundColor: cardBg, borderColor }]}>
       <View style={styles.cardBody}>
         <View style={styles.cardTop}>
           <Text style={[styles.category, { color: accentColor }]} numberOfLines={1}>{item.category}</Text>
@@ -527,17 +638,21 @@ export default function AppliedPage() {
             style={[styles.statusButton, { backgroundColor: `${getStatusColor(item.status)}1F` }]}
             activeOpacity={0.75}
           >
-            <Text style={[styles.status, { color: getStatusColor(item.status) }]}>{formatStatus(item.status)}</Text>
+            <Text style={[styles.status, { color: getStatusColor(item.status) }]}>{recorded && item.status === 'submitted' ? 'Submission recorded' : formatStatus(item.status)}</Text>
           </TouchableOpacity>
         </View>
         <TouchableOpacity accessibilityRole="button" accessibilityLabel={item.title} onPress={() => router.push(`/opportunities/${item.opportunity_id}`)} style={{ minHeight: 44, justifyContent: 'center' }}>
           <Text style={[styles.cardTitle, { color: textPrimary }]} numberOfLines={3}>{item.title}</Text>
         </TouchableOpacity>
-        <Text style={[styles.org, { color: textSecondary }]} numberOfLines={1}>{item.organization}</Text>
+        {!!item.organization && item.organization !== 'Unknown organization' && (
+          <Text style={[styles.org, { color: textSecondary }]} numberOfLines={1}>{item.organization}</Text>
+        )}
         <View style={styles.metaRow}>
           <View style={styles.metaItem}>
             <Calendar size={12} color={textSecondary} />
-            <Text style={[styles.metaText, { color: textSecondary }]}>{t('applied.appliedOn', { date: formatDate(item.submitted_at) })}</Text>
+            <Text style={[styles.metaText, { color: textSecondary }]}>{item.status === 'draft'
+              ? t('applied.trackedOn', { date: formatDate(item.submitted_at), defaultValue: 'Tracked {{date}}' })
+              : t('applied.appliedOn', { date: formatDate(item.submitted_at) })}</Text>
           </View>
           <View style={styles.metaItem}>
             <Clock size={12} color={textSecondary} />
@@ -546,7 +661,7 @@ export default function AppliedPage() {
         </View>
         <View style={styles.pipelineRow}>
           <PipelineStepper status={item.status} inactiveColor={stepInactiveColor} />
-          {getNextApplicationStage(item.status) ? (
+          {nextStage ? (
             <TouchableOpacity
               onPress={(event) => { event.stopPropagation(); advanceStatus(item); }}
               accessibilityRole="button"
@@ -554,12 +669,34 @@ export default function AppliedPage() {
               activeOpacity={0.75}
             >
               <Text style={[styles.advanceText, { color: accentColor }]}>
-                {t('applied.advanceTo', { stage: formatStatus(getNextApplicationStage(item.status)!) })}
+                {t('applied.advanceTo', { stage: formatStatus(nextStage) })}
               </Text>
               <ArrowRight size={12} color={accentColor} />
             </TouchableOpacity>
           ) : null}
         </View>
+        {attempt ? (
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel={t('applied.openAutoApply', { title: item.title, defaultValue: 'Open Auto Apply for {{title}}' })}
+            accessibilityHint={attemptStatus}
+            onPress={() => openAutoApply(attempt.id)}
+            style={[styles.autoApplyButton, { borderColor: `${accentColor}40`, backgroundColor: `${accentColor}0D` }]}
+            activeOpacity={0.8}
+          >
+            <Wand2 size={16} color={accentColor} />
+            <View style={styles.autoApplyButtonCopy}>
+              <Text style={[styles.autoApplyButtonTitle, { color: textPrimary }]}>
+                {t('applied.autoApply', { defaultValue: 'Auto Apply' })}
+              </Text>
+              {attemptStatus && !recorded ? <Text style={[styles.metaText, { color: textSecondary }]}>{attemptStatus}</Text> : null}
+              {receiptStatus ? <Text style={[styles.metaText, { color: textSecondary }]}>{receiptStatus}</Text> : null}
+              {attempt?.receipt && attempt.receiptStatus === 'confirmed' ?
+                <Text style={[styles.metaText, { color: textSecondary }]} numberOfLines={1}>Provider receipt · {attempt.receipt}</Text> : null}
+            </View>
+            <ChevronRight size={16} color={accentColor} />
+          </TouchableOpacity>
+        ) : null}
         {kitOpportunityIds.has(item.opportunity_id) ? (
           <TouchableOpacity
             onPress={(e) => {
@@ -593,14 +730,66 @@ export default function AppliedPage() {
       />
     ) : null}
     </View>
-  ), [accentColor, advanceStatus, cardBg, borderColor, openStatusPicker, router, stepInactiveColor, textPrimary, textSecondary, t, rejectionCardId, reflections, saveReflection, nextBestShot, openNextBestShot, kitOpportunityIds, answerBankCount]);
+    );
+  }, [accentColor, advanceStatus, cardBg, borderColor, openStatusPicker, openAutoApply, router, stepInactiveColor, textPrimary, textSecondary, t, rejectionCardId, reflections, saveReflection, nextBestShot, openNextBestShot, kitOpportunityIds, answerBankCount, workspace]);
+
+  const renderAttentionRow = useCallback(({ item }: { item: AppliedOpportunity }) => {
+    const attempt = item.autoApply;
+    if (!attempt) return null;
+    const action = t('applied.attentionActions.' + attempt.state, {
+      defaultValue: attentionStates[attempt.state as keyof typeof attentionStates],
+    });
+    return (
+      <TouchableOpacity accessibilityRole="button" accessibilityLabel={item.title + '. ' + action}
+        onPress={() => openAutoApply(attempt.id)} style={[styles.attentionRow, { borderColor },
+          activeFilter === 'attention' && [styles.attentionListRow, { backgroundColor: cardBg }]]}>
+        <View style={styles.autoApplyButtonCopy}>
+          <Text style={[styles.autoApplyButtonTitle, { color: textPrimary }]} numberOfLines={2}>{item.title}</Text>
+          <Text style={[styles.metaText, { color: textSecondary }]}>{action}</Text>
+        </View>
+        <ChevronRight size={16} color={accentColor} />
+      </TouchableOpacity>
+    );
+  }, [accentColor, activeFilter, borderColor, cardBg, openAutoApply, t, textPrimary, textSecondary]);
+
+  const renderAttention = () => {
+    const title = t('applied.attentionTitle', { defaultValue: 'Needs your attention' });
+    if (activeFilter === 'attention') return (
+      <View>
+        <TouchableOpacity accessibilityRole="button" style={styles.attentionLink} onPress={() => setActiveFilter('all')}>
+          <Text style={{ color: accentColor, fontWeight: '700' }}>
+            {t('applied.showAllApplications', { defaultValue: 'Show all applications' })}
+          </Text>
+        </TouchableOpacity>
+        <Text accessibilityRole="header" style={[styles.attentionTitle, { color: textPrimary, paddingHorizontal: 0 }]}>{title}</Text>
+      </View>
+    );
+    if (!attentionApplications.length) return null;
+    return (
+      <View style={[styles.attention, { backgroundColor: cardBg, borderColor }]}>
+        <Text accessibilityRole="header" style={[styles.attentionTitle, { color: textPrimary }]}>{title}</Text>
+        {attentionApplications.slice(0, 2).map(item => (
+          <View key={item.id}>{renderAttentionRow({ item })}</View>
+        ))}
+        {attentionApplications.length > 2 && (
+          <TouchableOpacity accessibilityRole="button" style={[styles.attentionLink, { paddingHorizontal: 14 }]}
+            onPress={() => setActiveFilter('attention')}>
+            <Text style={{ color: accentColor, fontWeight: '700' }}>
+              {t('applied.seeAttention', { count: attentionApplications.length, defaultValue: 'See all {{count}} waiting applications' })}
+            </Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    );
+  };
 
   const renderStatBoard = () => {
     if (applications.length === 0) return null;
     return (
       <View>
-      <View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
+      <View style={{ paddingBottom: 10 }} testID="application-coach-actions">
         <AiActionBar
+          variant="pill"
           actions={[
             {
               label: t("chat:winCoach.actions.whatsMissing"),
@@ -630,6 +819,8 @@ export default function AppliedPage() {
           return (
             <TouchableOpacity
               key={tile.key}
+              accessibilityRole="button"
+              accessibilityState={{ selected: active }}
               onPress={() => handleTilePress(tile.key)}
               activeOpacity={0.8}
               style={[
@@ -663,14 +854,27 @@ export default function AppliedPage() {
   );
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['top', 'left', 'right']}>
-      {planNav === '1' ? <PlanWorkspaceHeader section="applications" /> : (<ScreenHeader title={t('applied.title')} showBack subtitle={headerSubtitle} />)}
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={workspace ? [] : ['top', 'left', 'right']}>
+      {!workspace && (planNavigation ? <PlanWorkspaceHeader section="applications" /> : <ScreenHeader title={t('applied.title')} showBack subtitle={headerSubtitle} />)}
 
-      <FlatList
+      <PlanRefresh workspace={workspace} refreshing={refreshing} onRefresh={onRefresh} color={accentColor}>{(scrollProps) => (
+            <FlatList {...scrollProps}
         data={filteredApplications}
         keyExtractor={(item) => item.id}
-        renderItem={renderApplication}
-        ListHeaderComponent={renderStatBoard}
+        renderItem={activeFilter === 'attention' ? renderAttentionRow : renderApplication}
+        ListHeaderComponent={applications.length > 0 || (!loadFailed && !loading) ? (
+          <>
+            {loadFailed && (
+              <TouchableOpacity accessibilityRole="button" onPress={onRefresh} disabled={refreshing} style={styles.refreshNotice}>
+                <Text style={{ color: textSecondary }} accessibilityLiveRegion="polite">
+                  {t('applied.stale', { defaultValue: 'Showing saved applications. Tap to retry.' })}
+                </Text>
+              </TouchableOpacity>
+            )}
+            {renderAttention()}
+            {activeFilter !== 'attention' && renderStatBoard()}
+          </>
+        ) : null}
         ListEmptyComponent={loading ? null : (applications.length > 0 ? (
           // There ARE applications; the active filter just excludes them all.
           // A different problem from having none, with a different fix.
@@ -679,27 +883,97 @@ export default function AppliedPage() {
             flow="applied"
             fill={false}
             sceneSize={140}
-            title={t('applied.emptyFilter')}
+            title={activeFilter === 'attention'
+              ? t('applied.noAttention', { defaultValue: 'No applications need your attention' })
+              : t('applied.emptyFilter')}
             body=""
+          />
+        ) : loadFailed ? (
+          <StateView
+            state={{ kind: 'error', cause: 'server' }}
+            flow="applied"
+            fill={false}
+            title={t('applied.loadError', { defaultValue: "Couldn't load applications" })}
+            onRetry={onRefresh}
           />
         ) : renderEmpty())}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={accentColor} />
-        }
       />
+            )}</PlanRefresh>
 
       {loading && applications.length === 0 && (
         <View style={styles.loadingOverlay}>
           <BrandedLoader label={t('applied.loading')} />
         </View>
       )}
+      {statusPicker && statusPicker.owner === userId && (
+        <Modal transparent visible animationType="none" onRequestClose={() => setStatusPicker(null)}>
+          <View style={styles.statusPickerBackdrop}>
+            <View accessibilityViewIsModal style={[styles.statusPicker, { backgroundColor: cardBg }]}>
+              <Text accessibilityRole="header" style={{ color: textPrimary, fontWeight: '700' }}>
+                {statusPicker.confirmSubmission
+                  ? t('common:applicationConfirmation.title', { defaultValue: 'Did you submit your application?' })
+                  : t('applied.updateStatusTitle')}
+              </Text>
+              <Text style={{ color: textSecondary }}>{statusPicker.application.title}</Text>
+              {statusPicker.confirmSubmission ? (
+                <>
+                  <Text style={{ color: textSecondary }}>
+                    {t('common:applicationConfirmation.body', { defaultValue: 'Confirm only after submitting the form on the provider’s website.' })}
+                  </Text>
+                  {statusPicker.application.autoApply && statusPicker.application.autoApply.state !== 'submitted' &&
+                    <Text style={{ color: textSecondary }}>Recording this submission will also close the Auto Apply attempt.</Text>}
+                  <TouchableOpacity accessibilityRole="button" style={styles.statusPickerOption} onPress={() => {
+                    setStatusPicker(null);
+                    void updateStatus(statusPicker.application.id, 'submitted', statusPicker.application.autoApply?.id);
+                  }}>
+                    <Text style={{ color: accentColor }}>
+                      {t('common:applicationConfirmation.yes', { defaultValue: 'Yes, I submitted it' })}
+                    </Text>
+                  </TouchableOpacity>
+                </>
+              ) : <ScrollView>
+                {STATUS_OPTIONS.map(status => (
+                  <TouchableOpacity
+                    key={status}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: statusPicker.application.status === status }}
+                    style={styles.statusPickerOption}
+                    onPress={() => {
+                      setStatusPicker(null);
+                      chooseStatus(statusPicker.application, status);
+                    }}
+                  >
+                    <Text style={{ color: textPrimary }}>{formatStatus(status)}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>}
+              <TouchableOpacity accessibilityRole="button" style={styles.statusPickerOption} onPress={() => setStatusPicker(null)}>
+                <Text style={{ color: accentColor }}>
+                  {statusPicker.confirmSubmission
+                    ? t('common:applicationConfirmation.notYet', { defaultValue: 'Not yet' })
+                    : t('common:actions.cancel')}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+      )}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  statusPickerBackdrop: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.55)',
+    padding: 24,
+  },
+  statusPicker: { width: '100%', maxWidth: 420, maxHeight: '90%', padding: 20, borderRadius: 20, gap: 8 },
+  statusPickerOption: { minHeight: 44, justifyContent: 'center' },
   listContent: {
     paddingHorizontal: 20,
     paddingTop: 16,
@@ -715,6 +989,8 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     gap: 12,
   },
+  refreshNotice: { minHeight: 44, justifyContent: 'center', marginBottom: 8 },
+  workspaceCard: { padding: 14, gap: 8, borderRadius: 18 },
   thumb: {
     width: 58,
     height: 58,
@@ -730,6 +1006,7 @@ const styles = StyleSheet.create({
   },
   cardBody: {
     flex: 1,
+    minWidth: 0,
   },
   cardTop: {
     flexDirection: 'row',
@@ -749,6 +1026,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   statusButton: {
+    maxWidth: '62%',
     minHeight: 44, justifyContent: 'center',
     paddingHorizontal: 8,
     paddingVertical: 4,
@@ -771,11 +1049,13 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   metaItem: {
+    maxWidth: '100%',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
   },
   metaText: {
+    flexShrink: 1,
     fontSize: 12,
     fontWeight: '500',
   },
@@ -816,6 +1096,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
     flex: 1,
+    minWidth: 40,
   },
   stepSegment: {
     flex: 1,
@@ -823,6 +1104,7 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   advanceButton: {
+    flexShrink: 1,
     minHeight: 44,
     flexDirection: 'row',
     alignItems: 'center',
@@ -833,6 +1115,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   advanceText: {
+    flexShrink: 1,
     fontSize: 10,
     fontWeight: '700',
   },
@@ -851,6 +1134,25 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
   },
+  attention: { borderWidth: 1, borderRadius: 14, marginBottom: 16, overflow: 'hidden' },
+  attentionTitle: { paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, fontWeight: '700' },
+  attentionRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 10,
+    borderTopWidth: StyleSheet.hairlineWidth, minHeight: 52 },
+  attentionListRow: { borderWidth: 1, borderRadius: 12, minHeight: 60, marginBottom: 8 },
+  attentionLink: { minHeight: 44, justifyContent: 'center' },
+  autoApplyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    minHeight: 48,
+    gap: 8,
+    marginTop: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderRadius: 10,
+  },
+  autoApplyButtonCopy: { flex: 1 },
+  autoApplyButtonTitle: { fontSize: 13, fontWeight: '700' },
   filterEmpty: {
     alignItems: 'center',
     justifyContent: 'center',

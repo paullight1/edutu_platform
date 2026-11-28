@@ -1,3 +1,5 @@
+import { setProductApiTokenGetter } from "../packages/core/src/services/productApi";
+import { syncAutoApplyActivityOwner } from "../lib/autoApplyActivity";
 import { Slot } from "expo-router";
 import { StatusBar, setStatusBarStyle } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -9,7 +11,7 @@ import { OfflineProvider } from "../components/context/OfflineContext";
 import { OfflineBanner } from "../components/ui/OfflineBanner";
 import { ErrorBoundary } from "../components/ui/ErrorBoundary";
 import { useDeepLink } from "../hooks/useDeepLink";
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import { AppState, type AppStateStatus, View, Text } from "react-native";
 import { setSupabaseAccessTokenGetter } from "../packages/core/src/services/supabase";
 import { flushSignalQueue, setSignalQueueSession } from "../packages/core/src/services/signalQueue";
@@ -98,7 +100,14 @@ function ConfigErrorScreen({ message }: { message: string }) {
 
 function RootLayoutContent() {
     const { colors, isDark } = useTheme();
-    const { getToken, userId, isSignedIn } = useAuth();
+    const { getToken, userId, isSignedIn, isLoaded } = useAuth();
+    useLayoutEffect(() => {
+        setProductApiTokenGetter(() => getToken().catch(() => null));
+        return () => setProductApiTokenGetter(undefined);
+    }, [getToken, userId]);
+    useLayoutEffect(() => {
+        if (isLoaded) void syncAutoApplyActivityOwner(userId ?? null);
+    }, [isLoaded, userId]);
     useDeepLink();
     useInAppUpdatePrompt();
 

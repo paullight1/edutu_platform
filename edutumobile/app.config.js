@@ -192,6 +192,7 @@ export default {
       [
         "expo-widgets",
         {
+          enablePushNotifications: true,
           widgets: [
             { name: "NextStepWidget", displayName: "Today’s Next Step", description: "A real preparation task from your My Plan, ready to continue.", contentMarginsDisabled: true, supportedFamilies: ["systemSmall", "systemMedium", "systemLarge"] },
             {

@@ -22,3 +22,20 @@ test('rejects retired services, missing configuration and development auth in st
   ]) assert.throws(() => validate({ ...production, ...override }));
   assert.throws(() => validate({ ...production, EAS_BUILD_PROFILE: 'production-apk', EXPO_PUBLIC_API_URL: 'http://localhost:3000' }));
 });
+
+test('requires independent services and public credentials for both Auto Apply staging profiles', () => {
+  const staging = {
+    EXPO_PUBLIC_API_URL: 'https://api-staging.example.org',
+    EXPO_PUBLIC_SUPABASE_URL: 'https://db-staging.example.org',
+    EXPO_PUBLIC_SUPABASE_ANON_KEY: 'fixture-staging-anon-key',
+    EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY: 'pk_test_fixture',
+  };
+  for (const EAS_BUILD_PROFILE of ['auto-apply-staging', 'auto-apply-staging:simulator']) {
+    const environment = { ...staging, EAS_BUILD_PROFILE };
+    assert.doesNotThrow(() => validate(environment));
+    assert.throws(() => validate({ ...environment, EXPO_PUBLIC_API_URL: 'https://backend.edutu.org.:8443' }));
+    assert.throws(() => validate({ ...environment, EXPO_PUBLIC_SUPABASE_URL: 'https://backend.edutu.org' }));
+    assert.throws(() => validate({ ...environment, EXPO_PUBLIC_SUPABASE_ANON_KEY: '' }));
+    assert.throws(() => validate({ ...environment, EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY: 'pk_live_fixture' }));
+  }
+});

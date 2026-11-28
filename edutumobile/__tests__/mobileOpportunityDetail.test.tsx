@@ -33,6 +33,7 @@ jest.mock('../lib/pushOptIn', () => ({
 }));
 
 jest.mock('expo-router', () => ({
+  useFocusEffect: jest.fn(),
   useLocalSearchParams: () => ({ id: 'opp-1' }),
   useRouter: () => ({ push: mockPush, back: mockBack }),
 }));
@@ -716,3 +717,5 @@ describe('mobile opportunity detail route', () => {
     }
   });
 });
+
+jest.mock('../lib/autoApplyActivity', () => ({ syncAutoApplyActivity: jest.fn() }));

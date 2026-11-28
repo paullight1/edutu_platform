@@ -1,3 +1,5 @@
+import { Platform } from 'react-native';
+import { receiveAutoApplyAndroidProgress } from './autoApplyAndroidProgress';
 import * as Notifications from 'expo-notifications';
 import * as TaskManager from 'expo-task-manager';
 import { getClerkInstance } from '@clerk/clerk-expo';
@@ -113,7 +115,16 @@ TaskManager.defineTask<Notifications.NotificationTaskPayload>(
 
     // The same task fires for plain notification *receipt*; only a response
     // carries actionIdentifier. Receipts are handled elsewhere, so ignore them.
-    if (!('actionIdentifier' in data)) return;
+    if (!('actionIdentifier' in data)) {
+      if (Platform.OS !== 'android') return;
+      try {
+        const payload = data.data?.dataString ? JSON.parse(data.data.dataString) : data.data;
+        if (payload && typeof payload === 'object') await receiveAutoApplyAndroidProgress(payload);
+      } catch {
+        // Invalid or undeliverable progress should not interrupt the task.
+      }
+      return;
+    }
 
     const response = data as Notifications.NotificationResponse;
     const action = response.actionIdentifier;

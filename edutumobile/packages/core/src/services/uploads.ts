@@ -18,6 +18,7 @@ export interface UploadRecord {
   id: string;
   kind: string;
   fileName: string;
+  mimeType?: string;
   parseStatus: string;
   createdAt: string;
 }

@@ -1,3 +1,4 @@
+import { bindAndroidAutoApplyPush, clearAutoApplyAndroidProgress, receiveAutoApplyAndroidProgress } from './autoApplyAndroidProgress';
 import * as Haptics from 'expo-haptics';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
@@ -39,6 +40,7 @@ export async function resetPushTokenSync(): Promise<void> {
     pushSyncDisabledUntil = 0;
     try {
         await AsyncStorage.removeItem(PUSH_TOKEN_KEY);
+        if (Platform.OS === 'android') await clearAutoApplyAndroidProgress();
     } catch {
         // Best-effort: a stale key only costs one redundant POST.
     }
@@ -209,6 +211,7 @@ export async function registerForPushNotificationsAsync(
     const synced = userId && getAuthToken && token?.data
         ? await syncPushToken(userId, getAuthToken, token.data, requireServerSync)
         : false;
+    if (synced && Platform.OS === 'android') void bindAndroidAutoApplyPush(token.data, getAuthToken);
     if (requireServerSync && !synced) {
         throw new Error('Could not register this device for notifications. Please check your connection and try again.');
     }
@@ -243,13 +246,24 @@ const SETTINGS_KEY = '@edutu_notification_settings';
 
 // Configure how notifications are handled when the app is foregrounded
 Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-        shouldShowAlert: true,
-        shouldPlaySound: true,
-        shouldSetBadge: true,
-        shouldShowBanner: true,
-        shouldShowList: true,
-    }),
+    handleNotification: async notification => {
+        const data = notification.request.content.data;
+        const progress = data?.source === 'auto-apply-progress';
+        const progressUpdate = progress && Object.hasOwn(data, 'state');
+        if (Platform.OS === 'android' && progressUpdate) {
+            // The foreground event can arrive even when the background task has not registered.
+            // The progress version prevents the two paths from posting the card twice.
+            void receiveAutoApplyAndroidProgress(data)?.catch(() => {});
+        }
+        const show = !progressUpdate;
+        return {
+            shouldShowAlert: show,
+            shouldPlaySound: show && !progress,
+            shouldSetBadge: show && !progress,
+            shouldShowBanner: show && !progress,
+            shouldShowList: show,
+        };
+    },
 });
 
 class NotificationService {

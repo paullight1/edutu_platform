@@ -1,8 +1,9 @@
-import React, { forwardRef } from 'react';
+import React, { forwardRef, useState } from 'react';
 import {
     ViewStyle,
     StyleProp,
     View,
+    StyleSheet,
     PressableProps,
     Pressable as RNPressable,
     TouchableOpacityProps,
@@ -12,17 +13,19 @@ import Animated, {
     EntryExitAnimationFunction,
     useSharedValue,
     useAnimatedStyle,
-    withSpring,
+    withTiming,
+    ReduceMotion,
     FadeIn,
     FadeInDown,
     FadeInUp,
     ZoomIn,
     Layout,
 } from 'react-native-reanimated';
+import { controlMotion } from '../../lib/visualTokens';
 import { haptics } from '../../lib/haptics';
 
 // ─────────────────────────────────────────────────────────────
-// Animated TouchableOpacity (legacy API, same spring feedback)
+// Animated press controls
 // ─────────────────────────────────────────────────────────────
 
 
@@ -30,6 +33,7 @@ interface AnimatedPressableProps extends Omit<PressableProps, 'style'> {
     style?: StyleProp<ViewStyle>;
     hapticFeedback?: 'none' | 'light' | 'medium' | 'heavy' | 'selection';
     scaleTo?: number;
+    focusColor?: string;
     disabled?: boolean;
     children: React.ReactNode;
     entering?: BaseAnimationBuilder | EntryExitAnimationFunction;
@@ -41,8 +45,13 @@ export const AnimatedPressable = forwardRef<View, AnimatedPressableProps>(
     function AnimatedPressable({
         style,
         hapticFeedback = 'light',
-        scaleTo = 0.96,
+        scaleTo,
+        focusColor,
         disabled,
+        onFocus,
+        onBlur,
+        onHoverIn,
+        onHoverOut,
         onPress,
         onPressIn,
         onPressOut,
@@ -51,9 +60,15 @@ export const AnimatedPressable = forwardRef<View, AnimatedPressableProps>(
         ...rest
     }, ref) {
         const scale = useSharedValue(1);
+        const hover = useSharedValue(0);
+        const [focused, setFocused] = useState(false);
 
         const animatedStyle = useAnimatedStyle(() => ({
             transform: [{ scale: scale.value }],
+        }));
+        const hoverStyle = useAnimatedStyle(() => ({
+            opacity: hover.value * 0.12,
+            transform: [{ translateX: (1 - hover.value) * -4 }],
         }));
 
         const triggerHaptic = () => {
@@ -69,14 +84,24 @@ export const AnimatedPressable = forwardRef<View, AnimatedPressableProps>(
                 entering={entering}
                 disabled={disabled}
                 {...rest}
+                onFocus={(event) => { setFocused(true); onFocus?.(event); }}
+                onBlur={(event) => { setFocused(false); onBlur?.(event); }}
+                onHoverIn={(event) => {
+                    if (focusColor) hover.value = withTiming(1, { duration: controlMotion.press, reduceMotion: ReduceMotion?.System });
+                    onHoverIn?.(event);
+                }}
+                onHoverOut={(event) => {
+                    if (focusColor) hover.value = withTiming(0, { duration: controlMotion.press, reduceMotion: ReduceMotion?.System });
+                    onHoverOut?.(event);
+                }}
                 onPressIn={(event) => {
                     // eslint-disable-next-line react-hooks/immutability -- Reanimated SharedValue write; the library's documented imperative API
-                    scale.value = withSpring(scaleTo, { damping: 12, stiffness: 400 });
+                    scale.value = withTiming(scaleTo === 1 ? 1 : controlMotion.pressScale, { duration: controlMotion.press, reduceMotion: ReduceMotion?.System });
                     onPressIn?.(event);
                 }}
                 onPressOut={(event) => {
                     // eslint-disable-next-line react-hooks/immutability -- Reanimated SharedValue write; the library's documented imperative API
-                    scale.value = withSpring(1, { damping: 12, stiffness: 400 });
+                    scale.value = withTiming(1, { duration: controlMotion.press, reduceMotion: ReduceMotion?.System });
                     onPressOut?.(event);
                 }}
                 onPress={(event) => {
@@ -84,7 +109,9 @@ export const AnimatedPressable = forwardRef<View, AnimatedPressableProps>(
                     onPress?.(event);
                 }}
             >
+                {focusColor && !focused && <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: focusColor }, hoverStyle]} />}
                 {children}
+                {focusColor && focused && <View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderWidth: 2, borderColor: focusColor }]} />}
             </ReanimatedPressable>
         );
     }
@@ -98,7 +125,7 @@ interface AnimatedTouchableOpacityProps extends TouchableOpacityProps {
 export const AnimatedTouchableOpacity: React.FC<AnimatedTouchableOpacityProps> = ({
     style,
     hapticFeedback = 'light',
-    scaleTo = 0.96,
+    scaleTo,
     onPressIn,
     onPressOut,
     onPress,
@@ -130,12 +157,12 @@ export const AnimatedTouchableOpacity: React.FC<AnimatedTouchableOpacityProps> =
                 disabled={disabled}
                 onPressIn={(e) => {
                     // eslint-disable-next-line react-hooks/immutability -- Reanimated SharedValue write; the library's documented imperative API
-                    scale.value = withSpring(scaleTo, { damping: 12, stiffness: 400 });
+                    scale.value = withTiming(scaleTo === 1 ? 1 : controlMotion.pressScale, { duration: controlMotion.press, reduceMotion: ReduceMotion?.System });
                     onPressIn?.(e);
                 }}
                 onPressOut={(e) => {
                     // eslint-disable-next-line react-hooks/immutability -- Reanimated SharedValue write; the library's documented imperative API
-                    scale.value = withSpring(1, { damping: 12, stiffness: 400 });
+                    scale.value = withTiming(1, { duration: controlMotion.press, reduceMotion: ReduceMotion?.System });
                     onPressOut?.(e);
                 }}
                 onPress={(e) => {
@@ -166,7 +193,7 @@ export type AnimationPreset = 'fade' | 'fadeDown' | 'fadeUp' | 'zoom';
 export function getAnimation(preset: AnimationPreset, delayMs = 0) {
     const anim = Animations[preset === 'fade' ? 'fadeIn' : preset === 'fadeDown' ? 'fadeInDown' : preset === 'fadeUp' ? 'fadeInUp' : 'zoomIn'];
     if (delayMs > 0) {
-        return anim.delay(delayMs).duration(400).springify();
+        return anim.delay(Math.min(delayMs, 99)).duration(controlMotion.menuEnter);
     }
-    return anim.duration(400).springify();
+    return anim.duration(controlMotion.menuEnter);
 }

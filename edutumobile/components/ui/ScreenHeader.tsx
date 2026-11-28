@@ -1,4 +1,5 @@
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import { AnimatedPressable } from "./AnimatedPressable";
 import { ChevronLeft } from "lucide-react-native";
 import { useRouter } from "expo-router";
 import { useTheme } from "../../components/context/ThemeContext";
@@ -7,25 +8,28 @@ interface ScreenHeaderProps {
     title: string;
     subtitle?: string;
     showBack?: boolean;
+    flat?: boolean;
+    alignLeading?: boolean;
     onBack?: () => void;
     right?: React.ReactNode;
     titleAccessory?: React.ReactNode;
 }
 
-export function ScreenHeader({ title, subtitle, showBack = false, onBack, right, titleAccessory }: ScreenHeaderProps) {
+export function ScreenHeader({ title, subtitle, showBack = false, flat = false, alignLeading = false, onBack, right, titleAccessory }: ScreenHeaderProps) {
     const router = useRouter();
     const { isDark, colors } = useTheme();
+    const BackButton = flat ? AnimatedPressable : TouchableOpacity;
 
     return (
         <View style={[styles.container, {
-            borderBottomColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)',
+            borderBottomColor: flat ? colors.border : isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)',
             paddingTop: 12,
             paddingBottom: 12,
             backgroundColor: colors.background,
         }]}>
             {/* Back Button - positioned close to title */}
             {showBack && (
-                <TouchableOpacity
+                <BackButton
                     onPress={() => {
                         if (onBack) {
                             onBack();
@@ -42,22 +46,22 @@ export function ScreenHeader({ title, subtitle, showBack = false, onBack, right,
                     accessibilityRole="button"
                     accessibilityLabel="Back"
                     style={[styles.backBtn, {
-                        backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+                        backgroundColor: flat ? undefined : isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
                         marginRight: 8,
                     }]}
-                    activeOpacity={0.7}
+                    {...(flat ? { focusColor: colors.accent } : { activeOpacity: 0.7 })}
                     hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
                     <ChevronLeft
                         size={22}
-                        color={isDark ? '#FFFFFF' : '#1E293B'}
+                        color={flat ? colors.foreground : isDark ? '#FFFFFF' : '#1E293B'}
                         strokeWidth={2.5}
                     />
-                </TouchableOpacity>
+                </BackButton>
             )}
 
             {/* Spacer when no back button - keeps title position consistent */}
-            {!showBack ? <View style={styles.spacer} /> : null}
+            {!showBack && !alignLeading ? <View style={styles.spacer} /> : null}
 
             {titleAccessory ? <View style={styles.titleAccessory}>{titleAccessory}</View> : null}
 
@@ -67,7 +71,7 @@ export function ScreenHeader({ title, subtitle, showBack = false, onBack, right,
                         styles.title,
                         {
                             color: colors.foreground,
-                            fontWeight: '700',
+                            fontWeight: flat ? '500' : '700',
                         }
                     ]}
                     numberOfLines={1}
@@ -75,7 +79,7 @@ export function ScreenHeader({ title, subtitle, showBack = false, onBack, right,
                     {title}
                 </Text>
                 {subtitle && (
-                    <Text style={[styles.subtitle, { color: isDark ? '#94A3B8' : '#64748B' }]} numberOfLines={1}>
+                    <Text style={[styles.subtitle, { color: flat ? colors.textSecondary : isDark ? '#94A3B8' : '#64748B' }]} numberOfLines={1}>
                         {subtitle}
                     </Text>
                 )}
