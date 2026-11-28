@@ -35,6 +35,18 @@ test -r supabase/migrations/20260812090000_api_production_contract.sql
 test -r supabase/migrations/20260813074140_api_credit_contract_upgrade_guard.sql
 test -r supabase/migrations/20261127083000_auto_apply_manual_review.sql
 
+acl_applied=$(psql -X -At --set=ON_ERROR_STOP=1 "$target" -c \
+  "select exists (select 1 from supabase_migrations.schema_migrations where version = '20260820220940');")
+if [ "$acl_applied" = f ]; then
+  roadmap_source=/edutu-mobile-migrations/025_scope_get_recommended_roadmaps.sql
+  test "$(grep -c 'i.user_id = public.current_app_user_id()' "$roadmap_source")" = 1
+  sed 's/i.user_id = public.current_app_user_id()/i.user_id::text = public.current_app_user_uuid()/' \
+    "$roadmap_source" > roadmap.sql
+  psql -X --set=ON_ERROR_STOP=1 --single-transaction "$target" \
+    -f /edutu-mobile-migrations/032_referral_system.sql \
+    -f roadmap.sql -f /usr/local/share/staging-analytics-overloads.sql
+fi
+
 status=0
 supabase db push --remote="$target" --yes || status=$?
 

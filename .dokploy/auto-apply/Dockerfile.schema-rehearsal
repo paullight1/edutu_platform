@@ -6,5 +6,6 @@ RUN tar -xzf /tmp/supabase-cli.tar.gz -C /usr/local/bin supabase \
     && supabase --version
 
 COPY rehearse-credit-guard.sh /usr/local/bin/rehearse-credit-guard
+COPY staging-analytics-overloads.sql /usr/local/share/staging-analytics-overloads.sql
 USER postgres
 ENTRYPOINT ["/bin/sh", "/usr/local/bin/rehearse-credit-guard"]
