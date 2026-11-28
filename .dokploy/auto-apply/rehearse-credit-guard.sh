@@ -35,6 +35,7 @@ test -r supabase/migrations/20260812090000_api_production_contract.sql
 test -r supabase/migrations/20260813074140_api_credit_contract_upgrade_guard.sql
 test -r supabase/migrations/20261127083000_auto_apply_manual_review.sql
 cp /edutu-shared-migrations/20260803120000_community_groups.sql supabase/migrations/
+cp /edutu-shared-migrations/20260828153000_community_admin_management.sql supabase/migrations/
 
 acl_applied=$(psql -X -At --set=ON_ERROR_STOP=1 "$target" -c \
   "select exists (select 1 from supabase_migrations.schema_migrations where version = '20260820220940');")
@@ -106,6 +107,16 @@ CREATE POLICY "Users manage own opportunity applications"
   USING (user_id IN ((SELECT public.current_app_user_id()), (SELECT public.current_app_user_uuid())))
   WITH CHECK (user_id IN ((SELECT public.current_app_user_id()), (SELECT public.current_app_user_uuid())));
 SQL
+fi
+
+consolidation_applied=$(psql -X -At --set=ON_ERROR_STOP=1 "$target" -c \
+  "select exists (select 1 from supabase_migrations.schema_migrations where version = '20260829190000');")
+if [ "$consolidation_applied" = f ]; then
+  # The consolidation removes old group conversations. Rehearse it only on
+  # the empty groups and messages tables installed by the shared foundation.
+  community_empty=$(psql -X -At --set=ON_ERROR_STOP=1 "$target" -c \
+    'select not exists (select 1 from public.community_groups) and not exists (select 1 from public.community_group_messages);')
+  test "$community_empty" = t
 fi
 
 status=0
