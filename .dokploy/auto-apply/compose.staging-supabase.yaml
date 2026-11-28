@@ -31,7 +31,10 @@ services:
       retries: 15
       start_period: 60s
     networks:
-      - staging-data
+      staging-data: {}
+      staging-api-data:
+        aliases:
+          - edutu-postgres-staging.internal
 
   auth:
     image: supabase/gotrue:v2.189.0
@@ -150,6 +153,9 @@ services:
       staging-data:
         aliases:
           - supabase-staging.internal
+      staging-api-data:
+        aliases:
+          - supabase-staging.internal
 
   credit-guard-rehearsal:
     profiles: [schema-rehearsal]
@@ -223,6 +229,9 @@ configs:
 networks:
   staging-data:
     internal: true
+  staging-api-data:
+    external: true
+    name: edutu-auto-apply-staging-data
 
 volumes:
   stage-db-data:
