@@ -27,6 +27,151 @@ services:
     networks:
       - staging-data
 
+  auth:
+    image: supabase/gotrue:v2.189.0
+    restart: unless-stopped
+    mem_limit: 256m
+    cpus: 0.5
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      GOTRUE_API_HOST: 0.0.0.0
+      GOTRUE_API_PORT: "9999"
+      API_EXTERNAL_URL: http://supabase-staging.internal:8000
+      GOTRUE_DB_DRIVER: postgres
+      GOTRUE_DB_DATABASE_URL: postgres://supabase_auth_admin:${POSTGRES_PASSWORD:?Set the staging database password}@db:5432/postgres
+      GOTRUE_SITE_URL: http://supabase-staging.internal:8000
+      GOTRUE_DISABLE_SIGNUP: "true"
+      GOTRUE_JWT_SECRET: ${JWT_SECRET:?Set the staging Supabase JWT secret}
+      GOTRUE_JWT_EXP: "3600"
+      GOTRUE_JWT_AUD: authenticated
+      GOTRUE_JWT_ADMIN_ROLES: service_role
+      GOTRUE_JWT_DEFAULT_GROUP_NAME: authenticated
+      GOTRUE_EXTERNAL_EMAIL_ENABLED: "false"
+      GOTRUE_EXTERNAL_PHONE_ENABLED: "false"
+      GOTRUE_EXTERNAL_ANONYMOUS_USERS_ENABLED: "false"
+    healthcheck:
+      test: [CMD, wget, --no-verbose, --tries=1, --spider, http://127.0.0.1:9999/health]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 30s
+    networks:
+      - staging-data
+
+  rest:
+    image: postgrest/postgrest:v14.12
+    restart: unless-stopped
+    mem_limit: 128m
+    cpus: 0.5
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGRST_DB_URI: postgres://authenticator:${POSTGRES_PASSWORD:?Set the staging database password}@db:5432/postgres
+      PGRST_DB_SCHEMAS: public,storage
+      PGRST_DB_ANON_ROLE: anon
+      PGRST_JWT_SECRET: ${JWT_SECRET:?Set the staging Supabase JWT secret}
+      PGRST_ADMIN_SERVER_PORT: "3001"
+      PGRST_ADMIN_SERVER_HOST: 127.0.0.1
+    healthcheck:
+      test: [CMD, postgrest, --ready]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 30s
+    networks:
+      - staging-data
+
+  storage:
+    image: supabase/storage-api:v1.60.4
+    restart: unless-stopped
+    mem_limit: 384m
+    cpus: 0.5
+    depends_on:
+      db:
+        condition: service_healthy
+      rest:
+        condition: service_healthy
+    environment:
+      ANON_KEY: ${ANON_KEY:?Set the staging Supabase anon token}
+      SERVICE_KEY: ${SERVICE_ROLE_KEY:?Set the staging Supabase service role token}
+      AUTH_JWT_SECRET: ${JWT_SECRET:?Set the staging Supabase JWT secret}
+      POSTGREST_URL: http://rest:3000
+      DATABASE_URL: postgres://supabase_storage_admin:${POSTGRES_PASSWORD:?Set the staging database password}@db:5432/postgres
+      STORAGE_PUBLIC_URL: http://supabase-staging.internal:8000
+      REQUEST_ALLOW_X_FORWARDED_PATH: "true"
+      FILE_SIZE_LIMIT: "52428800"
+      STORAGE_BACKEND: file
+      FILE_STORAGE_BACKEND_PATH: /var/lib/storage
+      GLOBAL_S3_BUCKET: staging-storage
+      TENANT_ID: edutu-auto-apply-staging
+      REGION: local
+      ENABLE_IMAGE_TRANSFORMATION: "false"
+    volumes:
+      - stage-storage-data:/var/lib/storage
+    healthcheck:
+      test: [CMD, wget, --no-verbose, --tries=1, --spider, http://127.0.0.1:5000/status]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 30s
+    networks:
+      - staging-data
+
+  gateway:
+    image: nginx:1.31.10-alpine-slim
+    restart: unless-stopped
+    mem_limit: 64m
+    cpus: 0.25
+    depends_on:
+      auth:
+        condition: service_healthy
+      rest:
+        condition: service_healthy
+      storage:
+        condition: service_healthy
+    configs:
+      - source: stage-supabase-gateway
+        target: /etc/nginx/conf.d/default.conf
+    healthcheck:
+      test: [CMD, wget, --no-verbose, --tries=1, --spider, http://127.0.0.1:8000/healthz]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    networks:
+      staging-data:
+        aliases:
+          - supabase-staging.internal
+
+configs:
+  stage-supabase-gateway:
+    content: |
+      resolver 127.0.0.11 valid=10s ipv6=off;
+      upstream auth_api { zone auth_api 64k; server auth:9999 resolve; }
+      upstream rest_api { zone rest_api 64k; server rest:3000 resolve; }
+      upstream storage_api { zone storage_api 64k; server storage:5000 resolve; }
+      server {
+        listen 8000;
+        client_max_body_size 50m;
+        access_log off;
+        location = /healthz { return 204; }
+        location /auth/v1/ {
+          proxy_set_header X-Forwarded-Prefix /auth/v1;
+          proxy_pass http://auth_api/;
+        }
+        location /rest/v1/ {
+          proxy_set_header X-Forwarded-Prefix /rest/v1;
+          proxy_pass http://rest_api/;
+        }
+        location /storage/v1/ {
+          proxy_set_header X-Forwarded-Prefix /storage/v1;
+          proxy_pass http://storage_api/;
+        }
+        location / { return 404; }
+      }
+
 networks:
   staging-data:
     internal: true
@@ -34,3 +179,4 @@ networks:
 volumes:
   stage-db-data:
   stage-db-config:
+  stage-storage-data:
