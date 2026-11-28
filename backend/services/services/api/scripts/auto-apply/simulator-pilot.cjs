@@ -122,6 +122,24 @@ async function body(request) {
   return JSON.parse(value || '{}');
 }
 
+function fixtureCgroupMetrics() {
+  if (process.platform !== 'linux') return;
+  try {
+    const read = name => readFileSync(`/sys/fs/cgroup/${name}`, 'utf8').trim();
+    const cpu = read('cpu.stat');
+    return {
+      cpuQuota: read('cpu.max'),
+      cpuPeriods: Number(/^nr_periods (\d+)$/m.exec(cpu)?.[1]),
+      cpuThrottledPeriods: Number(/^nr_throttled (\d+)$/m.exec(cpu)?.[1]),
+      cpuThrottledMicros: Number(/^throttled_usec (\d+)$/m.exec(cpu)?.[1]),
+      memoryPeakBytes: Number(read('memory.peak')),
+      oomKills: Number(/^oom_kill (\d+)$/m.exec(read('memory.events'))?.[1]),
+    };
+  } catch {
+    // An older kernel or a local test without cgroup v2 may omit these metrics.
+  }
+}
+
 async function main() {
   const loadPortalWrites = new Map();
   const loadAdapterResponses = new Map();
@@ -145,8 +163,10 @@ async function main() {
     const publicKey = new X509Certificate(tls.cert).publicKey.export({ format: 'der', type: 'spki' });
     args.push('--ignore-certificate-errors-spki-list=' + createHash('sha256').update(publicKey).digest('base64'));
   }
+  const chromePath = process.env.CHROME_PATH;
+  const bundledChromium = process.env.AUTO_APPLY_TEST_BUNDLED_CHROMIUM === '1';
   const browser = await chromium.launch({
-    channel: 'chrome', executablePath: process.env.CHROME_PATH, args,
+    channel: bundledChromium || chromePath ? undefined : 'chrome', executablePath: chromePath, args,
     chromiumSandbox: loadCount > 0 || process.env.AUTO_APPLY_TEST_CHROMIUM_SANDBOX === '1',
   });
   const handlePortal = async (request, response) => {
@@ -519,6 +539,7 @@ async function main() {
         const writes = [...loadPortalWrites.values()];
         payload = {
           learners: loadCount, browserConnected: browser.isConnected(), peakFixtureRssBytes,
+          browserVersion: browser.version(), cgroup: fixtureCgroupMetrics(),
           adapterResponses: Object.fromEntries(loadAdapterResponses), portalApplicants: writes.length,
           portalWrites: writes.reduce((total, count) => total + count, 0),
           duplicateWrites: writes.reduce((total, count) => total + count - 1, 0),

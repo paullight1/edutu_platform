@@ -1,6 +1,6 @@
 # Edutu Auto Apply staging handoff
 
-Updated 28 November 2026. Local runs completed 100 synthetic applications. The first hosted stress run admitted 100 but returned 28 receipts before the cutoff. The hosted provider journey, live OpenAI drafting, physical iPhone push delivery, and hosted test at the mobile polling cadence remain open.
+Updated 28 November 2026. Local runs completed 100 synthetic applications. The first hosted stress run admitted 100 but returned 28 receipts before the cutoff. The hosted provider journey, live OpenAI drafting, physical iPhone push delivery, and hosted capacity verification remain open.
 
 ## Deployment inventory
 
@@ -102,7 +102,11 @@ In Dokploy, **Auto Apply Synthetic Acceptance** was repointed to `paul/auto-appl
 - The hosted run logged 112 learner-start retries. The adapter returned 21 verification, 37 preparation, and two submission HTTP 503 responses.
 - Admission p95 was 32.88 seconds for all 100 learners. First-question p95 was 11 minutes 1 second among the 29 learners who reached the question. Approval-to-receipt p95 was 36.58 seconds among the 28 completed learners. The latter two measurements describe completed steps only.
 - The combined fixture had a 1.5 CPU quota and a 1.5 GiB memory limit. Dokploy observed about 151% CPU and 982 MiB memory in one sample. Peak Node-only RSS was about 366 MiB.
-- The test now defaults to the mobile app's eight-second status interval. Locally, that driver completed 100 learners in **4 minutes 44 seconds**, with 100 unique receipts, one allowance charge per learner, 1,560 status reads, and zero duplicate writes. Its first-question p95 was 3 minutes 7 seconds. The hosted run with this polling cadence is still pending.
+- The test now defaults to the mobile app's eight-second status interval. Locally, that driver completed 100 learners in **4 minutes 44 seconds**, with 100 unique receipts, one allowance charge per learner, 1,560 status reads, and zero duplicate writes. Its first-question p95 was 3 minutes 7 seconds.
+
+The hosted mobile-cadence rerun started from `cba87352` in acceptance container `c9f0fb549267`. At the 384-second sample it had admitted 100 learners, recorded 3,540 status reads, and received 14 receipts with zero duplicate writes. A live Linux cgroup sample earlier in the run showed 1,097 of 1,465 CPU periods throttled, a memory peak of about 1,001 MiB, and zero out-of-memory kills. Chromium processes led the CPU sample.
+
+The next acceptance image uses the same Playwright-pinned headless Chromium installation as the staging adapter. The load report now includes the browser version and, on Linux cgroup v2, quota, throttle, and memory measurements. The desktop fallback smoke completed two fictional applications in 26 seconds with zero duplicate writes and recorded the browser version. The Linux image and bundled browser still need a hosted smoke test. The available samples do not establish how much of the hosted slowdown is attributable to the browser build.
 
 ### Staging environment provisioning
 
