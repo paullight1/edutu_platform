@@ -151,6 +151,30 @@ services:
         aliases:
           - supabase-staging.internal
 
+  credit-guard-rehearsal:
+    profiles: [schema-rehearsal]
+    platform: linux/amd64
+    build:
+      context: .
+      dockerfile: Dockerfile.schema-rehearsal
+    restart: "no"
+    mem_limit: 256m
+    cpus: 0.5
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD:?Set the staging database password}
+    volumes:
+      - type: bind
+        source: ../../backend/services/services/api/supabase/migrations
+        target: /edutu-migrations
+        read_only: true
+        bind:
+          create_host_path: false
+    networks:
+      - staging-data
+
 configs:
   stage-supabase-gateway:
     content: |

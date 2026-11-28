@@ -1,0 +1,10 @@
+FROM postgres:17.6-bookworm
+
+ADD --checksum=sha256:d82f8fc8a1611c45b9422b10378f61df614325f7e25624acda3704544513d6ac https://github.com/supabase/cli/releases/download/v3.4.0/supabase_linux_amd64.tar.gz /tmp/supabase-cli.tar.gz
+RUN tar -xzf /tmp/supabase-cli.tar.gz -C /usr/local/bin supabase \
+    && rm /tmp/supabase-cli.tar.gz \
+    && supabase --version
+
+COPY rehearse-credit-guard.sh /usr/local/bin/rehearse-credit-guard
+USER postgres
+ENTRYPOINT ["/bin/sh", "/usr/local/bin/rehearse-credit-guard"]
