@@ -8,9 +8,9 @@ The services below are in the [`auto-apply-staging` environment of the existing 
 
 | Service | Purpose and last verified state |
 | --- | --- |
-| Auto Apply Staging API | Service ID `9gzzWzlxzP8BuU_Jqbrmv`. The first manual build from the staging branch compiled successfully and was still running at the last check. Database and Supabase settings, both private network attachments, the Clerk development issuer, a runtime pepper, and the six private adapter URLs are saved. Both pilot lists are empty. OpenAI credentials and runtime readiness are pending. |
+| Auto Apply Staging API | Service ID `9gzzWzlxzP8BuU_Jqbrmv`. Dokploy deployed `dbf6f5dc` to container `4256ab59fde3`. `/health/ready` returned HTTP 200 with the database up. The private Supabase gateway returned 204 and its authenticated opportunities read returned 200. The Auto Apply attempt table and private CV bucket were verified from the same container. Both pilot lists are empty. Readiness reports the OpenAI key missing. |
 | Auto Apply Staging Adapter | Service ID `5yRB9U6esp25gzeFFkBAO`. Dokploy showed no deployment IDs. Compose path is `.dokploy/auto-apply/compose.staging.yaml` and autodeploy is off. The adapter still needs its runtime settings and approved mapping. |
-| Auto Apply Synthetic Acceptance | Isolated, one-shot test with a synthetic learner, local PostgreSQL, and a test portal. The acceptance container exited successfully and its separate sandboxed worker showed healthy in Docker. |
+| Auto Apply Synthetic Acceptance | Hosted 100-learner replay `cfa40d9d` started in runner `06eb05f9d900`. Its separate worker `33e447723d96` was healthy. The load admitted all 100 learners by the 68-second sample and is still running. |
 | Auto Apply Staging Worker | Earlier standalone service. Its container exited with a Chromium sandbox error. Use the staging Compose adapter for the hosted test. |
 | Auto Apply Staging Supabase | Service ID `IfvUKo6mvnVeSSVKm6BId`. PostgreSQL, Auth, REST, Storage, and the gateway are healthy. The services use staging-only named volumes, a private network, and no published ports or domains. The API database has the verified Edutu schema and a private `cv-files` bucket. |
 
@@ -135,7 +135,9 @@ AUTO_APPLY_TEST_LOAD_WORKER_TICK_MS=15000
 AUTO_APPLY_TEST_LOAD_TIMEOUT_SECONDS=5400
 ```
 
-The local two-learner smoke at the 15-second worker cadence and eight-second status polling completed in 83 seconds. It returned two unique receipts, one allowance charge per learner, and zero duplicate writes. Six preparation calls and two submission calls completed with Chromium connected. This verifies the cadence and receipt assertions locally. The 100-learner Dokploy replay is still pending.
+The local two-learner smoke at the 15-second worker cadence and eight-second status polling completed in 83 seconds. It returned two unique receipts, one allowance charge per learner, and zero duplicate writes. Six preparation calls and two submission calls completed with Chromium connected.
+
+The hosted cadence replay deployed `cfa40d9d` and is running in acceptance container `06eb05f9d900`. It verified the 15-second worker interval and eight-second status interval in runtime samples, admitted 100 at the 68-second sample, and still had Chromium `156.0.8078.4` connected at 85 seconds. The 85-second sample reported no OOM kills. Capture the final runner exit code and receipt summary before assessing hosted capacity.
 
 ### Staging environment provisioning
 
@@ -159,6 +161,7 @@ The local two-learner smoke at the 15-second worker cadence and eight-second sta
 - The runner at `7bf20162` applied the shared community admin prerequisite and reached `20261127083000_auto_apply_manual_review.sql`. Container `af9b35684f6d` exited with code 0. The scratch database accounted for all 121 backend migration files and two additional shared community migrations. The runner's original count of 122 included one of the shared migrations.
 - In `edutu_stage_rehearsal`, a fictional learner started a queued attempt with a fictional CV snapshot. Calling the same backend function again returned the same attempt and left usage at one. The authenticated database role had no direct execute access. The transaction rolled back with zero fixture attempts remaining. The API's `postgres` database still had no Edutu profile table. The one-shot migration profile was disabled in Dokploy and the persisted setting was verified after reload.
 - The API's `postgres` database on staging container `694a31e0b658` now contains the rehearsed Edutu schema. A PostgreSQL schema-only archive supplied objects absent from the target catalog. The transfer excluded fixture bookkeeping and CLI migration history and copied no source rows. It first passed inside a rollback transaction, then committed with the checked-in private 10 MiB `cv-files` bucket settings. The API database passed the fictional CV snapshot, retry and single allowance, direct client denial, and fixture cleanup checks. All five staging data containers remained healthy. This is a schema baseline, so apply future migrations relative to `20261127083000` instead of replaying the historical migration stream on this database.
+- The running API reported missing billing relations and `billing_provider_events.provider_reference`. The isolated staging database received the provider subscription and entitlement table definitions from shared migration `20260811120000`, the subscription lifecycle columns from `20260830120000`, and the indexed provider reference from `20261003120000`. The transaction verified empty subscription and entitlement tables, service-role access, removal of direct client grants, and the provider reference field before commit. It did not seed billing accounts or enable products.
 
 The current authorization covers staging and synthetic learner data. A production deployment or real applicant rollout needs explicit authorization and a separate release decision after the staging checks pass.
 
